@@ -21,10 +21,10 @@
 
 ### 验证情况
 
-- **自动化测试 124 项**，全部通过（`npm test`；Windows 11 + Node 24 实测）：
+- **自动化测试 133 项**，全部通过（`npm test`）：
   - 正向 WebSocket 适配器 19 项
   - 反向 WebSocket 适配器 12 项
-  - Host 插件 29 项（含 `Config` 契约与配置热更新：volatile 就地更新 → 重启适配器）
+  - Host 插件 38 项（含 `Config` 契约与配置热更新：volatile 就地更新 → 重启适配器）
   - 客户端设置页 32 项
   - 权限 / 群管理 / 访客工具闸 32 项（`@deepseek-ai/dsh-tools` 可解析时另含 qqgroup 工具路径断言）
 - 测试用的 QQ 侧对端是项目自带的**零依赖 OneBot 11 模拟器**（`test/mock-onebot.mjs`，手写 RFC 6455 帧编解码），
@@ -47,7 +47,7 @@
 2. **`lib/index.js` 作为已安装插件在真实 Cordis 宿主中的运行时行为，作者未直接观察到**。
    等价逻辑以动态 Package 形态跑通过；打包、清单、模块解析、组合预检是分别验证的。
    因此"装包 → 重启 → 实际可用"这一步请以你自己环境的实测为准。
-3. **Windows 兼容性已在 0.6.1 实测**（Windows 11 + Node 24，124 项全绿）。macOS 仍未测试。
+3. **Windows 兼容性已在 0.6.1 实测**（Windows 11 + Node 24，124 项全绿），0.6.3 在 Linux（Ubuntu）实测 133 项全绿。macOS 仍未测试。
    0.6.0 及更早只在 Linux（含 Android proot 容器）下验证过；在 Windows 上，测试脚本里的
    `import(path.join(...))` 会报 `ERR_UNSUPPORTED_ESM_URL_SCHEME`。
 4. **设置契约按 DSH 0.1.7 实现**：0.1.7 移除了 `settings.register()`，改为读插件自己导出的
@@ -71,7 +71,7 @@
 - **NapCat**、**AstrBot**、**LLOneBot**、**Lagrange** 等是各自独立的项目，本项目**不包含**它们的代码，
   仅在文档中作为可对接的实现被提及。
 - **`@deepseek-ai/dsh-*`** 是 DSH 运行时，本项目以 **peerDependency** 方式使用，不打包、不分发。
-- 本项目**运行时零 npm 依赖**：适配器只用 Node 22 内置的 `WebSocket` 与 `fetch`；
+- 本项目运行时唯一依赖 `@deepseek-ai/schemastery`（Config schema 用）；
   唯一可选的 `@deepseek-ai/dsh-tools` 仅用于注册一个动态工具，缺失时功能会自动降级。
 
 ### 项目成本
@@ -87,13 +87,10 @@
 说明：会话中途切换过多个模型；时间由文件系统时间戳推算，非精确计时。
 也就是说，这个项目的全部代码、测试与文档，**成本大概是一杯咖啡，以及一个无聊的下午**。
 
-### 维护状态：不承诺更新
+### 维护状态：继续维护
 
-**本项目到此封版，作者不做持续性维护**：不承诺修 bug、不适配上游破坏性变更、不接受功能请求。
-功能是完整的、124 项测试是全绿的，但后续请自行负责。
-
-遇到问题（包括 DSH 升级、NapCat 改字段、OneBot 实现换代、或者想加自动治理）——
-**fork 下来自己改**。MIT 许可，随便改、随便发，不用打招呼。
+本仓库是 fork 自上游的**继续维护版**：修复 bug、适配 DSH 变更。
+原作者的封版版本（0.6.x 及更早）请到上游 [arrow1031/dsh-qq-bot](https://github.com/arrow1031/dsh-qq-bot) 安装。
 
 为了让动手快一点，仓库里有 [ARCHITECTURE.md](ARCHITECTURE.md)：文件职责地图、一条消息的完整旅程、
 每个设计决策的原因、以及「想加一条指令 / 一个工具 / 一个设置项」的分步指南。
@@ -108,7 +105,7 @@
 
 ### 许可与作者
 
-[MIT](LICENSE) · 作者 [@arrow1031](https://github.com/arrow1031) · 个人网站 <https://sputnikzaychik.icu> · QQ 群 [1091766276](https://qun.qq.com/universal-share/share?ac=1&authKey=z%2FlfWodgOvkDnUTzUZ3%2BNoYGInkfTKCyMfmxO8uyGa%2Bx%2BKmF4ILvUvzqSb6mEJoE&busi_data=eyJncm91cENvZGUiOiIxMDkxNzY2Mjc2IiwidG9rZW4iOiJuY0Z3eEkzeUJWUkROYUNwWnNhblY3VlQrWWh1NURVbDZlUDRZNHZKSFlGWEJnOFRhazB6VUVaV0ZoMzVZVjg2IiwidWluIjoiMzE5NTQzODg2In0%3D&data=qPi85PPH3R-8HaJ9_U2u0zi7KCjzwplsRb-xisY3XAiBsWzopanij924BvV0sfj_cspqyTWemKx0YnNIHTjjGQ&svctype=4&tempid=h5_group_info)
+[MIT](LICENSE) · 原作者 [@arrow1031](https://github.com/arrow1031) · 维护 [@nd002723](https://github.com/nd002723) · 维护仓库 <https://github.com/nd002723/dsh-qq-bot>
 
 ---
 
@@ -120,7 +117,7 @@ No source code from third-party projects was copied into this repository.
 
 - **Generated with:** an AI coding agent running on DeepSeek Harness (DSH), inside a mobile container.
 - **Verification:** the browser-side settings page was **manually confirmed on a real device** (tab visible, fields render, read/write behaves).
-  124 automated checks pass on Windows 11 + Node 24 (`npm test`), covering the forward/reverse WebSocket adapter,
+  133 automated checks pass (`npm test`), covering the forward/reverse WebSocket adapter,
   the Host plugin (loaded with a fake `ctx` against a real adapter and a real mock OneBot peer),
   the browser-side settings page, and the permission/group-management subsystem.
   The QQ-side peer used throughout is a zero-dependency OneBot 11 simulator bundled in `test/`,
@@ -135,7 +132,7 @@ No source code from third-party projects was copied into this repository.
    Equivalent logic was exercised as a dynamic Cordis package; packaging, manifest, module resolution
    and composition preflight were verified separately. Please validate install → restart → run in your
    own environment.
-3. **Windows support was measured in 0.6.1** (Windows 11 + Node 24; 124 checks pass). macOS remains untested.
+3. **Windows support was measured in 0.6.1** (Windows 11 + Node 24; 124 checks pass); 0.6.3 was measured on Linux (Ubuntu) with 133 checks green. macOS remains untested.
    0.6.0 and earlier were verified on Linux only (including an Android proot container).
 4. **The settings contract follows DSH 0.1.7**: `settings.register()` was removed, so the plugin exports a
    `Config` schema whose editable fields are marked `.volatile()`. If upstream reshapes that contract again,
@@ -146,8 +143,8 @@ No source code from third-party projects was copied into this repository.
 **Third-party attribution:** OneBot 11 is an open protocol standard (botuniverse) — this project is an
 independent client implementation and copies none of its code. NapCat, AstrBot, LLOneBot and Lagrange are
 separate projects and are **not** bundled. `@deepseek-ai/dsh-*` packages are consumed as peer dependencies
-and are not redistributed. The project has **zero runtime npm dependencies**: the adapter uses only Node 22's
-built-in `WebSocket` and `fetch`.
+and are not redistributed. The only runtime dependency is `@deepseek-ai/schemastery` (for the Config schema);
+the adapter uses only Node 22's built-in `WebSocket` and `fetch`.
 
 **Security:** group management includes destructive actions (mute, kick, recall, rename). Authorization
 chains and a dry-run mode are built in, but **responsibility rests with the operator** — enable dry-run first.

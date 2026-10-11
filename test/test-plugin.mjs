@@ -83,6 +83,16 @@ const disposers = [];
 const registeredTools = [];
 const createdSessions = [];
 const agents = new Map();
+// 工作区 mock：让插件走「会话 attach 到 QQ_msg 分组」的路径。
+const fakeWorkspaces = new Map();
+const fakeWorkspaceRegistry = {
+  async resolveByPath(p) { return fakeWorkspaces.get(p); },
+  async create(p, title) {
+    const ws = { id: 'ws-' + (fakeWorkspaces.size + 1), path: p, title };
+    fakeWorkspaces.set(p, ws);
+    return ws;
+  },
+};
 
 function fakeAgent(sessionId) {
   const messages = [];
@@ -160,6 +170,11 @@ const ctx = {
       };
     },
   },
+  // Cordis 的 ctx.<服务> 需要 inject；ctx.reflect.get(name) 是免注入读服务。
+  reflect: {
+    get(name) { return name === 'workspaceRegistry' ? fakeWorkspaceRegistry : undefined; },
+  },
+  workspaceRegistry: fakeWorkspaceRegistry,
   sessionController: {
     async create(request) { createdSessions.push(request); return { sessionId: request.sessionId }; },
     async resolveAgent(sessionId) {
@@ -170,13 +185,36 @@ const ctx = {
   timeout(cb, delay) { const t = setTimeout(cb, delay); return () => clearTimeout(t); },
   effect(fn) { const d = fn(); if (typeof d === 'function') disposers.push(d); return () => {}; },
   tools: { register(tool) { registeredTools.push(tool); return () => {}; } },
+  // 图片视觉桩：saveImage 返回假 ref；resolveModelInfo 返回能力；stream 产出识别文本。
+  attachments: {
+    async saveImage({ data, mediaType }) {
+      return { attachmentId: 'test-img-' + (visionRefs.length + 1), mediaType, bytes: data, width: 0, height: 0 };
+    },
+  },
+  llm: {
+    async resolveModelInfo(provider, model) {
+      visionCalls.push({ kind: 'resolve', provider, model });
+      if (visionModelModalities !== null) return { provider, model, inputModalities: visionModelModalities };
+      throw new Error('no such model');
+    },
+    async *stream(options) {
+      visionCalls.push({ kind: 'stream', provider: options.provider, model: options.model });
+      yield { type: 'text-delta', index: 0, text: '【视觉识别】画面里是一只白猫' };
+      yield { type: 'text-delta', index: 0, text: '，坐在窗台上。' };
+    },
+  },
 };
+const visionRefs = [];
+const visionCalls = [];
+let visionModelModalities = null;
 
 try {
   const mod = await import(pathToFileURL(path.join(PKG_ROOT, 'lib', 'index.js')).href);
   check('模块导出了 name/inject/apply', mod.name === 'dsh-qq-bot' && Array.isArray(mod.inject) && typeof mod.apply === 'function');
   check('inject 声明了 subprocess/sessionController/timer',
     mod.inject.includes('subprocess') && mod.inject.includes('sessionController') && mod.inject.includes('timer'));
+  check('inject 声明了 attachments/llm（图片视觉依赖）',
+    mod.inject.includes('attachments') && mod.inject.includes('llm'));
 
 
   console.log('\n1. 加载插件（正向 WS 连假 OneBot）');
@@ -184,6 +222,7 @@ try {
   const validated = mod.Config['~standard'].validate({
     onebot: { wsUrl: mock.wsUrl, httpUrl: mock.httpUrl },
     reply: { ackAfterMs: 0 },
+    vision: { enabled: true, provider: 'mock-provider', model: 'vision-exp' },
   });
   check('Config.validate 没有 issues', validated.issues === undefined, JSON.stringify(validated.issues));
   const liveConfig = validated.value;
@@ -250,7 +289,7 @@ try {
   let schemaJson = null;
   try { schemaJson = mod.Config.toJSON(); JSON.stringify(schemaJson); } catch (error) { schemaJson = null; }
   check('Config.toJSON() 可 JSON 序列化（describe 需要）', schemaJson !== null && typeof schemaJson === 'object');
-  check('工作目录配置项存在', typeof liveConfig.workspace.get() === 'string');
+  check('工作目录配置项已移除（工作区自动管理）', liveConfig.workspace === undefined || liveConfig.workspace === null);
 
   console.log('\n2. 动态工具注册（走真的 defineTool）');
   const tool = registeredTools.find((t) => t.name === 'qqbot');
@@ -282,6 +321,7 @@ try {
   check('首轮追加了人格提示', replyText.includes('这是一次 QQ 聊天'), JSON.stringify(replyText.slice(0, 40)));
   check('会话通过 sessionController 创建', createdSessions.length === 1 && createdSessions[0].sessionId === 'qqbot-group-33333',
     JSON.stringify(createdSessions.map((s) => s.sessionId)));
+  check('会话传了 workspaceId（自动归入 QQ_msg 分组）', typeof createdSessions[0].workspaceId === 'string' && createdSessions[0].workspaceId.startsWith('ws-'), JSON.stringify(createdSessions[0]));
 
   console.log('\n4. 群里没 @ 机器人 -> 忽略');
   const before = mock.sent.length;
@@ -291,6 +331,64 @@ try {
   });
   await sleep(1500);
   check('未 @ 的消息没有触发回复', mock.sent.length === before, String(mock.sent.length - before));
+
+  console.log('\n4b. 图片视觉：模型支持时识别并入 Agent 输入');
+  // 给 example.com 的图片 URL 装 fetch 桩（返回假 PNG），其余请求走真实 fetch。
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith('https://example.com/cat.png')) {
+      return {
+        ok: true, status: 200,
+        headers: { get: (h) => (String(h).toLowerCase() === 'content-type' ? 'image/png' : null) },
+        arrayBuffer: async () => new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]).buffer,
+      };
+    }
+    return realFetch(url, init);
+  };
+  visionModelModalities = ['text', 'image'];
+  const sentBeforeVision = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [
+        { type: 'at', data: { qq: '10000' } },
+        { type: 'image', data: { url: 'https://example.com/cat.png' } },
+        { type: 'text', data: { text: '看看这张图' } },
+      ],
+    }),
+  });
+  const visionSent = await waitFor(() => (mock.sent.length > sentBeforeVision ? mock.sent[mock.sent.length - 1] : null), 15000, '视觉回复到达假 OneBot');
+  check('图片消息触发了回复', Boolean(visionSent), 'sent=' + mock.sent.length);
+  const visionReply = visionSent.message[0].data.text;
+  check('调用了 llm.resolveModelInfo + stream', visionCalls.some((c) => c.kind === 'resolve') && visionCalls.some((c) => c.kind === 'stream'),
+    JSON.stringify(visionCalls));
+  check('图片被注册成附件（saveImage 调用）', visionCalls.filter((c) => c.kind === 'stream').length === 1,
+    String(visionCalls.filter((c) => c.kind === 'stream').length));
+  check('识别文本并入了 Agent 输入', visionReply.includes('【视觉识别】画面里是一只白猫，坐在窗台上。'),
+    JSON.stringify(visionReply.slice(0, 200)));
+
+  console.log('\n4c. 图片视觉：模型不支持 -> 可读报错（不进入 Agent）');
+  visionModelModalities = ['text'];
+  const sentBeforeUnsupported = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [
+        { type: 'at', data: { qq: '10000' } },
+        { type: 'image', data: { url: 'https://example.com/cat.png' } },
+        { type: 'text', data: { text: '看看这张图' } },
+      ],
+    }),
+  });
+  const unsupportedSent = await waitFor(() => (mock.sent.length > sentBeforeUnsupported ? mock.sent[mock.sent.length - 1] : null), 15000, '不支持报错到达假 OneBot');
+  check('模型不支持时仍回复（可读报错）', Boolean(unsupportedSent), 'sent=' + mock.sent.length);
+  const unsupportedReply = unsupportedSent.message[0].data.text;
+  check('报错提示了切换模型', unsupportedReply.includes('不支持图片识别') && unsupportedReply.includes('图片视觉'),
+    JSON.stringify(unsupportedReply.slice(0, 200)));
+  check('未进入 Agent（没有识别流）', visionCalls.filter((c) => c.kind === 'stream').length === 1,
+    String(visionCalls.filter((c) => c.kind === 'stream').length));
 
   console.log('\n5. 工具 status 动作');
   const status = hasDshTools === true ? await tool.execute({ action: 'status' }, {}) : null;

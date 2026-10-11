@@ -2,7 +2,22 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
-> **0.6.0 是本次公开发布的最终版本**，作者不承诺后续更新——详见 README 的「维护状态」一节。
+## 0.6.3
+
+继续维护版（fork 自 [arrow1031/dsh-qq-bot](https://github.com/arrow1031/dsh-qq-bot)）：工作区自动管理，会话自动归入分组。
+
+- **工作区自动管理**：移除 `workspace` 配置项；自动读取 DSH 官方默认 Workspace 位置（`<系统 Documents>/deepseek-harness`），在其同级目录创建 `QQ_msg` 并注册为 DSH workspace——Web UI 侧栏的「QQ 消息」分组，**新会话自动归入该分组**（通过 Cordis `ctx.reflect.get('workspaceRegistry')` 免注入读服务，缺失时自动回退）。
+- **图片缓存结算清理**：带图消息的原图缓存到 `QQ_msg/qq-images/<会话id>/`，会话结算后自动删除，会话与工作区保留。
+- **测试**：`npm test` **133 项全绿**（test-plugin 38 项，含分组断言）。
+
+## 0.6.2
+
+继续维护版：图片视觉增强、图片缓存导出。
+
+- **图片视觉**：`vision` 配置新增 provider / model 下拉选择（从 DSH 自定义 providers 选，协议 / baseURL / apiKey 沿用）；模型不支持图片时给可读报错并引导切换。
+- **图片缓存导出**：带图消息的原图缓存到 `<QQ_msg>/qq-images/<会话id>/`，会话结算后自动删除；消息附上识图结果与图片路径，并提示 Agent 结合用户发言作答、需确认身份时提炼关键词联网查证，勿凭空猜测。
+- **插件标准**：package.json 补 `engines.dsh` 版本范围与 `dsh.runtime: host`。
+- **测试**：`npm test` **133 项全绿**（test-plugin 38 项）。
 
 ## 0.6.1
 

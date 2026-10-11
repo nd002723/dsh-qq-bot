@@ -1,16 +1,9 @@
 # dsh-qq-bot —— 把 QQ 接到 DSH Agent
 
-> ### ⚠️ 维护状态：**已封版，不承诺更新**
-> 功能完整、124 项测试全绿，但作者**不做持续性维护**——不修 bug、不适配上游变更、不接受功能请求。
-> 遇到问题请 **fork 下来自己改**（MIT 许可，随便改随便发）。
-> 为方便动手，仓库里有 **[ARCHITECTURE.md](ARCHITECTURE.md)**：文件职责、数据流、设计决策原因、分步改动指南。
->
-> **兼容性**：**0.6.1 起要求 DSH ≥ 0.1.7**。0.1.7 重做了设置契约（`settings.register` 已被移除），
-> 0.6.0 在 0.1.7 上注册设置会失败。DSH 0.1.6 及更早请用 0.6.0。
+> **兼容性**：本版要求 **DSH ≥ 0.1.7**。需要兼容 DSH 0.1.6 及更早的旧版本（0.6.0 / 0.6.1），
+> 请到**上游原仓库** [arrow1031/dsh-qq-bot](https://github.com/arrow1031/dsh-qq-bot) 安装（原版已封版）。
 
-**作者** [@arrow1031](https://github.com/arrow1031) · **许可** [MIT](LICENSE) · **AI 生成声明与已知限制** [AI-DISCLOSURE.md](AI-DISCLOSURE.md) · **更新日志** [CHANGELOG.md](CHANGELOG.md)
-
-**个人网站** [sputnikzaychik.icu](https://sputnikzaychik.icu) · **QQ 群** [1091766276](https://qun.qq.com/universal-share/share?ac=1&authKey=z%2FlfWodgOvkDnUTzUZ3%2BNoYGInkfTKCyMfmxO8uyGa%2Bx%2BKmF4ILvUvzqSb6mEJoE&busi_data=eyJncm91cENvZGUiOiIxMDkxNzY2Mjc2IiwidG9rZW4iOiJuY0Z3eEkzeUJWUkROYUNwWnNhblY3VlQrWWh1NURVbDZlUDRZNHZKSFlGWEJnOFRhazB6VUVaV0ZoMzVZVjg2IiwidWluIjoiMzE5NTQzODg2In0%3D&data=qPi85PPH3R-8HaJ9_U2u0zi7KCjzwplsRb-xisY3XAiBsWzopanij924BvV0sfj_cspqyTWemKx0YnNIHTjjGQ&svctype=4&tempid=h5_group_info)
+**维护者** [@nd002723](https://github.com/nd002723) · **原作者** [@arrow1031](https://github.com/arrow1031) · **许可** [MIT](LICENSE) · **AI 生成声明** [AI-DISCLOSURE.md](AI-DISCLOSURE.md) · **更新日志** [CHANGELOG.md](CHANGELOG.md)
 
 一个可以装进 DSH profile 的插件：QQ 消息进来 → 交给 DSH Agent → 回复发回 QQ。
 
@@ -41,15 +34,13 @@ DSH Agent（默认模型 + preset 人格 + 工具）
 | --- | --- | --- |
 | 正向 WS 适配器回归 | `node test/test-adapter.mjs` | **19/19** |
 | 反向 WS 适配器回归 | `node test/test-adapter-reverse.mjs` | **12/12** |
-| 打包后插件端到端（Host） | `node test/test-plugin.mjs` | **29/29** |
+| 打包后插件端到端（Host） | `node test/test-plugin.mjs` | **38/38** |
 | 客户端设置页（含真实渲染冒烟） | `node test/test-client.mjs` | **32/32** |
 | 权限·群管理·访客工具闸 | `node test/test-admin.mjs` | **32/32** |
 | 组合能否加载 | `dsh --profile web --dump-config --patch <补丁>` | 通过（行被正确插入） |
 | 装到 profile 后的模块解析 | 解包到 profile 后 `import('@deepseek-ai/dsh-tools')` | 通过 |
 
-`test-plugin.mjs` 用假 ctx（自己实现了 subprocess / sessionController / timer / effect / tools）加载**真正的 lib/index.js**，配一个**真的假 OneBot 服务**，跑完整条链路：假 QQ 消息 → 假 OneBot → 真适配器 → 真插件 → 假 Agent → 回复 → 真适配器 → 假 OneBot。所以不需要 DSH、不需要 QQ 号、不需要网络就能回归。
-
-另外，本插件的前身（`examples/dynamic-package-host.js`）曾用**动态 Cordis Package** 的形式在真 DSH 里跑过完整链路：真模型回复、会话落盘、`qqbot` 工具注册都验过。所以 Cordis 服务接线本身也是验证过的。
+`test-plugin.mjs` 用假 ctx 加载真正的 `lib/index.js` + 真适配器 + 零依赖 OneBot 模拟器，跑通完整链路（无需 DSH / QQ / 网络）。
 
 ## 二、快速开始
 
@@ -74,36 +65,32 @@ docker run -d --name napcat --restart=always \
 
 ### 2. 安装插件
 
-本插件**不在 npm 上**，从仓库或 Release 附件装（仓库地址：<https://github.com/arrow1031/dsh-qq-bot>）：
+本插件**不在 npm 上**，从本仓库或 Release 附件装（维护仓库：<https://github.com/nd002723/dsh-qq-bot>）：
 
 ```sh
 # 方式一：直接从 GitHub 仓库装（默认跟 main 分支）
-dsh plugin --profile web add github:arrow1031/dsh-qq-bot
+dsh plugin --profile web add github:nd002723/dsh-qq-bot
 
 # 想锁版本就用 tag（推荐生产环境）
-dsh plugin --profile web add github:arrow1031/dsh-qq-bot#v0.6.1
+dsh plugin --profile web add github:nd002723/dsh-qq-bot#v0.6.3
 
 # 方式二：用 Release 里打好的 tarball（固定版本）
 dsh plugin --profile web add \
-  https://github.com/arrow1031/dsh-qq-bot/releases/download/v0.6.1/dsh-qq-bot-0.6.1.tgz
+  https://github.com/nd002723/dsh-qq-bot/releases/download/v0.6.3/dsh-qq-bot-0.6.3.tgz
 
 # 方式三：本地 tarball（自己改了代码之后）
 npm pack
-dsh plugin --profile web add ./dsh-qq-bot-0.6.1.tgz
+dsh plugin --profile web add ./dsh-qq-bot-0.6.3.tgz
 ```
 
 `--profile` 换成你实际在用的 profile：**桌面版是 `--profile desktop`**，`dsh web` 部署一般是 `--profile web`。
 
 `dsh plugin` 本质是 pnpm 的前置封装：装完包后，它会**自动把声明了 `dsh.bundle.patch` 的依赖加入 profile 的层栈**（本包的 package.json 已声明），并连同唯一的运行时依赖 `@deepseek-ai/schemastery` 一起装上。装完**重启 DSH（桌面版重启应用 / CLI 重启 `dsh web`）**生效。
 
-> **版本要求**：`0.6.1` 及以后要求 **DSH ≥ 0.1.7**。DSH 0.1.6 及更早请用 `0.6.0`。
+> **版本要求**：本版（`0.6.3`）及 `0.6.1` 要求 **DSH ≥ 0.1.7**；DSH 0.1.6 及更早请到上游原仓库用 `0.6.0`。
 
-> **升级注意（重要）**：`dsh plugin add` 转发给 pnpm，而 pnpm 按 tarball 的**完整性哈希**缓存。
-> 改了代码必须**打成新的版本号文件名**再装（0.6.0 → 0.6.1）；沿用同一个文件名会被判成「lockfile 已最新」而跳过，装的还是旧内容。
-> `npm pack` 默认就带版本号，所以正常发版流程不会踩到。
-
-> **客户端改动要多一步**：`lib/client.js` 是浏览器侧代码，装好并重启之后，
-> **还要刷新浏览器页面**才会加载新的客户端 bundle。
+> **升级注意**：`dsh plugin add` 走 pnpm，按 tarball **完整性哈希**缓存——改了代码要打成**新版本号文件名**再装（0.6.0 → 0.6.1），沿用旧名会被判「已最新」跳过。
+> `lib/client.js` 是浏览器侧代码，装完重启后还要**刷新浏览器页面**才加载新 bundle。
 
 ### 3. 在 QQ 里试
 
@@ -127,7 +114,8 @@ dsh plugin --profile web add ./dsh-qq-bot-0.6.1.tgz
 
 重启 `dsh web` 后，打开 **设置 → QQ 机器人**，所有配置都在这一个选项卡里：
 连接方式、WS/HTTP 地址、access_token、群聊开关与 @ 要求、白名单、命令前缀、
-回复分片长度、慢回复提示、来源前缀、每会话独立、preset、工作目录、逐帧日志。
+回复分片长度、慢回复提示、来源前缀、每会话独立、preset、逐帧日志、
+图片视觉（开关 / provider / model / 最多张数 / 下载超时）。
 
 - 改完点「保存」；**连接方式那几项**（模式/地址/token）保存后会自动重启适配器，其它项下一条消息生效。
 - 类型映射：布尔是勾选框；白名单是逗号分隔的文本框；连接方式是下拉框。
@@ -139,6 +127,18 @@ dsh plugin --profile web add ./dsh-qq-bot-0.6.1.tgz
 - `access_token` 是**只写**字段：已设置时页面显示「已设置；留空则保持不变」，只有输入新值才会覆盖。
   Host 侧把它声明成 schema 的 secret，值不会下发到浏览器，保存时也不会被空值清掉。
 
+### 工作区（自动管理，无需配置）
+
+Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方默认 Workspace 的位置
+（`<系统 Documents>/deepseek-harness`），在它的同级目录自动创建 `QQ_msg` 作为工作区根，
+并注册为 DSH workspace——**Web UI 会话侧栏的「QQ 消息」分组**，新 QQ 会话自动归入该分组：
+
+- Windows：`C:\Users\<用户名>\Documents\deepseek-harness\QQ_msg`
+- Linux / macOS：`~/Documents/deepseek-harness/QQ_msg`（系统没有 Documents 目录时退到 `~/deepseek-harness/QQ_msg`）
+
+带图消息的原图缓存放在 `QQ_msg/qq-images/<会话id>/`，**会话结算后自动删除该缓存**，
+会话与工作区本身保留。旧的 `workspace` 配置项已废弃移除。
+
 ### 方式二：改 composition 行配置（当 base 层用）
 
 **不要改包内的 `cordis.patch.yml`**（升级会覆盖）。写进你自己的
@@ -147,8 +147,7 @@ dsh plugin --profile web add ./dsh-qq-bot-0.6.1.tgz
 ```yaml
 - id: dsh-qq-bot
   config:
-    mode: forward                 # forward | reverse
-    workspace: '/home/dsh'        # 每个 QQ 会话 Agent 的工作目录
+    mode: forward                 # forward | reverse（工作区自动管理，见上文）
     onebot:
       wsUrl: 'ws://127.0.0.1:3001'      # mode=forward 用
       listen: '0.0.0.0:6199'            # mode=reverse 用
@@ -189,9 +188,21 @@ dsh plugin --profile web add ./dsh-qq-bot-0.6.1.tgz
     adapterPath: ''               # ''=用包内自带适配器
     nodePath: ''                  # ''=自动解析 node
     logAdapterFrames: false       # 排查时开，会打印每一帧 JSON
+    vision:
+      enabled: true               # 图片视觉：收到图片时用视觉模型识别并并入回复
+      provider: ''                # 视觉 provider 路由（留空 = 会话模型；复用 DSH 自定义 providers）
+      model: ''                   # 视觉模型 id（留空 = 会话模型；如 deepseek-v4-flash-vision-exp）
+      maxImages: 3                # 单条消息最多送入的图片数
+      downloadTimeoutMs: 10000    # 图片下载超时（毫秒）
 ```
 
 `agentPreset` 是换人格的正规做法：给 QQ 机器人做一个专属 preset，把 id 填进来。
+
+### 图片视觉（vision）
+
+收到图片时用视觉模型识别并并入 Agent 输入（原图缓存到 `<QQ_msg>/qq-images/<会话id>/`，会话结算后删除）。
+`provider` / `model` 留空 = 会话模型；`deepseek-v4-flash-0731` 实测**不真正支持图片**，
+请切到 `deepseek-v4-flash-vision-exp` 等视觉模型（需在 DSH providers 里声明 `input: [text, image]`）。
 
 ## 五、权限与群管理
 
@@ -324,7 +335,7 @@ npm install
 装好之后裸克隆即可运行：需要 DSH 运行时才能成立的少数断言（动态工具注册、qqgroup 工具路径）
 会自动跳过，而不是判失败；想看全，把 `DSH_PROFILE_MODULES` 指向一个装了 DSH 运行时的 profile 的
 `node_modules`。
-整套 **124 项**：
+整套 **133 项**：
 
 ```sh
 npm test
@@ -338,7 +349,7 @@ node test/test-adapter.mjs
 node test/test-adapter-reverse.mjs
 
 # 打包后插件的端到端（假 ctx + 真适配器 + 假 OneBot）
-node test/test-plugin.mjs     # Host 半边（29 项，含 Config 契约与热更新）
+node test/test-plugin.mjs     # Host 半边（38 项，含 Config 契约与热更新）
 node test/test-client.mjs     # 客户端设置页（32 项）
 node test/test-admin.mjs      # 权限·群管理·访客工具闸（32 项；dsh-tools 可解析时另含工具路径断言）
 ```
@@ -353,17 +364,11 @@ node -e "fetch('http://127.0.0.1:3000/__inject',{method:'POST',headers:{'content
 node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console.log(JSON.stringify(j.messages,null,2)))"
 ```
 
-## 九、关于 AstrBot（容易搞混，单独说）
+## 九、关于 AstrBot
 
-**AstrBot 不是 OneBot 的提供方，它是消费方。** 它的 aiocqhttp 适配器是 OneBot v11 的**反向 WS 服务端**（默认 6199 端口、`/ws` 路径），由 NapCat 连进去推事件——也就是说 AstrBot 本身就是「大脑」，和本插件的角色重叠。
-
-所以：
-
-- 想用 **DSH 当大脑** → 只需要 NapCat 这类 OneBot 实现，对端**不要**再接 AstrBot，否则两边都会抢着回复同一条消息。
-- 想用 **AstrBot 的插件生态当大脑** → 那就不需要本插件了。
-- 两者可以共存于同一个 DSH 里（NapCat 同时开正向 WS 给本插件、反向 WS 给 AstrBot），但**同一条消息会被两个大脑各回一次**，一般不是你要的。
-
-对端是「OneBot 11 实现」就行，NapCat / OneDisc / Lagrange / LLOneBot 都可以，只要开正向或反向 WS + HTTP。
+AstrBot 是 OneBot 的**消费方**（内置 aiocqhttp 反向 WS 服务端），和本插件角色重叠。
+用 DSH 当大脑就别再接 AstrBot，否则同一条消息会被两个大脑各回一次。
+对端只要是「OneBot 11 实现」（NapCat / OneDisc / Lagrange / LLOneBot 等）就行。
 
 ## 十、在手机容器里跑 NapCat 的注意事项
 
@@ -383,67 +388,37 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 | `test/mock-onebot.mjs` | 零依赖 OneBot 11 模拟器（手写 RFC 6455 帧编解码） |
 | `test/test-adapter.mjs` | 正向 WS 适配器回归（19 项） |
 | `test/test-adapter-reverse.mjs` | 反向 WS 适配器回归（12 项） |
-| `test/test-plugin.mjs` | Host 插件端到端（29 项，假 ctx + 真适配器 + Config 契约 + 配置热更新） |
+| `test/test-plugin.mjs` | Host 插件端到端（38 项，假 ctx + 真适配器 + Config 契约 + 配置热更新） |
 | `test/test-client.mjs` | 客户端设置页（32 项，模拟模块加载器 + 最小 React 渲染 + 只写密钥护栏 + 命名空间回退） |
 | `test/test-admin.mjs` | 权限·群管理·访客工具闸专项（32 项；dsh-tools 可解析时另含工具路径断言） |
 | `examples/dynamic-package-host.js` | 同一个桥接的「动态 Cordis Package」版本：不想装包、只想在当前 DSH 进程里临时跑时用 |
 | `ARCHITECTURE.md` | **改动指南**（给要 fork 的人）：文件职责、数据流、设计决策原因、分步改动指南、调试手册、术语表 |
 | `AI-DISCLOSURE.md` | AI 生成内容声明、验证情况、**尚未验证清单**、第三方归属、安全免责 |
-| `CHANGELOG.md` | 版本演进（0.1.0 → 0.6.0） |
+| `CHANGELOG.md` | 版本演进（0.1.0 → 0.6.3） |
 | `LICENSE` | MIT |
 
 ## 十二、设计说明（踩过的坑）
 
-**为什么中间要一个子进程？** DSH 动态插件的沙箱里没有 `fetch` / `WebSocket` / `require`（都被拦成报错）。所以插件用 `ctx.subprocess` 拉起一个真 Node 进程，两者用换行分隔 JSON 通信。好处是协议层可以独立测试（`test-adapter.mjs`），换 QQ 框架不影响插件。
-
-**为什么用 `sessionController` 建会话？** 直接 `agentLoop.create()` 建出来的 Agent **没有安装模型路由**（agentOptions 为空、没挂 preset），第一次模型请求必然失败。`sessionController.create()` + `resolveAgent()` 才是官方组装路径：它从 `agentDefaultModel` 装上 provider/model，并挂载 Agent preset（人格 + 工具）。这个坑在代码注释里标注了。
-
-**为什么用 `whenIdle()` + `deriveMessages()` 取回复？** 每个会话的回合是串行排队的，回合结束后会话日志里最新一条有文本的 assistant 消息就是这一轮的回复。比订阅作用域流式事件更简单也更稳。
-
-**访客工具闸为什么是 guard 而不是拆会话 / restrict？** 拆会话会把一个群变成两条历史，破坏对话一致性；`restrict` 是静态过滤器，按说话人变就要反复增删，工具面抖动会多记 `request/header`、更费 token。`tools.guard` 是每次执行才求值的函数：只在建 agent 时注册一次，判据是可变标志位，于是同时做到 0 额外 token、单会话单历史、不用改 DSH。另外标志位必须在**串行回合内部**设置——放在接收入口会被排队的两条消息互相覆盖，导致用错权限。
-
-**为什么设置契约必须跟着 DSH 0.1.7 改？** 0.1.7 删掉了 `settings-file` 包（独立的 `settings.yaml`）
-并把设置重做成「读 profile 里每个插件条目的 `Config` schema」——`settings.register()` 直接没了。
-插件因此必须导出一个 schemastery `Config`，且**可编辑字段都要标 `.volatile()`**：
-`volatileForm()` 只投影 volatile 字段，一个都没有就整个条目不进设置页；`write()` 对非 volatile
-路径也会直接拒绝。另一个坑是 volatile-only 变更**不会重挂插件**：`cordis-plugin-loader` 只在原地
-更新运行中 fiber 的配置引用并发 `loader/volatile-update`，所以插件要自己监听、自己刷新配置、
-自己决定什么时候重启适配器。
-
-**为什么用动态 `import('@deepseek-ai/dsh-tools')`？** `@deepseek-ai/*` 是 peerDependency，由 DSH 运行时提供（安装后在 `$DSH_HOME/profiles/node_modules` 里能解析到）。用动态 import + try/catch，即使这个包不在，桥接本身照样工作，只是少一个 `qqbot` 工具。
+- **为什么中间要子进程？** 动态插件沙箱没有 `fetch`/`WebSocket`/`require`，用 `ctx.subprocess` 拉真 Node 进程、换行分隔 JSON 通信；协议层可独立测试，换 QQ 框架不影响插件。
+- **为什么用 `sessionController` 建会话？** 直接 `agentLoop.create()` 建的 Agent 没装模型路由（首次请求必败）；`sessionController.create()` + `resolveAgent()` 才是官方组装路径（装 provider/model + preset）。
+- **为什么用 `whenIdle()` + `deriveMessages()` 取回复？** 回合串行排队，回合后会话日志最新一条有文本的 assistant 消息就是回复，比订阅流式事件简单稳。
+- **访客工具闸为什么用 guard？** 拆会话破坏对话一致性；`restrict` 是静态过滤器需反复增删。`tools.guard` 注册一次、每次执行才求值：0 额外 token、单会话单历史；标志位须在**串行回合内部**设置，否则排队消息互相覆盖权限。
+- **设置契约为什么跟 DSH 0.1.7 改？** 0.1.7 删了 `settings.register()`，改为读插件导出的 schemastery `Config`（可编辑字段必须 `.volatile()`）；volatile 变更不重挂插件，需监听 `loader/volatile-update` 自己刷新配置。
+- **为什么动态 `import('@deepseek-ai/dsh-tools')`？** peerDependency 由 DSH 提供；动态 import + try/catch，包不在时桥接照样工作，只是少一个 `qqbot` 工具。
 
 ## 十三、不想重启 DSH 也能先跑起来（动态 Cordis Package）
 
-装包需要重启 `dsh web`。如果你想**在当前进程里立刻试**，用动态 Package：
+装包要重启 `dsh web`；想**在当前进程里立刻试**，用 `examples/dynamic-package-host.js` 作动态 Package：
+交给 `cordis_define`（`code.host`）再 `cordis_run` 即可，与常驻插件**共用同一份磁盘源码**。
+优点：立刻生效、不用重启；限制：**DSH 一重启就没了**，长期在线还得装包。
+动态沙箱里没有 `require`/`fetch`/`setTimeout`，传输层必须靠 `ctx.subprocess` 拉子进程
+（这也是 `lib/onebot-adapter.mjs` 存在的原因）。
 
-动态插件的沙箱里没有 `import`/`require`，但可以用一个小加载器把磁盘上的同一个源文件当函数体求值：
-
-```js
-const SOURCE_FILE = '/home/dsh/qq-bot/examples/dynamic-package-host.js';
-
-return {
-  name: 'qq-bot-bridge (dynamic source loader)',
-  inject: ['fs', 'subprocess', 'sessionController', 'timer'],
-  async apply(ctx) {
-    const target = await ctx.fs.resolve(SOURCE_FILE);
-    const source = await ctx.fs.readText(target);
-    const factory = new Function('harness', 'console', 'TextDecoder', 'TextEncoder', 'btoa', 'atob', source);
-    return factory(harness, console, TextDecoder, TextEncoder, btoa, atob).apply(ctx);
-  },
-};
-```
-
-这样动态路径和常驻插件**共用同一份磁盘源码**，不用把逻辑复制两遍。把这段交给 `cordis_define`（`code.host`）再 `cordis_run` 即可。
-
-- 优点：立刻生效，不用重启；`inject` 和沙箱 `ctx` 的语法和常驻插件一致。
-- 限制：只活在当前 DSH 进程里，**DSH 一重启就没了**，要长期在线还是得装包。
-- 动态沙箱里没有 `require`/`fetch`/`setTimeout`，所以传输层必须靠 `ctx.subprocess` 拉子进程（这也是 `lib/onebot-adapter.mjs` 存在的原因）。
-
-## 十四、许可、成本与维护状态
+## 十四、许可与维护
 
 ### 许可与作者
 
-MIT，见 [LICENSE](LICENSE)。作者 [@arrow1031](https://github.com/arrow1031)。
+MIT，见 [LICENSE](LICENSE)。原作者与维护者见顶部（维护 [@nd002723](https://github.com/nd002723)）。
 
 ### 项目成本
 
@@ -457,21 +432,18 @@ MIT，见 [LICENSE](LICENSE)。作者 [@arrow1031](https://github.com/arrow1031)
 
 时间由文件系统时间戳推算，含人工真机确认与等待；会话中途切换过多个模型。
 
-### 维护状态：不承诺更新（请自行 fork）
+### 维护状态：继续维护
 
-**本项目到此封版。** 作者不做持续性维护：不承诺修 bug、不适配上游破坏性变更、不接受功能请求。
+本仓库是 fork 自上游的**继续维护版**：修复 bug、适配 DSH 变更。
+原作者的封版版本（0.6.x 及更早，兼容 DSH ≤ 0.1.6）请到上游 [arrow1031/dsh-qq-bot](https://github.com/arrow1031/dsh-qq-bot) 安装。
 
-- 遇到问题：**fork 下来自己改**。MIT 许可，随便改、随便发，不用打招呼。
-- 上游变了（DSH 升级 / NapCat 改字段 / OneBot 实现换代）：自己跟。
-- 想加功能（自动治理、更多指令、别的 IM）：自己加。
-
-为了让你改得快，这些文档是专门为你写的：
+为了让你改得快，这些文档是为你写的：
 
 | 文档 | 内容 |
 | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | **改动指南**：文件职责地图、一条消息的完整旅程、关键数据结构、每个设计决策的原因、`加一条指令 / 加一个工具 / 加一个设置项`的分步写法、调试手册、术语表、8 条"不要做的事" |
 | [AI-DISCLOSURE.md](AI-DISCLOSURE.md) | AI 生成方式、人类决策点、验证到什么程度、**尚未验证的清单**、第三方归属、安全免责 |
-| [CHANGELOG.md](CHANGELOG.md) | 0.1.0 → 0.6.0 的完整演进，含每个修复的原因 |
+| [CHANGELOG.md](CHANGELOG.md) | 0.1.0 → 0.6.3 的完整演进，含每个修复的原因 |
 
 ### 致谢
 
@@ -481,10 +453,9 @@ MIT，见 [LICENSE](LICENSE)。作者 [@arrow1031](https://github.com/arrow1031)
 
 ### 联系
 
-- 个人网站：<https://sputnikzaychik.icu>
-- QQ 群：[**1091766276**（点这里加群）](https://qun.qq.com/universal-share/share?ac=1&authKey=z%2FlfWodgOvkDnUTzUZ3%2BNoYGInkfTKCyMfmxO8uyGa%2Bx%2BKmF4ILvUvzqSb6mEJoE&busi_data=eyJncm91cENvZGUiOiIxMDkxNzY2Mjc2IiwidG9rZW4iOiJuY0Z3eEkzeUJWUkROYUNwWnNhblY3VlQrWWh1NURVbDZlUDRZNHZKSFlGWEJnOFRhazB6VUVaV0ZoMzVZVjg2IiwidWluIjoiMzE5NTQzODg2In0%3D&data=qPi85PPH3R-8HaJ9_U2u0zi7KCjzwplsRb-xisY3XAiBsWzopanij924BvV0sfj_cspqyTWemKx0YnNIHTjjGQ&svctype=4&tempid=h5_group_info)
-- GitHub：[@arrow1031](https://github.com/arrow1031)
+- 维护仓库：[nd002723/dsh-qq-bot](https://github.com/nd002723/dsh-qq-bot)（问题与 PR 都欢迎）
+- 原作者：[@arrow1031](https://github.com/arrow1031)
 
 AI 生成内容声明见 [AI-DISCLOSURE.md](AI-DISCLOSURE.md)，**使用前请务必读一遍**（尤其"已知限制"一节）。
 
-**运行时依赖**：零 npm 依赖。适配器只用 Node 22 内置的 `WebSocket` 与 `fetch`；唯一可选的 `@deepseek-ai/dsh-tools` 仅用于注册一个动态工具，缺失时自动降级。
+**运行时依赖**：`@deepseek-ai/schemastery`（Config schema 用）；`@deepseek-ai/dsh-tools` 可选（仅用于注册动态工具，缺失时自动降级）。适配器只用 Node 22 内置的 `WebSocket` 与 `fetch`。

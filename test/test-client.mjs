@@ -115,7 +115,6 @@ try {
     reply: { maxChars: 1200, ackAfterMs: 8000, ackText: '正在处理，请稍候…', firstTurnHint: 'x', contextHeader: true },
     perChatSession: true,
     agentPreset: '',
-    workspace: '',
     logAdapterFrames: false,
     auth: { owners: ['66666'], superAdmins: ['22222'], ownerPreset: '', guestPreset: '', grantTtlMinutes: 60, grantMaxTtlMinutes: 1440, guestDshTools: false, guestToolAllow: ['qqbot', 'qqgroup'] },
     admin: { enabled: true, manageGroups: [], requireGroupAdmin: true, prefix: '/', dryRun: false, allowConsole: false },
