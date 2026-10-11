@@ -290,19 +290,25 @@ try {
   try { schemaJson = mod.Config.toJSON(); JSON.stringify(schemaJson); } catch (error) { schemaJson = null; }
   check('Config.toJSON() 可 JSON 序列化（describe 需要）', schemaJson !== null && typeof schemaJson === 'object');
   check('工作目录配置项已移除（工作区自动管理）', liveConfig.workspace === undefined || liveConfig.workspace === null);
+  check('访客默认白名单含 qq_websearch 与 web_fetch',
+    Array.isArray(liveConfig.auth.guestToolAllow.get()) && liveConfig.auth.guestToolAllow.get().includes('qq_websearch') && liveConfig.auth.guestToolAllow.get().includes('web_fetch'),
+    JSON.stringify(liveConfig.auth.guestToolAllow.get()));
 
   console.log('\n2. 动态工具注册（走真的 defineTool）');
   const tool = registeredTools.find((t) => t.name === 'qqbot');
   if (hasDshTools !== true) {
     check('（跳过）工具注册需 @deepseek-ai/dsh-tools；路由/回复断言不受影响', true);
   } else {
-    check('注册了 qqbot + qqgroup 两个工具', registeredTools.length === 2, String(registeredTools.length));
-    check('工具名分别是 qqbot / qqgroup',
-      registeredTools.map((t) => t.name).sort().join(',') === 'qqbot,qqgroup',
+    check('注册了 qqbot + qqgroup + qq_websearch 三个工具', registeredTools.length === 3, String(registeredTools.length));
+    check('工具名分别是 qqbot / qqgroup / qq_websearch',
+      (() => { const names = registeredTools.map((t) => t.name); return names.includes('qqbot') && names.includes('qqgroup') && names.includes('qq_websearch'); })(),
       JSON.stringify(registeredTools.map((t) => t.name)));
     check('工具名是 qqbot', tool && tool.name === 'qqbot', String(tool && tool.name));
     check('defineTool 接受了参数 DSL（含 action）', Boolean(tool && tool.parameters && tool.parameters.properties && tool.parameters.properties.action),
       JSON.stringify(tool && tool.parameters));
+    const wsTool = registeredTools.find((t) => t.name === 'qq_websearch');
+    check('qq_websearch 参数含 query', Boolean(wsTool && wsTool.parameters && wsTool.parameters.properties && wsTool.parameters.properties.query),
+      JSON.stringify(wsTool && wsTool.parameters));
   }
 
   console.log('\n3. 群消息 @机器人 -> Agent -> 回复回 QQ');

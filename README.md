@@ -233,7 +233,7 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
 
 - 注册在 `agent.ctx` 上 → 只作用于该会话的 agent
 - 每次工具执行时才求值 → 拥有者/访客交替说话**不需要增删限制**
-- 用**白名单**（`auth.guestToolAllow`，默认 `qqbot,qqgroup`）→ `run_code`（PTC 保留传输）这类"不在全局层"的特殊工具也会被自动挡住
+- 用**白名单**（`auth.guestToolAllow`，默认 `qqbot,qqgroup,qq_websearch,web_fetch`）→ `run_code`（PTC 保留传输）这类"不在全局层"的特殊工具也会被自动挡住
 - 被拦时返回拒绝原因，模型会把它转达给用户（最多多一次"被拒绝的调用"往返）
 
 因此它同时满足：**0 额外 token**（不注入提示词、不改工具表、不记 `request/header`）、**单会话单历史**、**不改 DSH 本身**。
@@ -250,6 +250,8 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
 - 非拥有者走 `...-guest`，挂 `guestPreset`
 
 **这只是换人格，不是安全边界**——工具隔离由上面的 `guard` 负责。分流要付代价：同一个群会有两条历史，拥有者看不到访客说了什么。除非确实要给访客不同的说话风格，否则别开。
+
+全局 `agentPreset`（设置页下拉：部署默认 / standard / ptc / minimal / cordis）决定**新会话**用什么 preset，已建会话不变；分流时某方 preset 留空会自动回落 `agentPreset`。
 
 上下文头会带身份，例如 `[QQ群 33333 · 小明(22222) · 身份:访客｜本群管理员+动态授权[mute 至 ...]]`，让 Agent 自己决定怎么对待这个请求。
 
@@ -307,6 +309,15 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
 - `{action:'status'}` —— 连接状态、模式、适配器 pid/端口、各 QQ 会话的回合数、统计计数
 - `{action:'send', message_type:'group'|'private', target_id:'123', text:'...'}` —— 主动发一条 QQ 消息
 - `{action:'interrupt', conversation:'group-123'|'all'}` —— 中断正在跑的回合
+
+### qq_websearch（联网搜索）
+
+访客白名单内可直接调用的搜索：`{query, max_uses?}`，返回 `{ok, count, sources, text}`。
+后端走 DeepSeek web_search，`webSearch` 配置段可选 HTTP 代理（留空直连）/ 端点 / key 环境变量名（默认 `DEEPSEEK_BALANCE_API_KEY`，自动读 DSH 凭据服务）/ 每次最多触发次数。
+
+### web_fetch（抓公网原文）
+
+访客白名单内可跟进搜索结果原文；只允许公网 IP，内网/回环地址由 DSH 直接拒绝。
 
 ### qqgroup（群管理）
 

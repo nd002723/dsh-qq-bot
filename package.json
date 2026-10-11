@@ -1,6 +1,6 @@
 {
   "name": "dsh-qq-bot",
-  "version": "0.6.3",
+  "version": "0.6.4",
   "description": "把 QQ 接到 DSH Agent 的插件：通过 NapCat 等 OneBot 11 实现收发消息，每个 QQ 会话对应一个 DSH Agent。",
   "type": "module",
   "main": "lib/index.js",
