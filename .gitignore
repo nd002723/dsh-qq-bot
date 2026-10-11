@@ -1,0 +1,18 @@
+# 依赖
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+
+# 测试用的临时软链（test-plugin / test-admin 会在缺 @deepseek-ai 时临时建一个）
+/node_modules
+
+# 本地打包产物：发布时请挂到 GitHub Release，不要提交进仓库
+dist/*.tgz
+
+# 杂项
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

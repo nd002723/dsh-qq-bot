@@ -1,0 +1,78 @@
+{
+  "name": "dsh-qq-bot",
+  "version": "0.6.3",
+  "description": "把 QQ 接到 DSH Agent 的插件：通过 NapCat 等 OneBot 11 实现收发消息，每个 QQ 会话对应一个 DSH Agent。",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./adapter": "./lib/onebot-adapter.mjs",
+    "./client": {
+      "default": "./lib/client.js"
+    }
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml",
+    "README.md",
+    "ARCHITECTURE.md",
+    "LICENSE",
+    "AI-DISCLOSURE.md",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22.6",
+    "dsh": ">=0.1.7-0"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "^3.18.4"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": "*"
+  },
+  "peerDependenciesMeta": {
+    "@deepseek-ai/dsh-tools": {
+      "optional": true
+    }
+  },
+  "dsh": {
+    "runtime": "host",
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node test/test-adapter.mjs && node test/test-adapter-reverse.mjs && node test/test-plugin.mjs && node test/test-client.mjs && node test/test-admin.mjs"
+  },
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "deepseek-harness",
+    "qq",
+    "qqbot",
+    "onebot",
+    "onebot11",
+    "napcat",
+    "chatbot",
+    "cordis",
+    "plugin"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/arrow1031/dsh-qq-bot.git"
+  },
+  "bugs": {
+    "url": "https://github.com/arrow1031/dsh-qq-bot/issues"
+  },
+  "homepage": "https://github.com/arrow1031/dsh-qq-bot#readme",
+  "author": {
+    "name": "arrow1031",
+    "url": "https://github.com/arrow1031"
+  }
+}
