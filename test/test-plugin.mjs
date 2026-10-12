@@ -290,8 +290,8 @@ try {
   try { schemaJson = mod.Config.toJSON(); JSON.stringify(schemaJson); } catch (error) { schemaJson = null; }
   check('Config.toJSON() 可 JSON 序列化（describe 需要）', schemaJson !== null && typeof schemaJson === 'object');
   check('工作目录配置项已移除（工作区自动管理）', liveConfig.workspace === undefined || liveConfig.workspace === null);
-  check('访客默认白名单含 qq_websearch 与 web_fetch',
-    Array.isArray(liveConfig.auth.guestToolAllow.get()) && liveConfig.auth.guestToolAllow.get().includes('qq_websearch') && liveConfig.auth.guestToolAllow.get().includes('web_fetch'),
+  check('访客默认白名单含 qq_websearch 且不含 web_fetch（联网统一走 qq_websearch 代理）',
+    Array.isArray(liveConfig.auth.guestToolAllow.get()) && liveConfig.auth.guestToolAllow.get().includes('qq_websearch') && !liveConfig.auth.guestToolAllow.get().includes('web_fetch'),
     JSON.stringify(liveConfig.auth.guestToolAllow.get()));
 
   console.log('\n2. 动态工具注册（走真的 defineTool）');

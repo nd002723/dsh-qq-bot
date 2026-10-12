@@ -34,7 +34,7 @@ DSH Agent（默认模型 + preset 人格 + 工具）
 | --- | --- | --- |
 | 正向 WS 适配器回归 | `node test/test-adapter.mjs` | **19/19** |
 | 反向 WS 适配器回归 | `node test/test-adapter-reverse.mjs` | **12/12** |
-| 打包后插件端到端（Host） | `node test/test-plugin.mjs` | **38/38** |
+| 打包后插件端到端（Host） | `node test/test-plugin.mjs` | **45/45** |
 | 客户端设置页（含真实渲染冒烟） | `node test/test-client.mjs` | **32/32** |
 | 权限·群管理·访客工具闸 | `node test/test-admin.mjs` | **32/32** |
 | 组合能否加载 | `dsh --profile web --dump-config --patch <补丁>` | 通过（行被正确插入） |
@@ -72,22 +72,22 @@ docker run -d --name napcat --restart=always \
 dsh plugin --profile web add github:nd002723/dsh-qq-bot
 
 # 想锁版本就用 tag（推荐生产环境）
-dsh plugin --profile web add github:nd002723/dsh-qq-bot#v0.6.3
+dsh plugin --profile web add github:nd002723/dsh-qq-bot#v0.6.5
 
 # 方式二：用 Release 里打好的 tarball（固定版本）
 dsh plugin --profile web add \
-  https://github.com/nd002723/dsh-qq-bot/releases/download/v0.6.3/dsh-qq-bot-0.6.3.tgz
+  https://github.com/nd002723/dsh-qq-bot/releases/download/v0.6.5/dsh-qq-bot-0.6.5.tgz
 
 # 方式三：本地 tarball（自己改了代码之后）
 npm pack
-dsh plugin --profile web add ./dsh-qq-bot-0.6.3.tgz
+dsh plugin --profile web add ./dsh-qq-bot-0.6.5.tgz
 ```
 
 `--profile` 换成你实际在用的 profile：**桌面版是 `--profile desktop`**，`dsh web` 部署一般是 `--profile web`。
 
 `dsh plugin` 本质是 pnpm 的前置封装：装完包后，它会**自动把声明了 `dsh.bundle.patch` 的依赖加入 profile 的层栈**（本包的 package.json 已声明），并连同唯一的运行时依赖 `@deepseek-ai/schemastery` 一起装上。装完**重启 DSH（桌面版重启应用 / CLI 重启 `dsh web`）**生效。
 
-> **版本要求**：本版（`0.6.3`）及 `0.6.1` 要求 **DSH ≥ 0.1.7**；DSH 0.1.6 及更早请到上游原仓库用 `0.6.0`。
+> **版本要求**：本版（`0.6.5`）及 `0.6.4` 要求 **DSH ≥ 0.1.7**；DSH 0.1.6 及更早请到上游原仓库用 `0.6.0`。
 
 > **升级注意**：`dsh plugin add` 走 pnpm，按 tarball **完整性哈希**缓存——改了代码要打成**新版本号文件名**再装（0.6.0 → 0.6.1），沿用旧名会被判「已最新」跳过。
 > `lib/client.js` 是浏览器侧代码，装完重启后还要**刷新浏览器页面**才加载新 bundle。
@@ -98,6 +98,7 @@ dsh plugin --profile web add ./dsh-qq-bot-0.6.3.tgz
 - **私聊**：默认直接回。
 - 长回复按换行切成 ≤1200 字多条发送。
 - 每个群/每个人是独立的 DSH 会话（id 形如 `qqbot-group-33333`），会落盘并出现在 Web UI 会话列表里，可以像普通会话一样打开继续聊。
+- 新会话的**显示名固定为 `群聊_<群号>` / `私聊_<QQ号>`**（`session.fixedName`，默认开启），不再让 LLM 自动起标题；已建会话保持原名。
 
 ## 三、两种连接模式，怎么选
 
@@ -114,8 +115,10 @@ dsh plugin --profile web add ./dsh-qq-bot-0.6.3.tgz
 
 重启 `dsh web` 后，打开 **设置 → QQ 机器人**，所有配置都在这一个选项卡里：
 连接方式、WS/HTTP 地址、access_token、群聊开关与 @ 要求、白名单、命令前缀、
-回复分片长度、慢回复提示、来源前缀、每会话独立、preset、逐帧日志、
-图片视觉（开关 / provider / model / 最多张数 / 下载超时）。
+身份权限（QQ 号、preset 分流、工具闸）、群管理、会话（独立会话、固定命名、preset）、
+回复分片长度、慢回复提示、来源前缀、逐帧日志、
+图片视觉（开关 / provider / model / 最多张数 / 下载超时）、联网搜索（代理 / 端点 / key）。
+设置页按功能分组排列：接入与范围 → 身份与权限 → 群管理 → 会话 → 回复 → 图片视觉 → 联网搜索。
 
 - 改完点「保存」；**连接方式那几项**（模式/地址/token）保存后会自动重启适配器，其它项下一条消息生效。
 - 类型映射：布尔是勾选框；白名单是逗号分隔的文本框；连接方式是下拉框。
@@ -173,7 +176,7 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
       ownerPreset: ''             # 填了才把拥有者/非拥有者分成两条会话
       guestPreset: ''             # 非拥有者用的 preset（仅人格分离，非安全边界）
       guestDshTools: false        # 是否允许访客用 DSH 内部工具（默认否）
-      guestToolAllow: ['qqbot', 'qqgroup']   # 访客仍可用的工具白名单
+      guestToolAllow: ['qqbot', 'qqgroup', 'qq_websearch']   # 访客仍可用的工具白名单
       grantTtlMinutes: 60         # 群管理员动态授权默认时长
       grantMaxTtlMinutes: 1440    # 群管理员单次可授最长
     admin:
@@ -183,6 +186,8 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
       prefix: '/'                 # 指令前缀（必须在消息首位）
       dryRun: false               # true = 只回复将执行什么
       allowConsole: false         # 允许 Web UI 会话直接调用管理工具
+    session:
+      fixedName: true             # 固定新建会话名为 群聊_<群号> / 私聊_<QQ号>（不再 LLM 自动起标题）
     perChatSession: true          # true=每个 QQ 会话一个 DSH 会话
     agentPreset: ''               # ''=部署默认 preset；可填自定义 preset id 换人格/工具
     adapterPath: ''               # ''=用包内自带适配器
@@ -191,9 +196,14 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
     vision:
       enabled: true               # 图片视觉：收到图片时用视觉模型识别并并入回复
       provider: ''                # 视觉 provider 路由（留空 = 会话模型；复用 DSH 自定义 providers）
-      model: ''                   # 视觉模型 id（留空 = 会话模型；如 deepseek-v4-flash-vision-exp）
+      model: ''                   # 视觉模型 id（留空 = 会话模型；官方如 deepseek-flash）
       maxImages: 3                # 单条消息最多送入的图片数
       downloadTimeoutMs: 10000    # 图片下载超时（毫秒）
+    webSearch:                    # qq_websearch 联网搜索
+      proxy: ''                   # http://host:port；留空 = 直连；搜索与 url 抓取都走它
+      baseUrl: ''                 # 留空 = https://api.deepseek.com/anthropic/v1
+      apiKeyEnv: ''               # 留空 = DEEPSEEK_BALANCE_API_KEY（自动读 DSH 凭据服务）
+      maxUses: 5                  # 每次搜索最多触发次数
 ```
 
 `agentPreset` 是换人格的正规做法：给 QQ 机器人做一个专属 preset，把 id 填进来。
@@ -201,8 +211,13 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
 ### 图片视觉（vision）
 
 收到图片时用视觉模型识别并并入 Agent 输入（原图缓存到 `<QQ_msg>/qq-images/<会话id>/`，会话结算后删除）。
-`provider` / `model` 留空 = 会话模型；`deepseek-v4-flash-0731` 实测**不真正支持图片**，
-请切到 `deepseek-v4-flash-vision-exp` 等视觉模型（需在 DSH providers 里声明 `input: [text, image]`）。
+`provider` / `model` 留空 = 会话模型；也可以给视觉单独指定 provider / model。
+
+**官方视觉模型（DeepSeek API）**：`deepseek-flash` 接受图片与文本（OpenAI 兼容，base64 data URL 或图片 URL 均可，支持 JPEG / PNG / GIF / WebP）。
+旧的 `deepseek-v4-flash-vision-exp` 名字**已退役**，但请求仍被接受（由最新 Flash 服务）。见 [DeepSeek Vision 文档](https://api-docs.deepseek.com/guides/vision/)。
+
+其它 OpenAI 兼容通道：选一个在 DSH providers 里声明了 `input: [text, image]` 的模型即可；
+注意 `deepseek-v4-flash-0731` 这类默认模型实测**不真正支持图片**（图不进上下文、会编造解释），换视觉模型时务必确认声明了图片输入。
 
 ## 五、权限与群管理
 
@@ -233,7 +248,7 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
 
 - 注册在 `agent.ctx` 上 → 只作用于该会话的 agent
 - 每次工具执行时才求值 → 拥有者/访客交替说话**不需要增删限制**
-- 用**白名单**（`auth.guestToolAllow`，默认 `qqbot,qqgroup,qq_websearch,web_fetch`）→ `run_code`（PTC 保留传输）这类"不在全局层"的特殊工具也会被自动挡住
+- 用**白名单**（`auth.guestToolAllow`，默认 `qqbot,qqgroup,qq_websearch`）→ `run_code`（PTC 保留传输）这类"不在全局层"的特殊工具也会被自动挡住；访客联网统一走 `qq_websearch`（搜索 + url 抓取），DSH 自带的 `web_fetch` 已从默认白名单移除
 - 被拦时返回拒绝原因，模型会把它转达给用户（最多多一次"被拒绝的调用"往返）
 
 因此它同时满足：**0 额外 token**（不注入提示词、不改工具表、不记 `request/header`）、**单会话单历史**、**不改 DSH 本身**。
@@ -312,12 +327,16 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
 
 ### qq_websearch（联网搜索）
 
-访客白名单内可直接调用的搜索：`{query, max_uses?}`，返回 `{ok, count, sources, text}`。
-后端走 DeepSeek web_search，`webSearch` 配置段可选 HTTP 代理（留空直连）/ 端点 / key 环境变量名（默认 `DEEPSEEK_BALANCE_API_KEY`，自动读 DSH 凭据服务）/ 每次最多触发次数。
+访客白名单内可直接调用：
 
-### web_fetch（抓公网原文）
+- `{query, max_uses?}` —— 按关键词搜索，返回 `{ok, count, sources, text}`；后端走 DeepSeek web_search
+- `{url}` —— **抓取指定网页原文**（http/https，仅公网），返回 `{ok, url, status, text}`；给 `url` 就不搜索
 
-访客白名单内可跟进搜索结果原文；只允许公网 IP，内网/回环地址由 DSH 直接拒绝。
+两种模式都走 `webSearch.proxy`（非空时经 HTTP CONNECT 隧道 + TLS，含境内/境外分流；留空直连）。抓取前校验目标为公网 IP，内网/回环/私有地址一律拒绝（防经代理扫内网）。`webSearch` 配置段：代理 / 端点 / key 环境变量名（默认 `DEEPSEEK_BALANCE_API_KEY`，自动读 DSH 凭据服务）/ 每次最多触发次数。
+
+### web_fetch（抓公网原文，仅拥有者）
+
+DSH 自带的 `web_fetch` 工具仍然注册，但**已从访客默认白名单移除**——访客要抓原文请用 `qq_websearch({url})`（走 `webSearch.proxy` 代理、同样带公网 IP 过滤）。`web_fetch` 本身只允许公网 IP，内网/回环地址由 DSH 直接拒绝；拥有者不受访客白名单限制，照常可用。
 
 ### qqgroup（群管理）
 
@@ -346,7 +365,7 @@ npm install
 装好之后裸克隆即可运行：需要 DSH 运行时才能成立的少数断言（动态工具注册、qqgroup 工具路径）
 会自动跳过，而不是判失败；想看全，把 `DSH_PROFILE_MODULES` 指向一个装了 DSH 运行时的 profile 的
 `node_modules`。
-整套 **133 项**：
+整套 **144 项**：
 
 ```sh
 npm test
@@ -360,7 +379,7 @@ node test/test-adapter.mjs
 node test/test-adapter-reverse.mjs
 
 # 打包后插件的端到端（假 ctx + 真适配器 + 假 OneBot）
-node test/test-plugin.mjs     # Host 半边（38 项，含 Config 契约与热更新）
+node test/test-plugin.mjs     # Host 半边（45 项，含 Config 契约与热更新）
 node test/test-client.mjs     # 客户端设置页（32 项）
 node test/test-admin.mjs      # 权限·群管理·访客工具闸（32 项；dsh-tools 可解析时另含工具路径断言）
 ```
@@ -399,13 +418,13 @@ AstrBot 是 OneBot 的**消费方**（内置 aiocqhttp 反向 WS 服务端），
 | `test/mock-onebot.mjs` | 零依赖 OneBot 11 模拟器（手写 RFC 6455 帧编解码） |
 | `test/test-adapter.mjs` | 正向 WS 适配器回归（19 项） |
 | `test/test-adapter-reverse.mjs` | 反向 WS 适配器回归（12 项） |
-| `test/test-plugin.mjs` | Host 插件端到端（38 项，假 ctx + 真适配器 + Config 契约 + 配置热更新） |
+| `test/test-plugin.mjs` | Host 插件端到端（45 项，假 ctx + 真适配器 + Config 契约 + 配置热更新） |
 | `test/test-client.mjs` | 客户端设置页（32 项，模拟模块加载器 + 最小 React 渲染 + 只写密钥护栏 + 命名空间回退） |
 | `test/test-admin.mjs` | 权限·群管理·访客工具闸专项（32 项；dsh-tools 可解析时另含工具路径断言） |
 | `examples/dynamic-package-host.js` | 同一个桥接的「动态 Cordis Package」版本：不想装包、只想在当前 DSH 进程里临时跑时用 |
 | `ARCHITECTURE.md` | **改动指南**（给要 fork 的人）：文件职责、数据流、设计决策原因、分步改动指南、调试手册、术语表 |
 | `AI-DISCLOSURE.md` | AI 生成内容声明、验证情况、**尚未验证清单**、第三方归属、安全免责 |
-| `CHANGELOG.md` | 版本演进（0.1.0 → 0.6.3） |
+| `CHANGELOG.md` | 版本演进（0.1.0 → 0.6.5） |
 | `LICENSE` | MIT |
 
 ## 十二、设计说明（踩过的坑）
@@ -454,7 +473,7 @@ MIT，见 [LICENSE](LICENSE)。原作者与维护者见顶部（维护 [@nd00272
 | --- | --- |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | **改动指南**：文件职责地图、一条消息的完整旅程、关键数据结构、每个设计决策的原因、`加一条指令 / 加一个工具 / 加一个设置项`的分步写法、调试手册、术语表、8 条"不要做的事" |
 | [AI-DISCLOSURE.md](AI-DISCLOSURE.md) | AI 生成方式、人类决策点、验证到什么程度、**尚未验证的清单**、第三方归属、安全免责 |
-| [CHANGELOG.md](CHANGELOG.md) | 0.1.0 → 0.6.3 的完整演进，含每个修复的原因 |
+| [CHANGELOG.md](CHANGELOG.md) | 0.1.0 → 0.6.5 的完整演进，含每个修复的原因 |
 
 ### 致谢
 
