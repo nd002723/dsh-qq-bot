@@ -38,6 +38,12 @@ function check(name2, ok, detail = '') {
   console.log('  [' + (ok ? 'PASS' : 'FAIL') + '] ' + name2 + (ok || detail === '' ? '' : ' — ' + detail));
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// 从一条 mock 发送记录里取 text 段（可能带引用 reply 段，不能只取 message[0]）。
+const textOf = (sent) => {
+  const msg = (sent && Array.isArray(sent.message)) ? sent.message : [];
+  const seg = msg.find((s) => s && s.type === 'text');
+  return seg && seg.data && typeof seg.data.text === 'string' ? seg.data.text : '';
+};
 async function waitFor(fn, timeoutMs, label) {
   const deadline = Date.now() + timeoutMs;
   for (;;) {
@@ -321,7 +327,10 @@ try {
   });
   const sent = await waitFor(() => (mock.sent.length > 0 ? mock.sent : null), 15000, '回复到达假 OneBot');
   check('回复用 send_group_msg 发出', sent[0].action === 'send_group_msg', String(sent[0].action));
-  const replyText = sent[0].message[0].data.text;
+  check('@ 触发：回复引用触发消息（QQ 回复消息流程）',
+    Array.isArray(sent[0].message) && sent[0].message[0] && sent[0].message[0].type === 'reply',
+    JSON.stringify(sent[0].message));
+  const replyText = textOf(sent[0]);
   check('回复带上了 QQ 上下文头', replyText.startsWith('REPLY:[QQ群 33333 · 小明(22222)'), JSON.stringify(replyText.slice(0, 60)));
   check('上下文头带上了说话人身份（交给 Agent 判断）', replyText.includes('身份:'), JSON.stringify(replyText.slice(0, 60)));
   check('首轮追加了人格提示', replyText.includes('这是一次 QQ 聊天'), JSON.stringify(replyText.slice(0, 40)));
@@ -337,6 +346,235 @@ try {
   });
   await sleep(1500);
   check('未 @ 的消息没有触发回复', mock.sent.length === before, String(mock.sent.length - before));
+
+  console.log('\n4a. 回复（引用）机器人消息 -> 视同 @ + 最近相关发言上下文 + 引用回复');
+  const botMsgId = 600001;
+  mock.history.push({
+    message_id: botMsgId, time: Math.floor(Date.now() / 1000) - 120, user_id: 10000,
+    message: [{ type: 'text', data: { text: '上次 bot 的回复' } }], raw_message: '上次 bot 的回复',
+    sender: { user_id: 10000, nickname: '机器人', card: '' },
+  });
+  mock.history.push({
+    message_id: 600000, time: Math.floor(Date.now() / 1000) - 180, user_id: 22222,
+    message: [{ type: 'text', data: { text: '上次用户的发言' } }], raw_message: '上次用户的发言',
+    sender: { user_id: 22222, nickname: '小明', card: '' },
+  });
+  const beforeReplyBot = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [
+        { type: 'reply', data: { id: botMsgId } },
+        { type: 'text', data: { text: '再来一次' } },
+      ],
+    }),
+  });
+  const replyBotSent = await waitFor(() => (mock.sent.length > beforeReplyBot ? mock.sent.slice(beforeReplyBot) : null), 15000, '回复 bot 触发回复');
+  check('回复了 bot 的消息（未 @）视同 @ 触发回复',
+    replyBotSent.length > 0 && replyBotSent[0].action === 'send_group_msg', JSON.stringify(replyBotSent));
+  check('回复用 QQ 引用回复（reply 段引用触发消息）',
+    Array.isArray(replyBotSent[0].message) && replyBotSent[0].message[0] && replyBotSent[0].message[0].type === 'reply',
+    JSON.stringify(replyBotSent[0].message));
+  const replyBotText = textOf(replyBotSent[0]);
+  check('Agent 收到了该对话者与 bot 的最近相关发言上下文',
+    replyBotText.includes('最近相关发言') && replyBotText.includes('上次 bot 的回复') && replyBotText.includes('上次用户的发言'),
+    JSON.stringify(replyBotText.slice(0, 160)));
+
+  console.log('\n4a2. 回复（引用）非 bot 消息 -> 不触发');
+  const nonBotMsgId = 600002;
+  mock.history.push({
+    message_id: nonBotMsgId, time: Math.floor(Date.now() / 1000) - 60, user_id: 22222,
+    message: [{ type: 'text', data: { text: '别人的消息' } }], raw_message: '别人的消息',
+    sender: { user_id: 22222, nickname: '小红', card: '' },
+  });
+  const beforeNonBot = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [
+        { type: 'reply', data: { id: nonBotMsgId } },
+        { type: 'text', data: { text: '回你一下' } },
+      ],
+    }),
+  });
+  await sleep(1500);
+  check('回复非 bot 消息未触发回复', mock.sent.length === beforeNonBot, String(mock.sent.length - beforeNonBot));
+
+  console.log('\n4a3. 回复 bot + 正文 @别人 -> 仍处理但交给 bot 自行判断（不强制引用回复）');
+  mock.history.length = 0;
+  const botMsg3 = 600010;
+  mock.history.push({ message_id: botMsg3, time: Math.floor(Date.now() / 1000) - 100, user_id: 10000,
+    message: [{ type: 'text', data: { text: 'bot 旧回复' } }], raw_message: 'bot 旧回复', sender: { user_id: 10000, nickname: '机器人', card: '' } });
+  mock.history.push({ message_id: 600011, time: Math.floor(Date.now() / 1000) - 150, user_id: 22222,
+    message: [{ type: 'text', data: { text: '早前对话' } }], raw_message: '早前对话', sender: { user_id: 22222, nickname: '小明', card: '' } });
+  const beforeAtOther = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [
+        { type: 'reply', data: { id: botMsg3 } },
+        { type: 'text', data: { text: '@44444 一起看这个' } },
+      ],
+    }),
+  });
+  const atOtherSent = await waitFor(() => (mock.sent.length > beforeAtOther ? mock.sent.slice(beforeAtOther) : null), 15000, '回复 bot+@别人');
+  check('回复 bot + 正文 @别人：仍处理（消息进模型）',
+    atOtherSent.length > 0 && atOtherSent[0].action === 'send_group_msg', JSON.stringify(atOtherSent));
+  check('回复 bot + 正文 @别人：不引用回复（交给 bot 自行判断）',
+    !(atOtherSent[0].message[0] && atOtherSent[0].message[0].type === 'reply'), JSON.stringify(atOtherSent[0].message));
+  const atOtherText = textOf(atOtherSent[0]);
+  check('回复 bot + 正文 @别人：仍拉上下文', atOtherText.includes('早前对话'), JSON.stringify(atOtherText.slice(0, 120)));
+
+  console.log('\n4a4. 回复别人 + 正文 @bot -> 处理 + 引用回复 + 上下文含被@对象（8 条）');
+  mock.history.length = 0;
+  const tNow = Math.floor(Date.now() / 1000);
+  const pushH = (mid, uid, text, nick, t) => mock.history.push({ message_id: mid, time: t, user_id: uid,
+    message: [{ type: 'text', data: { text } }], raw_message: text, sender: { user_id: uid, nickname: nick, card: '' } });
+  pushH(600021, 44444, '对象发言1', '小红', tNow - 500);
+  pushH(600022, 22222, '用户历史1', '小明', tNow - 480);
+  pushH(600023, 10000, 'bot历史1', '机器人', tNow - 460);
+  pushH(600024, 44444, '对象发言2', '小红', tNow - 440);
+  pushH(600025, 22222, '用户历史2', '小明', tNow - 420);
+  pushH(600026, 10000, 'bot历史2', '机器人', tNow - 400);
+  pushH(600027, 44444, '对象发言3', '小红', tNow - 380);
+  pushH(600028, 22222, '用户历史3', '小明', tNow - 360);
+  pushH(600029, 44444, '对象发言4', '小红', tNow - 340);
+  pushH(600030, 22222, '用户历史4', '小明', tNow - 320);
+  const otherMsg4 = 600031;
+  mock.history.push({ message_id: otherMsg4, time: tNow - 300, user_id: 44444,
+    message: [{ type: 'text', data: { text: '被回复的别人的消息' } }], raw_message: '被回复的别人的消息', sender: { user_id: 44444, nickname: '小红', card: '' } });
+  const beforeAtBot = mock.sent.length;
+  const injectAtBot = await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [
+        { type: 'reply', data: { id: otherMsg4 } },
+        { type: 'at', data: { qq: '10000' } },
+        { type: 'text', data: { text: '你看看这个' } },
+      ],
+    }),
+  });
+  const injectAtBotId = (await injectAtBot.json()).message_id;
+  const atBotSent = await waitFor(() => (mock.sent.length > beforeAtBot ? mock.sent.slice(beforeAtBot) : null), 15000, '回复别人+@bot');
+  check('回复别人 + 正文 @bot：触发处理',
+    atBotSent.length > 0 && atBotSent[0].action === 'send_group_msg', JSON.stringify(atBotSent));
+  check('回复别人 + 正文 @bot：引用回复',
+    Array.isArray(atBotSent[0].message) && atBotSent[0].message[0] && atBotSent[0].message[0].type === 'reply',
+    JSON.stringify(atBotSent[0].message));
+  check('回复别人 + @bot：引用发言人本条消息（而非被回复对象）',
+    atBotSent[0].message[0] && Number(atBotSent[0].message[0].data.id) === Number(injectAtBotId)
+      && Number(atBotSent[0].message[0].data.id) !== Number(otherMsg4),
+    'reply id=' + String(atBotSent[0].message[0] && atBotSent[0].message[0].data.id)
+      + ' 期望=' + String(injectAtBotId) + ' 被回复对象=' + String(otherMsg4));
+  const atBotText = textOf(atBotSent[0]);
+  check('上下文包含被@对象发言', atBotText.includes('对象发言'), JSON.stringify(atBotText.slice(0, 120)));
+  check('上下文包含对话者发言', atBotText.includes('用户历史'), JSON.stringify(atBotText.slice(0, 120)));
+  check('上下文包含 bot 发言', atBotText.includes('bot历史'), JSON.stringify(atBotText.slice(0, 120)));
+  check('上下文扩充到 8 条', (atBotText.match(/【/g) || []).length === 8,
+    String((atBotText.match(/【/g) || []).length));
+
+  console.log('\n4a5. 点名但无正文：纯回复 bot / 只 @ / 回复别人+@bot -> 都触发并给占位正文');
+  // (1) 纯回复 bot（只有 reply 段，无文字）
+  mock.history.length = 0;
+  const botMsg5 = 600040;
+  mock.history.push({ message_id: botMsg5, time: Math.floor(Date.now() / 1000) - 90, user_id: 10000,
+    message: [{ type: 'text', data: { text: 'bot 上一条' } }], raw_message: 'bot 上一条', sender: { user_id: 10000, nickname: '机器人', card: '' } });
+  mock.history.push({ message_id: 600041, time: Math.floor(Date.now() / 1000) - 160, user_id: 22222,
+    message: [{ type: 'text', data: { text: '用户说过的话' } }], raw_message: '用户说过的话', sender: { user_id: 22222, nickname: '小明', card: '' } });
+  const before5a = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [{ type: 'reply', data: { id: botMsg5 } }] }),
+  });
+  const sent5a = await waitFor(() => (mock.sent.length > before5a ? mock.sent.slice(before5a) : null), 15000, '纯回复bot无正文');
+  check('纯回复 bot（无正文）：触发处理', sent5a.length > 0 && sent5a[0].action === 'send_group_msg', JSON.stringify(sent5a));
+  check('纯回复 bot（无正文）：引用回复', sent5a[0].message[0] && sent5a[0].message[0].type === 'reply', JSON.stringify(sent5a[0].message));
+  const text5a = textOf(sent5a[0]);
+  check('纯回复 bot（无正文）：Agent 收到占位正文 + 上下文',
+    text5a.includes('仅点名了 bot') && text5a.includes('用户说过的话'), JSON.stringify(text5a.slice(0, 140)));
+
+  // (2) 只 @bot（只有 at 段，无文字）
+  mock.history.length = 0;
+  const before5b = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [{ type: 'at', data: { qq: '10000' } }] }),
+  });
+  const sent5b = await waitFor(() => (mock.sent.length > before5b ? mock.sent.slice(before5b) : null), 15000, '只@无正文');
+  check('只 @bot（无正文）：触发处理', sent5b.length > 0 && sent5b[0].action === 'send_group_msg', JSON.stringify(sent5b));
+  check('只 @bot（无正文）：引用回复', sent5b[0].message[0] && sent5b[0].message[0].type === 'reply', JSON.stringify(sent5b[0].message));
+  const text5b = textOf(sent5b[0]);
+  check('只 @bot（无正文）：Agent 收到占位正文（不拉上下文）',
+    text5b.includes('仅点名了 bot') && !text5b.includes('最近相关发言'), JSON.stringify(text5b.slice(0, 140)));
+
+  // (3) 回复别人 + @bot + 无正文
+  mock.history.length = 0;
+  const otherMsg5 = 600042;
+  mock.history.push({ message_id: otherMsg5, time: Math.floor(Date.now() / 1000) - 70, user_id: 44444,
+    message: [{ type: 'text', data: { text: '别人消息' } }], raw_message: '别人消息', sender: { user_id: 44444, nickname: '小红', card: '' } });
+  const before5c = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [{ type: 'reply', data: { id: otherMsg5 } }, { type: 'at', data: { qq: '10000' } }] }),
+  });
+  const sent5c = await waitFor(() => (mock.sent.length > before5c ? mock.sent.slice(before5c) : null), 15000, '回复别人+@无正文');
+  check('回复别人 + @bot（无正文）：触发处理', sent5c.length > 0 && sent5c[0].action === 'send_group_msg', JSON.stringify(sent5c));
+  check('回复别人 + @bot（无正文）：引用回复', sent5c[0].message[0] && sent5c[0].message[0].type === 'reply', JSON.stringify(sent5c[0].message));
+  const text5c = textOf(sent5c[0]);
+  check('回复别人 + @bot（无正文）：上下文含被回复者',
+    text5c.includes('仅点名了 bot') && text5c.includes('别人消息'), JSON.stringify(text5c.slice(0, 140)));
+
+  console.log('\n4a6. 被回复消息不在最近历史（窗口外）-> 仍通过 get_msg 并入上下文');
+  mock.history.length = 0;
+  mock.extraMessages.length = 0;
+  const oldMsg6 = 600050;
+  mock.extraMessages.push({ message_id: oldMsg6, time: Math.floor(Date.now() / 1000) - 3600, user_id: 44444,
+    message: [{ type: 'text', data: { text: '很旧的那条被回复消息' } }], raw_message: '很旧的那条被回复消息',
+    sender: { user_id: 44444, nickname: '小红', card: '' } });
+  const t6 = Math.floor(Date.now() / 1000);
+  mock.history.push({ message_id: 600051, time: t6 - 40, user_id: 22222,
+    message: [{ type: 'text', data: { text: '发言人最近发言' } }], raw_message: '发言人最近发言', sender: { user_id: 22222, nickname: '小明', card: '' } });
+  mock.history.push({ message_id: 600052, time: t6 - 20, user_id: 10000,
+    message: [{ type: 'text', data: { text: 'bot最近发言' } }], raw_message: 'bot最近发言', sender: { user_id: 10000, nickname: '机器人', card: '' } });
+  const before6 = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [{ type: 'reply', data: { id: oldMsg6 } }, { type: 'at', data: { qq: '10000' } }] }),
+  });
+  const sent6 = await waitFor(() => (mock.sent.length > before6 ? mock.sent.slice(before6) : null), 15000, '窗口外被回复消息');
+  const text6 = textOf(sent6[0]);
+  check('被回复消息不在历史窗口时仍并入上下文（get_msg 按 id 拉）', text6.includes('很旧的那条被回复消息'), JSON.stringify(text6.slice(0, 160)));
+  check('上下文仍含发言人最近发言 + bot 最近发言', text6.includes('发言人最近发言') && text6.includes('bot最近发言'), JSON.stringify(text6.slice(0, 160)));
+
+  console.log('\n4a7. 相关发言为空时 -> 最低 2 条兜底（被回复消息 + 发言人本条）');
+  mock.history.length = 0;
+  mock.extraMessages.length = 0;
+  const botMsg7 = 600060;
+  mock.extraMessages.push({ message_id: botMsg7, time: Math.floor(Date.now() / 1000) - 600, user_id: 10000,
+    message: [{ type: 'text', data: { text: 'bot 很久前的消息' } }], raw_message: 'bot 很久前的消息',
+    sender: { user_id: 10000, nickname: '机器人', card: '' } });
+  // 历史里没有任何相关方发言（只有一条别人的），也不在 get_group_msg_history 窗口内
+  mock.history.push({ message_id: 600061, time: Math.floor(Date.now() / 1000) - 30, user_id: 55555,
+    message: [{ type: 'text', data: { text: '别的群友插话' } }], raw_message: '别的群友插话', sender: { user_id: 55555, nickname: '路人', card: '' } });
+  const before7 = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [{ type: 'reply', data: { id: botMsg7 } }] }),
+  });
+  const sent7 = await waitFor(() => (mock.sent.length > before7 ? mock.sent.slice(before7) : null), 15000, '最低2条兜底');
+  const text7 = textOf(sent7[0]);
+  check('相关发言为空时上下文含被回复消息（bot 很久前的消息）', text7.includes('bot 很久前的消息'), JSON.stringify(text7.slice(0, 160)));
+  check('相关发言为空时上下文含发言人本条（最低 2 条兜底）', text7.includes('仅点名了 bot'), JSON.stringify(text7.slice(0, 160)));
+  check('最低 2 条兜底：不硬补其它群友', !text7.includes('别的群友插话'), JSON.stringify(text7.slice(0, 160)));
 
   console.log('\n4b. 图片视觉：模型支持时识别并入 Agent 输入');
   // 给 example.com 的图片 URL 装 fetch 桩（返回假 PNG），其余请求走真实 fetch。
@@ -366,7 +604,7 @@ try {
   });
   const visionSent = await waitFor(() => (mock.sent.length > sentBeforeVision ? mock.sent[mock.sent.length - 1] : null), 15000, '视觉回复到达假 OneBot');
   check('图片消息触发了回复', Boolean(visionSent), 'sent=' + mock.sent.length);
-  const visionReply = visionSent.message[0].data.text;
+  const visionReply = textOf(visionSent);
   check('调用了 llm.resolveModelInfo + stream', visionCalls.some((c) => c.kind === 'resolve') && visionCalls.some((c) => c.kind === 'stream'),
     JSON.stringify(visionCalls));
   check('图片被注册成附件（saveImage 调用）', visionCalls.filter((c) => c.kind === 'stream').length === 1,
@@ -374,7 +612,31 @@ try {
   check('识别文本并入了 Agent 输入', visionReply.includes('【视觉识别】画面里是一只白猫，坐在窗台上。'),
     JSON.stringify(visionReply.slice(0, 200)));
 
+  console.log('\n4b2. 回复别人时，被回复消息的图片也被识别并入');
+  mock.history.length = 0;
+  mock.extraMessages.length = 0;
+  const repImgMsg = 600070;
+  mock.extraMessages.push({ message_id: repImgMsg, time: Math.floor(Date.now() / 1000) - 300, user_id: 44444,
+    message: [{ type: 'image', data: { url: 'https://example.com/cat.png' } }], raw_message: '[图片]',
+    sender: { user_id: 44444, nickname: '小红', card: '' } });
+  const streamsBefore2 = visionCalls.filter((c) => c.kind === 'stream').length;
+  const sentBefore2 = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [{ type: 'reply', data: { id: repImgMsg } }, { type: 'at', data: { qq: '10000' } }] }),
+  });
+  const sent2 = await waitFor(() => (mock.sent.length > sentBefore2 ? mock.sent.slice(sentBefore2) : null), 15000, '被回复图片识别');
+  check('回复别人 + 被回复消息带图：触发处理', sent2.length > 0 && sent2[0].action === 'send_group_msg', JSON.stringify(sent2));
+  check('被回复消息的图片也被识别（stream 调用 +1）',
+    visionCalls.filter((c) => c.kind === 'stream').length === streamsBefore2 + 1,
+    'stream 总数=' + visionCalls.filter((c) => c.kind === 'stream').length);
+  const text2 = textOf(sent2[0]);
+  check('被回复图片的识别文本并入 Agent 输入', text2.includes('【视觉识别】画面里是一只白猫'), JSON.stringify(text2.slice(0, 200)));
+  check('上下文含被回复图片消息（[图片] 占位）', text2.includes('[图片]'), JSON.stringify(text2.slice(0, 200)));
+
   console.log('\n4c. 图片视觉：模型不支持 -> 可读报错（不进入 Agent）');
+  const streamsBefore4c = visionCalls.filter((c) => c.kind === 'stream').length;
   visionModelModalities = ['text'];
   const sentBeforeUnsupported = mock.sent.length;
   await fetch(mock.httpUrl + '/__inject', {
@@ -390,11 +652,43 @@ try {
   });
   const unsupportedSent = await waitFor(() => (mock.sent.length > sentBeforeUnsupported ? mock.sent[mock.sent.length - 1] : null), 15000, '不支持报错到达假 OneBot');
   check('模型不支持时仍回复（可读报错）', Boolean(unsupportedSent), 'sent=' + mock.sent.length);
-  const unsupportedReply = unsupportedSent.message[0].data.text;
+  const unsupportedReply = textOf(unsupportedSent);
   check('报错提示了切换模型', unsupportedReply.includes('不支持图片识别') && unsupportedReply.includes('图片视觉'),
     JSON.stringify(unsupportedReply.slice(0, 200)));
-  check('未进入 Agent（没有识别流）', visionCalls.filter((c) => c.kind === 'stream').length === 1,
+  check('未进入 Agent（没有识别流）', visionCalls.filter((c) => c.kind === 'stream').length === streamsBefore4c,
     String(visionCalls.filter((c) => c.kind === 'stream').length));
+
+  console.log('\n4d. 多引擎搜索：multiEngine 默认开，走 DuckDuckGo 而非官方 DeepSeek');
+  check('webSearch.multiEngine 默认 true（设置页有开关）',
+    liveConfig.webSearch.multiEngine !== undefined && liveConfig.webSearch.multiEngine !== null
+    && typeof liveConfig.webSearch.multiEngine.get === 'function'
+    && liveConfig.webSearch.multiEngine.get() === true,
+    String(liveConfig.webSearch.multiEngine && liveConfig.webSearch.multiEngine.get && liveConfig.webSearch.multiEngine.get()));
+  // 在 4b 的 fetch 桩基础上再拦 DuckDuckGo（html 端点 → 固定结果页）
+  const meBaseFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith('https://html.duckduckgo.com')) {
+      return {
+        ok: true, status: 200, headers: { get: () => 'text/html' },
+        text: async () => '<html><body><div class="result">'
+          + '<h2 class="result__title"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Ftest-page">测试结果标题</a></h2>'
+          + '<a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Ftest-page">这是测试搜索的摘要内容</a>'
+          + '</div></body></html>',
+      };
+    }
+    return meBaseFetch(url, init);
+  };
+  const wsTool4d = registeredTools.find((t) => t.name === 'qq_websearch');
+  const meResult = wsTool4d !== undefined ? await wsTool4d.execute({ query: '测试搜索' }, {}) : null;
+  check('多引擎搜索返回 mock DuckDuckGo 结果（未走官方 DeepSeek）',
+    meResult !== null && meResult !== undefined && meResult.ok === true
+    && Array.isArray(meResult.sources) && meResult.sources.some((s) => s.url === 'https://example.com/test-page'),
+    JSON.stringify(meResult).slice(0, 220));
+  check('多引擎结果带标题与摘要',
+    meResult !== null && meResult !== undefined && meResult.sources[0]
+    && meResult.sources[0].title === '测试结果标题' && meResult.sources[0].snippet.includes('测试搜索'),
+    JSON.stringify(meResult && meResult.sources && meResult.sources[0]));
+  globalThis.fetch = meBaseFetch;
 
   console.log('\n5. 工具 status 动作');
   const status = hasDshTools === true ? await tool.execute({ action: 'status' }, {}) : null;

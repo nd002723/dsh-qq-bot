@@ -150,6 +150,10 @@ export async function startMockOneBot(options = {}) {
   const sockets = new Set();
   let messageSeq = 100000;
   const selfId = 10000;
+  // 群消息历史（供 get_msg / get_group_msg_history 查询；测试可 push 补充 bot 发言）
+  const history = [];
+  // get_msg 可查但不在历史窗口的消息（模拟「旧消息仍可按 id 查到」）
+  const extraMessages = [];
 
   const say = (...args) => { if (!quiet) console.log('[mock-onebot]', ...args); };
 
@@ -191,6 +195,14 @@ export async function startMockOneBot(options = {}) {
         role: input.role ?? 'member',
       },
     }, messageType === 'group' ? { group_id: Number(input.group_id ?? 33333), anonymous: null } : {});
+    history.push({
+      message_id: event.message_id,
+      time: event.time,
+      user_id: event.user_id,
+      message: event.message,
+      raw_message: event.raw_message,
+      sender: event.sender,
+    });
     const delivered = broadcast(event);
     say('injected ' + messageType + ' message from ' + event.user_id + ' -> ' + delivered + ' client(s)');
     return { event, delivered };
@@ -210,6 +222,18 @@ export async function startMockOneBot(options = {}) {
       const rows = [];
       for (const [qq, role] of memberRoles) rows.push({ user_id: Number(qq), group_id: Number(params.group_id), nickname: '成员' + qq, card: '', role, join_time: 0, last_sent_time: 0, level: '1' });
       return rows;
+    },
+    get_msg(params) {
+      const id = Number(params.message_id);
+      const m = history.find((x) => Number(x.message_id) === id)
+        ?? extraMessages.find((x) => Number(x.message_id) === id);
+      if (m === undefined) return { retcode: 100, message: 'message not found' };
+      return { message_id: m.message_id, time: m.time, user_id: m.user_id, message: m.message, raw_message: m.raw_message, sender: m.sender };
+    },
+    get_group_msg_history(params) {
+      const count = Math.max(1, Number(params.count ?? 20));
+      // NapCat 惯例：最新在前
+      return { messages: [...history].reverse().slice(0, count) };
     },
     get_group_list() { return [{ group_id: 33333, group_name: '测试群', member_count: memberRoles.size, max_member_count: 200 }]; },
     get_group_info(params) { return { group_id: Number(params.group_id), group_name: '测试群', member_count: memberRoles.size, max_member_count: 200 }; },
@@ -382,6 +406,8 @@ export async function startMockOneBot(options = {}) {
     host,
     httpPort,
     actions,
+    history,
+    extraMessages,
     setMemberRole(qq, role) { memberRoles.set(String(qq), role); },
     wsPort,
     httpUrl: 'http://' + host + ':' + httpPort,

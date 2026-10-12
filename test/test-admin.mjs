@@ -149,8 +149,13 @@ async function say(groupId, userId, text, options = {}) {
     method: 'POST', headers: { 'content-type': 'application/json' },
     body: JSON.stringify({ message_type: 'group', group_id: groupId, user_id: userId, nickname: 'U' + userId, text, message }),
   });
-  return waitFor(() => (mock.sent.length > before ? mock.sent[mock.sent.length - 1].message[0].data.text : null),
-    options.timeoutMs === undefined ? 20000 : options.timeoutMs, '回复 ' + JSON.stringify(text));
+  return waitFor(() => {
+    if (mock.sent.length <= before) return null;
+    const entry = mock.sent[mock.sent.length - 1];
+    const msg = (entry && Array.isArray(entry.message)) ? entry.message : [];
+    const seg = msg.find((s) => s && s.type === 'text');
+    return seg && seg.data && typeof seg.data.text === 'string' ? seg.data.text : null;
+  }, options.timeoutMs === undefined ? 20000 : options.timeoutMs, '回复 ' + JSON.stringify(text));
 }
 const actionsOf = (name) => mock.actions.filter((a) => a.action === name);
 // 只统计会改变群状态的动作：get_group_member_info 是鉴权查询，不算
