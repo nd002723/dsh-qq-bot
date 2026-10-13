@@ -305,13 +305,15 @@ try {
   if (hasDshTools !== true) {
     check('（跳过）工具注册需 @deepseek-ai/dsh-tools；路由/回复断言不受影响', true);
   } else {
-    check('注册了 qqbot + qqgroup + qq_websearch 三个工具', registeredTools.length === 3, String(registeredTools.length));
+    check('注册了 qqbot + qqgroup + qq_websearch + qq_imgsearch + qq_webfetch 五个工具', registeredTools.length === 5, String(registeredTools.length));
     check('工具名分别是 qqbot / qqgroup / qq_websearch',
       (() => { const names = registeredTools.map((t) => t.name); return names.includes('qqbot') && names.includes('qqgroup') && names.includes('qq_websearch'); })(),
       JSON.stringify(registeredTools.map((t) => t.name)));
     check('工具名是 qqbot', tool && tool.name === 'qqbot', String(tool && tool.name));
     check('defineTool 接受了参数 DSL（含 action）', Boolean(tool && tool.parameters && tool.parameters.properties && tool.parameters.properties.action),
       JSON.stringify(tool && tool.parameters));
+    const wfTool = registeredTools.find((t) => t.name === 'qq_webfetch');
+    check('qq_webfetch 工具已注册且含 url 参数', Boolean(wfTool) && typeof wfTool.parameters?.properties?.url === 'object', Boolean(wfTool) ? JSON.stringify(Object.keys(wfTool.parameters?.properties ?? {})) : 'missing');
     const wsTool = registeredTools.find((t) => t.name === 'qq_websearch');
     check('qq_websearch 参数含 query', Boolean(wsTool && wsTool.parameters && wsTool.parameters.properties && wsTool.parameters.properties.query),
       JSON.stringify(wsTool && wsTool.parameters));
@@ -689,6 +691,44 @@ try {
     && meResult.sources[0].title === '测试结果标题' && meResult.sources[0].snippet.includes('测试搜索'),
     JSON.stringify(meResult && meResult.sources && meResult.sources[0]));
   globalThis.fetch = meBaseFetch;
+
+  console.log('\n4e. 图片反搜：imgSearch 默认开，qq_imgsearch 工具走 mock TraceMoe');
+  check('imgSearch.enabled 默认 true（设置页有开关）',
+    liveConfig.imgSearch && liveConfig.imgSearch.enabled !== undefined
+    && typeof liveConfig.imgSearch.enabled.get === 'function'
+    && liveConfig.imgSearch.enabled.get() === true,
+    String(liveConfig.imgSearch && liveConfig.imgSearch.enabled && liveConfig.imgSearch.enabled.get && liveConfig.imgSearch.enabled.get()));
+  // 拦 TraceMoe（URL 模式 JSON 直出番名）
+  const imBaseFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith('https://api.trace.moe/search?url=')) {
+      return {
+        ok: true, status: 200, headers: { get: () => 'application/json' },
+        text: async () => JSON.stringify({
+          quota: 100, quotaUsed: 1, result: [
+            { anilist: { id: 6702, title: { chinese: '妖精的尾巴', romaji: 'FAIRY TAIL' },
+                siteUrl: 'https://anilist.co/anime/6702' },
+              episode: 1, similarity: 0.97, from: 123.4, filename: 'FT_EP1.mp4' },
+          ],
+        }),
+      };
+    }
+    return imBaseFetch(url, init);
+  };
+  const imgTool4e = registeredTools.find((t) => t.name === 'qq_imgsearch');
+  check('qq_imgsearch 已注册', imgTool4e !== undefined, imgTool4e ? imgTool4e.name : '未注册');
+  const imgResult = imgTool4e !== undefined ? await imgTool4e.execute({ url: 'https://example.com/some-image.jpg' }, {}) : null;
+  check('图片反搜返回 mock TraceMoe 结果（带番名/来源 URL）',
+    imgResult !== null && imgResult !== undefined && imgResult.ok === true
+    && Array.isArray(imgResult.sources) && imgResult.sources.length >= 1
+    && imgResult.sources[0].url === 'https://anilist.co/anime/6702'
+    && imgResult.sources[0].title === '妖精的尾巴',
+    JSON.stringify(imgResult).slice(0, 220));
+  check('图片反搜结果带集数与相似度',
+    imgResult && imgResult.sources[0] && imgResult.sources[0].snippet
+    && imgResult.sources[0].snippet.includes('第1集') && imgResult.sources[0].snippet.includes('相似度 97%'),
+    JSON.stringify(imgResult && imgResult.sources && imgResult.sources[0] && imgResult.sources[0].snippet));
+  globalThis.fetch = imBaseFetch;
 
   console.log('\n5. 工具 status 动作');
   const status = hasDshTools === true ? await tool.execute({ action: 'status' }, {}) : null;

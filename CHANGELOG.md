@@ -2,6 +2,14 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## 0.6.7
+
+继续维护版：qq_websearch 的 url 抓取拆成独立工具 qq_webfetch，新增 dsh-moli 接管。
+
+- **qq_webfetch（新独立工具）**：从 qq_websearch 拆出 url 抓取，平级注册；受 `webSearch.proxy` 管控（留空直连、非空走 HTTP CONNECT 隧道 + TLS），抓取前校验目标为公网 IP（内网/回环/私有地址一律拒绝）。
+- **dsh-moli 接管（qq_webfetch）**：设置页新增 `moli` 段（默认关）——开启后 qq_webfetch 改用 Moli 无头浏览器渲染抓取（可抓 SPA/JS 渲染页）；HTTP 代理自动透传 `webSearch.proxy`（可被 `moli.proxy` 覆盖）；未检测到 moli 引擎时开关无效，工具返回 `moliUnavailable` 明确报错。
+- **访客白名单**：默认加入 `qq_webfetch`。
+
 ## 0.6.6
 
 继续维护版：群聊「回复机器人」视同 @ 处理，bot 被点名时改用 QQ 引用回复，命令前缀视同点名；点名但无正文也处理。

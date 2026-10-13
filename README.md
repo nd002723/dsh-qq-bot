@@ -34,7 +34,7 @@ DSH Agent（默认模型 + preset 人格 + 工具）
 | --- | --- | --- |
 | 正向 WS 适配器回归 | `node test/test-adapter.mjs` | **19/19** |
 | 反向 WS 适配器回归 | `node test/test-adapter-reverse.mjs` | **12/12** |
-| 打包后插件端到端（Host） | `node test/test-plugin.mjs` | **60/60** |
+| 打包后插件端到端（Host） | `node test/test-plugin.mjs` | **86/86** |
 | 客户端设置页（含真实渲染冒烟） | `node test/test-client.mjs` | **32/32** |
 | 权限·群管理·访客工具闸 | `node test/test-admin.mjs` | **36/36** |
 | 组合能否加载 | `dsh --profile web --dump-config --patch <补丁>` | 通过（行被正确插入） |
@@ -72,22 +72,22 @@ docker run -d --name napcat --restart=always \
 dsh plugin --profile web add github:nd002723/dsh-qq-bot
 
 # 想锁版本就用 tag（推荐生产环境）
-dsh plugin --profile web add github:nd002723/dsh-qq-bot#v0.6.6
+dsh plugin --profile web add github:nd002723/dsh-qq-bot#v0.6.7
 
 # 方式二：用 Release 里打好的 tarball（固定版本）
 dsh plugin --profile web add \
-  https://github.com/nd002723/dsh-qq-bot/releases/download/v0.6.6/dsh-qq-bot-0.6.6.tgz
+  https://github.com/nd002723/dsh-qq-bot/releases/download/v0.6.7/dsh-qq-bot-0.6.7.tgz
 
 # 方式三：本地 tarball（自己改了代码之后）
 npm pack
-dsh plugin --profile web add ./dsh-qq-bot-0.6.6.tgz
+dsh plugin --profile web add ./dsh-qq-bot-0.6.7.tgz
 ```
 
 `--profile` 换成你实际在用的 profile：**桌面版是 `--profile desktop`**，`dsh web` 部署一般是 `--profile web`。
 
 `dsh plugin` 本质是 pnpm 的前置封装：装完包后，它会**自动把声明了 `dsh.bundle.patch` 的依赖加入 profile 的层栈**（本包的 package.json 已声明），并连同唯一的运行时依赖 `@deepseek-ai/schemastery` 一起装上。装完**重启 DSH（桌面版重启应用 / CLI 重启 `dsh web`）**生效。
 
-> **版本要求**：本版（`0.6.6`）及 `0.6.4` 起要求 **DSH ≥ 0.1.7**；DSH 0.1.6 及更早请到上游原仓库用 `0.6.0`。
+> **版本要求**：本版（`0.6.7`）及 `0.6.4` 起要求 **DSH ≥ 0.1.7**；DSH 0.1.6 及更早请到上游原仓库用 `0.6.0`。
 
 > **升级注意**：`dsh plugin add` 走 pnpm，按 tarball **完整性哈希**缓存——改了代码要打成**新版本号文件名**再装（0.6.0 → 0.6.1），沿用旧名会被判「已最新」跳过。
 > `lib/client.js` 是浏览器侧代码，装完重启后还要**刷新浏览器页面**才加载新 bundle。
@@ -179,7 +179,7 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
       ownerPreset: ''             # 填了才把拥有者/非拥有者分成两条会话
       guestPreset: ''             # 非拥有者用的 preset（仅人格分离，非安全边界）
       guestDshTools: false        # 是否允许访客用 DSH 内部工具（默认否）
-      guestToolAllow: ['qqbot', 'qqgroup', 'qq_websearch']   # 访客仍可用的工具白名单
+      guestToolAllow: ['qqbot', 'qqgroup', 'qq_websearch', 'qq_webfetch', 'qq_imgsearch']   # 访客仍可用的工具白名单
       grantTtlMinutes: 60         # 群管理员动态授权默认时长
       grantMaxTtlMinutes: 1440    # 群管理员单次可授最长
     admin:
@@ -209,6 +209,18 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
       maxUses: 5                  # 每次搜索最多触发次数
       multiEngine: true           # 多引擎组合搜索（默认开）：Tavily → DuckDuckGo → Yandex/Bing/Wikipedia
                                   # 全部走上方 proxy；关闭则落回官方 DeepSeek web_search
+    moli:                         # dsh-moli 接管（qq_webfetch 用 Moli 渲染）
+      enabled: false              # 默认关；开启后 qq_webfetch 改用 Moli 无头浏览器渲染抓取（可抓 SPA/JS 页；需已安装 moli 引擎，否则无效）
+      proxy: ''                   # http://host:port；留空自动透传 webSearch.proxy
+      exePath: ''                 # moli 可执行文件路径；留空自动探测 ~/.local/bin/moli 与 PATH
+    imgSearch:                    # qq_imgsearch 图片反搜
+      enabled: true               # 默认开；关闭后工具返回「已关闭」
+      maxResults: 5               # 每次反搜最多返回结果数
+      saucenaoKey: ''             # SauceNAO API key（saucenao.com 注册可得）；留空不启用
+      weightedShuffle: false      # 有代理时按体量权重随机重排引擎顺序（避免固定引擎一直打头）
+                                  # 请求全走上方 webSearch.proxy：无代理 = 直连引擎按可用性优先
+                                  # （TraceMoe → IQDB）；有代理 = 放开全部可用引擎按用户体量优先
+                                  # （Yandex → Tineye → Copyseeker → SauceNAO → IQDB → TraceMoe）
 ```
 
 `agentPreset` 是换人格的正规做法：给 QQ 机器人做一个专属 preset，把 id 填进来。
@@ -253,7 +265,7 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
 
 - 注册在 `agent.ctx` 上 → 只作用于该会话的 agent
 - 每次工具执行时才求值 → 拥有者/访客交替说话**不需要增删限制**
-- 用**白名单**（`auth.guestToolAllow`，默认 `qqbot,qqgroup,qq_websearch`）→ `run_code`（PTC 保留传输）这类"不在全局层"的特殊工具也会被自动挡住；访客联网统一走 `qq_websearch`（搜索 + url 抓取），DSH 自带的 `web_fetch` 已从默认白名单移除
+- 用**白名单**（`auth.guestToolAllow`，默认 `qqbot,qqgroup,qq_websearch,qq_webfetch,qq_imgsearch`）→ `run_code`（PTC 保留传输）这类"不在全局层"的特殊工具也会被自动挡住；访客联网统一走 `qq_websearch`（搜索）与 `qq_webfetch`（抓网页），DSH 自带的 `web_fetch` 已从默认白名单移除
 - 被拦时返回拒绝原因，模型会把它转达给用户（最多多一次"被拒绝的调用"往返）
 
 因此它同时满足：**0 额外 token**（不注入提示词、不改工具表、不记 `request/header`）、**单会话单历史**、**不改 DSH 本身**。
@@ -334,14 +346,37 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
 
 访客白名单内可直接调用：
 
-- `{query, max_uses?}` —— 按关键词搜索，返回 `{ok, count, sources, text}`；后端走**多引擎组合搜索**（`multiEngine` 默认开）：Tavily（配 `TAVILY_API_KEY` 才启用，环境变量或 DSH 凭据 refs）→ DuckDuckGo（html→lite，串行 + 限流记忆）→ Yandex / Bing / Wikipedia 并发兜底、聚合去重（相关性闸门防无关链接）；关闭 `multiEngine` 则落回官方 DeepSeek web_search。
-- `{url}` —— **抓取指定网页原文**（http/https，仅公网），返回 `{ok, url, status, text}`；给 `url` 就不搜索
+- `{query, max_uses?}` —— 按关键词搜索，返回 `{ok, count, sources, text}`；后端走**多引擎组合搜索**（`multiEngine` 默认开）：Tavily（配 `TAVILY_API_KEY` 才启用，环境变量或 DSH 凭据 refs）→ DuckDuckGo（html→lite，串行 + 限流记忆）→ Yandex / Bing / Wikipedia 并发兜底、聚合去重（相关性闸门防无关链接）；关闭 `multiEngine` 则落回官方 DeepSeek web_search。抓取网页请用 `qq_webfetch`。
 
-两种模式都走 `webSearch.proxy`（非空时经 HTTP CONNECT 隧道 + TLS，含境内/境外分流；留空直连）。抓取前校验目标为公网 IP，内网/回环/私有地址一律拒绝（防经代理扫内网）。`webSearch` 配置段：代理 / 端点 / key 环境变量名（默认 `DEEPSEEK_BALANCE_API_KEY`，自动读 DSH 凭据服务）/ 每次最多触发次数 / 多引擎开关（默认开）。
+搜索请求都走 `webSearch.proxy`（非空时经 HTTP CONNECT 隧道 + TLS，含境内/境外分流；留空直连）。`webSearch` 配置段：代理 / 端点 / key 环境变量名（默认 `DEEPSEEK_BALANCE_API_KEY`，自动读 DSH 凭据服务）/ 每次最多触发次数 / 多引擎开关（默认开）。
+
+### qq_webfetch（抓取网页）
+
+访客白名单内可直接调用：
+
+- `{url, max_chars?}` —— 抓取指定网页原文/渲染文本（http/https，仅公网），返回 `{ok, url, status|via, text}`；请求受 `webSearch.proxy` 管控（留空直连、非空走 HTTP CONNECT 隧道），抓取前校验目标为公网 IP，内网/回环/私有地址一律拒绝（防经代理扫内网）。
+- 配置 `moli.enabled`（默认关）后改用 **Moli 无头浏览器渲染抓取**（可抓 SPA/JS 渲染页）；代理自动透传 `webSearch.proxy`（可被 `moli.proxy` 覆盖）；未检测到 moli 引擎时开关无效，工具返回 `moliUnavailable` 明确报错。
+
+### qq_imgsearch（图片反搜）
+
+访客白名单内可直接调用：
+
+- `{url, max_results?}` 或 `{file, max_results?}` —— 给定**公网图片 URL** 或**本地图片文件路径**，返回 `{ok, count, sources, via, text}`；来源带 `url/title/snippet`。
+- **本地文件流程**：先上传图床（`zixiaoyun/scdn/uguu` 三床按实测质量**加权随机**排优先度，依次试到第一个成功，一律走 `webSearch.proxy` 管控）拿公网 URL → 再反搜；**上传失败回退**：不经过图床、直接把文件发给 TraceMoe（文件直传搜图）。`file` 路径限 `qq-images` 目录内（访客不能读任意文件）。
+
+引擎组合（全部请求走 `webSearch.proxy`，与 `qq_websearch` 同一套代理管控，本插件独立实现）：
+
+- **无代理**（留空直连）：按**可用性优先** —— TraceMoe（动画截图识别，URL 模式 JSON，直连最快）→ IQDB（ACG 图库）→（有 key 时 SauceNAO）→ Soutubot
+- **有代理**：**放开全部可用引擎按用户体量优先** —— Yandex（全球搜索引擎）→ Tineye（全球图片搜索）→ Copyseeker（聚合，结果最多）→（有 key 时 SauceNAO）→ Soutubot（搜图Bot酱，多库：pixiv/danbooru/gelbooru 等）→ IQDB → TraceMoe；聚合去重，cap 满即停，单引擎失败自动继续下一引擎。
+- 开启 `imgSearch.weightedShuffle` 后，有代理时按**体量权重随机重排**（Yandex/Tineye/Copyseeker 权重 30/25/25，SauceNAO 15，Soutubot 8，IQDB/TraceMoe 5）：体量大引擎大概率先跑，但顺序每次不同，避免固定引擎一直打头。
+- **Soutubot**（soutubot.moe，开源 imsearch）：API 只收文件 → 引擎先下载图片（二进制走代理）再上传 `/api/search` 拿 `result_id` → 查 `/api/results` 多库结果（pixiv 直链 / danbooru / gelbooru / zerochan 镜像 + 画师/角色标签）。
+- **`kind=comic` 漫画模式**（`qq_imgsearch` 参数）：漫画/本子截图优先 **Soutubot → SauceNAO（有 key）→ IQDB → TraceMoe**（无代理同链），有代理时再 Yandex/Tineye/Copyseeker 兜底；`weightedShuffle` 开启时漫画权重 Soutubot 40 / SauceNAO 30 / IQDB 20 / TraceMoe 10 / 通用 5。**`kind=comic` + 本地文件（`file`）时不上图床**：Soutubot 直接传文件（soutubot API 只收文件），失败/无结果回退 TraceMoe 文件直传。
+
+引擎实测（2026-10，PicImageSearch 图床 URL 全矩阵交叉验证）：直连可用 TraceMoe / IQDB / Soutubot；代理可用 Copyseeker（184 条）/ Yandex（15 条）/ Tineye（图床新图未收录时 0 条，收录后正常）；SauceNAO 需 `saucenaoKey`；其余（ascii2d / anime_trace / bing / google_lens / ehentai）不可用。`imgSearch` 配置段：`enabled`（默认开）/ `maxResults`（默认 5）/ `saucenaoKey` / `weightedShuffle`。
 
 ### web_fetch（抓公网原文，仅拥有者）
 
-DSH 自带的 `web_fetch` 工具仍然注册，但**已从访客默认白名单移除**——访客要抓原文请用 `qq_websearch({url})`（走 `webSearch.proxy` 代理、同样带公网 IP 过滤）。`web_fetch` 本身只允许公网 IP，内网/回环地址由 DSH 直接拒绝；拥有者不受访客白名单限制，照常可用。
+DSH 自带的 `web_fetch` 工具仍然注册，但**已从访客默认白名单移除**——访客要抓原文请用 `qq_webfetch`（走 `webSearch.proxy` 代理、同样带公网 IP 过滤，`moli.enabled` 时可改用 Moli 渲染）。`web_fetch` 本身只允许公网 IP，内网/回环地址由 DSH 直接拒绝；拥有者不受访客白名单限制，照常可用。
 
 ### qqgroup（群管理）
 
@@ -493,4 +528,4 @@ MIT，见 [LICENSE](LICENSE)。原作者与维护者见顶部（维护 [@nd00272
 
 AI 生成内容声明见 [AI-DISCLOSURE.md](AI-DISCLOSURE.md)，**使用前请务必读一遍**（尤其"已知限制"一节）。
 
-**运行时依赖**：`@deepseek-ai/schemastery`（Config schema 用）；`@deepseek-ai/dsh-tools` 可选（仅用于注册动态工具，缺失时自动降级）。适配器只用 Node 22 内置的 `WebSocket` 与 `fetch`。
+**运行时依赖**：`@deepseek-ai/schemastery`（Config schema 用）；`@deepseek-ai/dsh-tools` 可选（仅用于注册动态工具，缺失时自动降级）。适配器只用 Node 22 内置的 `WebSocket` 与 `fetch`——**本插件本身保持零 npm 依赖**。**唯一的可选功能例外**：`qq_webfetch` 的 Moli 渲染模式（`moli.enabled`）需要另外安装 [dsh-moli](https://github.com/nd002723/dsh-moli) 插件 + moli 引擎（未装时开关无效、工具返回 `moliUnavailable` 并回退普通 http 抓取），不影响其它功能。
