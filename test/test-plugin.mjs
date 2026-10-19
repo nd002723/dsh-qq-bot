@@ -296,8 +296,8 @@ try {
   try { schemaJson = mod.Config.toJSON(); JSON.stringify(schemaJson); } catch (error) { schemaJson = null; }
   check('Config.toJSON() 可 JSON 序列化（describe 需要）', schemaJson !== null && typeof schemaJson === 'object');
   check('工作目录配置项已移除（工作区自动管理）', liveConfig.workspace === undefined || liveConfig.workspace === null);
-  check('访客默认白名单含 qq_websearch 且不含 web_fetch（联网统一走 qq_websearch 代理）',
-    Array.isArray(liveConfig.auth.guestToolAllow.get()) && liveConfig.auth.guestToolAllow.get().includes('qq_websearch') && !liveConfig.auth.guestToolAllow.get().includes('web_fetch'),
+  check('访客默认白名单含 qq_websearch/qq_history 且不含 web_fetch（联网统一走 qq_websearch 代理，历史自取走 qq_history）',
+    Array.isArray(liveConfig.auth.guestToolAllow.get()) && liveConfig.auth.guestToolAllow.get().includes('qq_websearch') && liveConfig.auth.guestToolAllow.get().includes('qq_history') && !liveConfig.auth.guestToolAllow.get().includes('web_fetch'),
     JSON.stringify(liveConfig.auth.guestToolAllow.get()));
 
   console.log('\n2. 动态工具注册（走真的 defineTool）');
@@ -305,9 +305,9 @@ try {
   if (hasDshTools !== true) {
     check('（跳过）工具注册需 @deepseek-ai/dsh-tools；路由/回复断言不受影响', true);
   } else {
-    check('注册了 qqbot + qqgroup + qq_websearch + qq_imgsearch + qq_webfetch 五个工具', registeredTools.length === 5, String(registeredTools.length));
-    check('工具名分别是 qqbot / qqgroup / qq_websearch',
-      (() => { const names = registeredTools.map((t) => t.name); return names.includes('qqbot') && names.includes('qqgroup') && names.includes('qq_websearch'); })(),
+    check('注册了 qqbot + qqgroup + qq_websearch + qq_webfetch + qq_imgsearch + qq_history 六个工具', registeredTools.length === 6, String(registeredTools.length));
+    check('工具名分别是 qqbot / qqgroup / qq_websearch / qq_history',
+      (() => { const names = registeredTools.map((t) => t.name); return names.includes('qqbot') && names.includes('qqgroup') && names.includes('qq_websearch') && names.includes('qq_history'); })(),
       JSON.stringify(registeredTools.map((t) => t.name)));
     check('工具名是 qqbot', tool && tool.name === 'qqbot', String(tool && tool.name));
     check('defineTool 接受了参数 DSL（含 action）', Boolean(tool && tool.parameters && tool.parameters.properties && tool.parameters.properties.action),
@@ -379,8 +379,8 @@ try {
     Array.isArray(replyBotSent[0].message) && replyBotSent[0].message[0] && replyBotSent[0].message[0].type === 'reply',
     JSON.stringify(replyBotSent[0].message));
   const replyBotText = textOf(replyBotSent[0]);
-  check('Agent 收到了该对话者与 bot 的最近相关发言上下文',
-    replyBotText.includes('最近相关发言') && replyBotText.includes('上次 bot 的回复') && replyBotText.includes('上次用户的发言'),
+  check('Agent 不再自动收到塞入的聊天上下文（改由 qq_history 自取）',
+    !replyBotText.includes('最近相关发言') && !replyBotText.includes('上次 bot 的回复') && !replyBotText.includes('上次用户的发言'),
     JSON.stringify(replyBotText.slice(0, 160)));
 
   console.log('\n4a2. 回复（引用）非 bot 消息 -> 不触发');
@@ -428,7 +428,7 @@ try {
   check('回复 bot + 正文 @别人：不引用回复（交给 bot 自行判断）',
     !(atOtherSent[0].message[0] && atOtherSent[0].message[0].type === 'reply'), JSON.stringify(atOtherSent[0].message));
   const atOtherText = textOf(atOtherSent[0]);
-  check('回复 bot + 正文 @别人：仍拉上下文', atOtherText.includes('早前对话'), JSON.stringify(atOtherText.slice(0, 120)));
+  check('回复 bot + 正文 @别人：不再自动拉上下文（改由 qq_history）', !atOtherText.includes('早前对话'), JSON.stringify(atOtherText.slice(0, 120)));
 
   console.log('\n4a4. 回复别人 + 正文 @bot -> 处理 + 引用回复 + 上下文含被@对象（8 条）');
   mock.history.length = 0;
@@ -473,11 +473,9 @@ try {
     'reply id=' + String(atBotSent[0].message[0] && atBotSent[0].message[0].data.id)
       + ' 期望=' + String(injectAtBotId) + ' 被回复对象=' + String(otherMsg4));
   const atBotText = textOf(atBotSent[0]);
-  check('上下文包含被@对象发言', atBotText.includes('对象发言'), JSON.stringify(atBotText.slice(0, 120)));
-  check('上下文包含对话者发言', atBotText.includes('用户历史'), JSON.stringify(atBotText.slice(0, 120)));
-  check('上下文包含 bot 发言', atBotText.includes('bot历史'), JSON.stringify(atBotText.slice(0, 120)));
-  check('上下文扩充到 8 条', (atBotText.match(/【/g) || []).length === 8,
-    String((atBotText.match(/【/g) || []).length));
+  check('回复别人+@bot：不再自动拉上下文（对象/对话者/bot 发言都不塞，改由 qq_history）',
+    !atBotText.includes('对象发言') && !atBotText.includes('用户历史') && !atBotText.includes('bot历史')
+    && !atBotText.includes('最近相关发言'), JSON.stringify(atBotText.slice(0, 140)));
 
   console.log('\n4a5. 点名但无正文：纯回复 bot / 只 @ / 回复别人+@bot -> 都触发并给占位正文');
   // (1) 纯回复 bot（只有 reply 段，无文字）
@@ -497,8 +495,8 @@ try {
   check('纯回复 bot（无正文）：触发处理', sent5a.length > 0 && sent5a[0].action === 'send_group_msg', JSON.stringify(sent5a));
   check('纯回复 bot（无正文）：引用回复', sent5a[0].message[0] && sent5a[0].message[0].type === 'reply', JSON.stringify(sent5a[0].message));
   const text5a = textOf(sent5a[0]);
-  check('纯回复 bot（无正文）：Agent 收到占位正文 + 上下文',
-    text5a.includes('仅点名了 bot') && text5a.includes('用户说过的话'), JSON.stringify(text5a.slice(0, 140)));
+  check('纯回复 bot（无正文）：Agent 收到占位正文（不再自动塞上下文）',
+    text5a.includes('仅点名了 bot') && !text5a.includes('用户说过的话'), JSON.stringify(text5a.slice(0, 140)));
 
   // (2) 只 @bot（只有 at 段，无文字）
   mock.history.length = 0;
@@ -530,10 +528,10 @@ try {
   check('回复别人 + @bot（无正文）：触发处理', sent5c.length > 0 && sent5c[0].action === 'send_group_msg', JSON.stringify(sent5c));
   check('回复别人 + @bot（无正文）：引用回复', sent5c[0].message[0] && sent5c[0].message[0].type === 'reply', JSON.stringify(sent5c[0].message));
   const text5c = textOf(sent5c[0]);
-  check('回复别人 + @bot（无正文）：上下文含被回复者',
-    text5c.includes('仅点名了 bot') && text5c.includes('别人消息'), JSON.stringify(text5c.slice(0, 140)));
+  check('回复别人 + @bot（无正文）：占位正文（不再自动塞被回复者发言）',
+    text5c.includes('仅点名了 bot') && !text5c.includes('别人消息'), JSON.stringify(text5c.slice(0, 140)));
 
-  console.log('\n4a6. 被回复消息不在最近历史（窗口外）-> 仍通过 get_msg 并入上下文');
+  console.log('\n4a6. 被回复消息不在最近历史（窗口外）-> 不再并入上下文（AI 自取走 qq_history）');
   mock.history.length = 0;
   mock.extraMessages.length = 0;
   const oldMsg6 = 600050;
@@ -553,8 +551,8 @@ try {
   });
   const sent6 = await waitFor(() => (mock.sent.length > before6 ? mock.sent.slice(before6) : null), 15000, '窗口外被回复消息');
   const text6 = textOf(sent6[0]);
-  check('被回复消息不在历史窗口时仍并入上下文（get_msg 按 id 拉）', text6.includes('很旧的那条被回复消息'), JSON.stringify(text6.slice(0, 160)));
-  check('上下文仍含发言人最近发言 + bot 最近发言', text6.includes('发言人最近发言') && text6.includes('bot最近发言'), JSON.stringify(text6.slice(0, 160)));
+  check('被回复消息不在历史窗口：不再并入上下文（get_msg 仍可用于收被回复图片）', !text6.includes('很旧的那条被回复消息'), JSON.stringify(text6.slice(0, 160)));
+  check('上下文不再含发言人/bot 发言（不再自动拉上下文）', !text6.includes('发言人最近发言') && !text6.includes('bot最近发言'), JSON.stringify(text6.slice(0, 160)));
 
   console.log('\n4a7. 相关发言为空时 -> 最低 2 条兜底（被回复消息 + 发言人本条）');
   mock.history.length = 0;
@@ -574,7 +572,7 @@ try {
   });
   const sent7 = await waitFor(() => (mock.sent.length > before7 ? mock.sent.slice(before7) : null), 15000, '最低2条兜底');
   const text7 = textOf(sent7[0]);
-  check('相关发言为空时上下文含被回复消息（bot 很久前的消息）', text7.includes('bot 很久前的消息'), JSON.stringify(text7.slice(0, 160)));
+  check('相关发言为空：不再并入被回复消息（bot 很久前的消息不塞上下文）', !text7.includes('bot 很久前的消息'), JSON.stringify(text7.slice(0, 160)));
   check('相关发言为空时上下文含发言人本条（最低 2 条兜底）', text7.includes('仅点名了 bot'), JSON.stringify(text7.slice(0, 160)));
   check('最低 2 条兜底：不硬补其它群友', !text7.includes('别的群友插话'), JSON.stringify(text7.slice(0, 160)));
 
@@ -635,7 +633,7 @@ try {
     'stream 总数=' + visionCalls.filter((c) => c.kind === 'stream').length);
   const text2 = textOf(sent2[0]);
   check('被回复图片的识别文本并入 Agent 输入', text2.includes('【视觉识别】画面里是一只白猫'), JSON.stringify(text2.slice(0, 200)));
-  check('上下文含被回复图片消息（[图片] 占位）', text2.includes('[图片]'), JSON.stringify(text2.slice(0, 200)));
+  check('被回复图片不再以 [图片] 占位塞进消息文本（改由视觉识别并入）', !text2.includes('[图片]'), JSON.stringify(text2.slice(0, 200)));
 
   console.log('\n4c. 图片视觉：模型不支持 -> 可读报错（不进入 Agent）');
   const streamsBefore4c = visionCalls.filter((c) => c.kind === 'stream').length;
@@ -680,6 +678,7 @@ try {
     }
     return meBaseFetch(url, init);
   };
+  if (hasDshTools === true) {
   const wsTool4d = registeredTools.find((t) => t.name === 'qq_websearch');
   const meResult = wsTool4d !== undefined ? await wsTool4d.execute({ query: '测试搜索' }, {}) : null;
   check('多引擎搜索返回 mock DuckDuckGo 结果（未走官方 DeepSeek）',
@@ -691,6 +690,9 @@ try {
     && meResult.sources[0].title === '测试结果标题' && meResult.sources[0].snippet.includes('测试搜索'),
     JSON.stringify(meResult && meResult.sources && meResult.sources[0]));
   globalThis.fetch = meBaseFetch;
+  } else {
+    check('（跳过）4d 多引擎工具断言需 @deepseek-ai/dsh-tools', true);
+  }
 
   console.log('\n4e. 图片反搜：imgSearch 默认开，qq_imgsearch 工具走 mock TraceMoe');
   check('imgSearch.enabled 默认 true（设置页有开关）',
@@ -715,6 +717,7 @@ try {
     }
     return imBaseFetch(url, init);
   };
+  if (hasDshTools === true) {
   const imgTool4e = registeredTools.find((t) => t.name === 'qq_imgsearch');
   check('qq_imgsearch 已注册', imgTool4e !== undefined, imgTool4e ? imgTool4e.name : '未注册');
   const imgResult = imgTool4e !== undefined ? await imgTool4e.execute({ url: 'https://example.com/some-image.jpg' }, {}) : null;
@@ -729,6 +732,77 @@ try {
     && imgResult.sources[0].snippet.includes('第1集') && imgResult.sources[0].snippet.includes('相似度 97%'),
     JSON.stringify(imgResult && imgResult.sources && imgResult.sources[0] && imgResult.sources[0].snippet));
   globalThis.fetch = imBaseFetch;
+  } else {
+    check('（跳过）4e 图片反搜工具断言需 @deepseek-ai/dsh-tools', true);
+  }
+
+  console.log('\n4f. qq_history：AI 自取聊天记录与图片（识别窗口锚定最新提及，不再自动塞上下文）');
+  if (hasDshTools === true) {
+  const histTool = registeredTools.find((t) => t.name === 'qq_history');
+  check('qq_history 工具已注册（含 group_id/user_id/count/with_images 参数）',
+    Boolean(histTool) && typeof histTool.parameters?.properties?.group_id === 'object'
+    && typeof histTool.parameters?.properties?.count === 'object'
+    && typeof histTool.parameters?.properties?.with_images === 'object',
+    Boolean(histTool) ? JSON.stringify(Object.keys(histTool.parameters?.properties ?? {})) : 'missing');
+  // 构造窗口内/窗口外图片：注入 8 条历史（img1 最旧=窗口外，img5/img6 在窗口内），再注入触发消息 @bot
+  mock.history.length = 0;
+  for (let i = 1; i <= 8; i += 1) {
+    const hasImg = i === 1 || i === 5 || i === 6;
+    const m = hasImg
+      ? [{ type: 'image', data: { url: 'https://cdn.example.com/img' + i + '.png' } }]
+      : [{ type: 'text', data: { text: '历史消息' + i } }];
+    await fetch(mock.httpUrl + '/__inject', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ message_type: 'group', group_id: 33333, user_id: 22222, nickname: '用户' + i, message: m }),
+    });
+  }
+  const beforeHist = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({
+      message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+      message: [{ type: 'at', data: { qq: '10000' } }, { type: 'text', data: { text: '看看最近聊天记录' } }],
+    }),
+  });
+  await waitFor(() => (mock.sent.length > beforeHist ? mock.sent.slice(beforeHist) : null), 15000, '触发消息已回复');
+  // stub cdn.example.com 下载（识别走「未配置 provider/model」分支，验证失败不阻塞只给 URL）
+  const histRealFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    if (String(url).startsWith('https://cdn.example.com/')) {
+      return { ok: true, status: 200, headers: { get: (h) => (String(h).toLowerCase() === 'content-type' ? 'image/png' : null) },
+        arrayBuffer: async () => new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]).buffer };
+    }
+    return histRealFetch(url, init);
+  };
+  const histExec = { agent: agents.get('qqbot-group-33333') };
+  const histRes = histTool !== undefined ? await histTool.execute({ count: 20 }, histExec) : null;
+  globalThis.fetch = histRealFetch;
+  check('qq_history 返回结构化消息列表（time/user_id/nickname/text/images）',
+    histRes !== null && histRes.ok === true && Array.isArray(histRes.messages) && histRes.messages.length >= 1
+    && typeof histRes.messages[0].text === 'string' && histRes.messages[0].images !== undefined,
+    histRes ? JSON.stringify(histRes).slice(0, 260) : 'null');
+  check('识别窗口锚定最新提及：窗口内图片带 URL+描述，窗口外图片不被识别',
+    (() => {
+      if (histRes === null || !Array.isArray(histRes.messages)) return false;
+      const has = (n) => histRes.messages.some((m) => m.images.some((im) => im.url.includes('img' + n + '.png')));
+      const img5 = histRes.messages.find((x) => x.images.some((im) => im.url.includes('img5.png')));
+      const desc5 = img5 && img5.images[0] && typeof img5.images[0].description === 'string' ? img5.images[0].description : '';
+      return has(5) && has(6) && !has(1) && desc5 !== '';
+    })(),
+    histRes ? JSON.stringify(histRes.messages.map((m) => ({ text: m.text, images: m.images.map((im) => ({ url: im.url, d: im.description })) })).slice(0, 9)) : 'null');
+  check('窗口内识别不超过 imageLimit 张（默认 3；此场景窗口内 2 张）',
+    (() => {
+      if (histRes === null || !Array.isArray(histRes.messages)) return false;
+      return histRes.messages.reduce((acc, m) => acc + m.images.length, 0) === 2;
+    })(),
+    histRes ? String(histRes.messages.reduce((acc, m) => acc + m.images.length, 0)) : 'null');
+  } else {
+    check('（跳过）4f qq_history 工具断言需 @deepseek-ai/dsh-tools', true);
+  }
+  check('qq_history 默认在访客白名单', Array.isArray(liveConfig.auth.guestToolAllow.get())
+    && liveConfig.auth.guestToolAllow.get().includes('qq_history'),
+    JSON.stringify(liveConfig.auth.guestToolAllow.get()));
+
 
   console.log('\n5. 工具 status 动作');
   const status = hasDshTools === true ? await tool.execute({ action: 'status' }, {}) : null;

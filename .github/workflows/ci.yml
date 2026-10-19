@@ -1,0 +1,30 @@
+# CI：每次 push（main）与 PR 自动跑全部测试。
+# 8 套件经 run-all 汇总：adapter / adapter-reverse / plugin / client / admin / http / config / websearch。
+# @deepseek-ai/dsh-tools 是 DSH 运行时的 optional peer，CI 解析不到时插件套件相关断言自动 SKIP（4d/4e/4f），其余照常全绿。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: 安装依赖（npm install）
+        run: npm install
+
+      - name: 跑全部测试（run-all 汇总）
+        run: npm test

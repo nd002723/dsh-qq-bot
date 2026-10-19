@@ -2,6 +2,20 @@
 
 本项目遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## 0.6.8
+
+模块化重构 + qq_history：聊天上下文改为 AI 主动自取（不再硬塞），业务代码按模块拆分。
+
+- **模块化重构**：`lib/index.js`（原 3346 行单文件）拆成模块——保留 napcat 通信与子进程监管（`lib/onebot-adapter.mjs`），抽出网络查询通道（`lib/http.js` 通用 HTTP 传输 / `lib/websearch.js` 联网搜索 / `lib/imgsearch.js` 图片反搜）、dsh-moli 联动（`lib/moli.js`）、配置契约（`lib/config.js`：`DEFAULTS` + `Config` + `plainConfig`/`mergeConfig`）；业务再拆三块——`lib/admin.js`（权限三路鉴权 + 群管理指令 `handleAdminCommand`/`planAdminCommand`/`runGroupAction`）、`lib/session.js`（会话条目与路由 `getEntry`/`sessionRoute`/`entryForAgent` + 被回复图片收集）、`lib/tools.js`（6 工具动态注册）；`lib/index.js` 只留 napcat 通信 + 装配与生命周期（1906 → 845 行）。所有外部请求仍走 `webSearch.proxy` 管控（留空直连、非空走 CONNECT 隧道、非公网 IP 拒绝）。
+- **qq_history（新工具，AI 自取聊天记录）**：不再自动把群内「最近相关发言」硬塞进会话——`acceptMessage` 里的 `fetchReplyContext`/`replyTargetQQs` 已删除，需要历史上下文时由 Agent **主动调 `qq_history`** 拉取（prompt 有引导）。
+  - 返回结构化消息列表：`{ok, group_id, messages:[{time, user_id, nickname, text, images:[{url, description}]}]}`，参数 `group_id`（默认当前群）/ `user_id`（可选筛人）/ `count`（默认 20，上限 50）/ `with_images`（默认开）。
+  - **识别窗口锚定「最新提及」**：只对触发本条回复的那条消息（@ bot / 回复 bot / 命令前缀）**往前 `scopeMessages` 条**内的图片做识别（默认 5），最多 `imageLimit` 张（默认 3，最近的优先）；更早的 @ 不锚定、其附近图片不因「也是被提及」而识别，避免重复拉取/重复识图。
+  - 窗口内图片用现有视觉链路（下载 + `askVision`）识别，返回 URL + 描述；识别失败只给 URL 不阻塞。修复：工具 execute 不再闭包未定义的 `entry`（原会 ReferenceError），改由执行上下文 `exec.agent` 经 `entryForAgent` 反查当前会话。
+- **被回复消息的图片仍走视觉识别**：`collectReplyImageUrls` 保留「用 `get_msg` 拉被回复消息、收集图片并入识图」的能力（回复引用流程不受影响），但不再把被回复消息文本塞进上下文。
+- **访客白名单**：默认加入 `qq_history`。
+- **新配置段 `history`**：`scopeMessages`（识别窗口条数，默认 5）/ `imageLimit`（窗口内最多识图张数，默认 3），设置页可改。
+- **测试**：`npm test` 全绿（adapter 12 / plugin 88 / client 32 / admin 36）；新增 4f 段（工具注册 / 白名单 / 结构化拉取 / 窗口锚定 / 限张），旧「自动塞上下文」断言全部翻转为「不再自动携带」。
+
 ## 0.6.7
 
 继续维护版：qq_websearch 的 url 抓取拆成独立工具 qq_webfetch，新增 dsh-moli 接管。

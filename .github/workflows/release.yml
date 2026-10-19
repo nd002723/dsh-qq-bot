@@ -1,0 +1,63 @@
+# Auto Release：package.json 版本号变更（push main 且只改 package.json）时，自动发 GitHub Release。
+# Release 内容（标题+正文）取自「最近一次修改 package.json 的 commit」的提交信息（即版本 bump 那个 commit）。
+# 同名 tag 已存在则跳过（重复 push 幂等）。
+name: Auto Release
+
+on:
+  push:
+    branches: [main]
+    paths: ['package.json']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 检出代码（含全部历史与 tag）
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 读取新版本号
+        id: version
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: 同名 tag 已存在则跳过
+        id: check
+        run: |
+          if git rev-parse -q --verify "refs/tags/v${{ steps.version.outputs.version }}" >/dev/null; then
+            echo "tag v${{ steps.version.outputs.version }} 已存在，跳过"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: 发布前自检（跑全部测试）
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          npm install
+          npm test
+
+      - name: 取「首次引入当前版本号」的 commit 内容作为 Release 正文
+        if: steps.check.outputs.skip == 'false'
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          SHA=""
+          for s in $(git log --reverse --format=%H -- package.json); do
+            v=$(git show "$s:package.json" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).version")
+            if [ "$v" = "$VERSION" ]; then SHA="$s"; break; fi
+          done
+          if [ -z "$SHA" ]; then SHA=$(git log -1 --format=%H); fi
+          git log -1 --format=%B "$SHA" > /tmp/release-body.txt
+
+      - name: 创建 GitHub Release
+        if: steps.check.outputs.skip == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v${{ steps.version.outputs.version }}" \
+            --title "v${{ steps.version.outputs.version }}" \
+            --notes-file /tmp/release-body.txt

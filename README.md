@@ -5,6 +5,12 @@
 
 **维护者** [@nd002723](https://github.com/nd002723) · **原作者** [@arrow1031](https://github.com/arrow1031) · **许可** [MIT](LICENSE) · **AI 生成声明** [AI-DISCLOSURE.md](AI-DISCLOSURE.md) · **更新日志** [CHANGELOG.md](CHANGELOG.md)
 
+> **⚠️ 0.6.8 行为变更：bot 不再自动附带聊天上下文**
+>
+> 被 @ / 回复 bot 时，不再自动把群内「最近相关发言」硬塞进会话上下文（省 token、上下文更精简）。
+> 需要结合群内近期消息/图片作答时，Agent 会**主动调 `qq_history` 工具**拉取（见 [qq_history 小节](#qq_history聊天记录ai-自取)）。
+> 可感知影响：bot 对群内前文的「记忆力」取决于模型是否自觉调工具；若群成员觉得 bot 变迟钝，这是**预期行为**而非故障。
+
 一个可以装进 DSH profile 的插件：QQ 消息进来 → 交给 DSH Agent → 回复发回 QQ。
 
 复用现成生态，不自造协议：
@@ -72,22 +78,22 @@ docker run -d --name napcat --restart=always \
 dsh plugin --profile web add github:nd002723/dsh-qq-bot
 
 # 想锁版本就用 tag（推荐生产环境）
-dsh plugin --profile web add github:nd002723/dsh-qq-bot#v0.6.7
+dsh plugin --profile web add github:nd002723/dsh-qq-bot#v0.6.8
 
 # 方式二：用 Release 里打好的 tarball（固定版本）
 dsh plugin --profile web add \
-  https://github.com/nd002723/dsh-qq-bot/releases/download/v0.6.7/dsh-qq-bot-0.6.7.tgz
+  https://github.com/nd002723/dsh-qq-bot/releases/download/v0.6.8/dsh-qq-bot-0.6.8.tgz
 
 # 方式三：本地 tarball（自己改了代码之后）
 npm pack
-dsh plugin --profile web add ./dsh-qq-bot-0.6.7.tgz
+dsh plugin --profile web add ./dsh-qq-bot-0.6.8.tgz
 ```
 
 `--profile` 换成你实际在用的 profile：**桌面版是 `--profile desktop`**，`dsh web` 部署一般是 `--profile web`。
 
 `dsh plugin` 本质是 pnpm 的前置封装：装完包后，它会**自动把声明了 `dsh.bundle.patch` 的依赖加入 profile 的层栈**（本包的 package.json 已声明），并连同唯一的运行时依赖 `@deepseek-ai/schemastery` 一起装上。装完**重启 DSH（桌面版重启应用 / CLI 重启 `dsh web`）**生效。
 
-> **版本要求**：本版（`0.6.7`）及 `0.6.4` 起要求 **DSH ≥ 0.1.7**；DSH 0.1.6 及更早请到上游原仓库用 `0.6.0`。
+> **版本要求**：本版（`0.6.8`）及 `0.6.4` 起要求 **DSH ≥ 0.1.7**；DSH 0.1.6 及更早请到上游原仓库用 `0.6.0`。
 
 > **升级注意**：`dsh plugin add` 走 pnpm，按 tarball **完整性哈希**缓存——改了代码要打成**新版本号文件名**再装（0.6.0 → 0.6.1），沿用旧名会被判「已最新」跳过。
 > `lib/client.js` 是浏览器侧代码，装完重启后还要**刷新浏览器页面**才加载新 bundle。
@@ -95,8 +101,9 @@ dsh plugin --profile web add ./dsh-qq-bot-0.6.7.tgz
 ### 3. 在 QQ 里试
 
 - **群聊**：默认要 **@机器人** 才有反应，`@` 会被去掉再交给 Agent。
-  - **回复（引用）机器人的消息**也视同 @ 处理（`reply.botReply`，默认开启），会附上你与 bot 最近的相关发言（≤5 条）作上下文；带图照常走识图流程。
-  - **回复别人 + 正文 @bot**：同样触发，上下文并入被回复者/被 @ 对象的发言（最多 8 条）。
+  - **回复（引用）机器人的消息**也视同 @ 处理（`reply.botReply`，默认开启），带图照常走识图流程。
+  - **需要结合群内近期消息/图片作答时，AI 会主动调 `qq_history` 工具自取**（不再自动硬塞上下文）——识别窗口锚定触发本条回复的那条消息往前 `scopeMessages` 条，最多 `imageLimit` 张图（默认 5/3，设置页可调）。
+  - **回复别人 + 正文 @bot**：同样触发（引用回复），上下文同样交给 AI 自取。
   - **bot 被点名时（@ / 回复 bot / 命令前缀 / 管理指令）**：回复统一**引用你的消息**（QQ 引用回复）。
 - **私聊**：默认直接回。
 - 长回复按换行切成 ≤1200 字多条发送。
@@ -179,7 +186,7 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
       ownerPreset: ''             # 填了才把拥有者/非拥有者分成两条会话
       guestPreset: ''             # 非拥有者用的 preset（仅人格分离，非安全边界）
       guestDshTools: false        # 是否允许访客用 DSH 内部工具（默认否）
-      guestToolAllow: ['qqbot', 'qqgroup', 'qq_websearch', 'qq_webfetch', 'qq_imgsearch']   # 访客仍可用的工具白名单
+      guestToolAllow: ['qqbot', 'qqgroup', 'qq_websearch', 'qq_webfetch', 'qq_imgsearch', 'qq_history']   # 访客仍可用的工具白名单
       grantTtlMinutes: 60         # 群管理员动态授权默认时长
       grantMaxTtlMinutes: 1440    # 群管理员单次可授最长
     admin:
@@ -213,6 +220,9 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
       enabled: false              # 默认关；开启后 qq_webfetch 改用 Moli 无头浏览器渲染抓取（可抓 SPA/JS 页；需已安装 moli 引擎，否则无效）
       proxy: ''                   # http://host:port；留空自动透传 webSearch.proxy
       exePath: ''                 # moli 可执行文件路径；留空自动探测 ~/.local/bin/moli 与 PATH
+    history:                      # qq_history 聊天记录（AI 自取）
+      scopeMessages: 5              # 识别窗口：触发消息往前最多多少条
+      imageLimit: 3                 # 窗口内最多识别多少张图（最近的优先）
     imgSearch:                    # qq_imgsearch 图片反搜
       enabled: true               # 默认开；关闭后工具返回「已关闭」
       maxResults: 5               # 每次反搜最多返回结果数
@@ -265,7 +275,7 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
 
 - 注册在 `agent.ctx` 上 → 只作用于该会话的 agent
 - 每次工具执行时才求值 → 拥有者/访客交替说话**不需要增删限制**
-- 用**白名单**（`auth.guestToolAllow`，默认 `qqbot,qqgroup,qq_websearch,qq_webfetch,qq_imgsearch`）→ `run_code`（PTC 保留传输）这类"不在全局层"的特殊工具也会被自动挡住；访客联网统一走 `qq_websearch`（搜索）与 `qq_webfetch`（抓网页），DSH 自带的 `web_fetch` 已从默认白名单移除
+- 用**白名单**（`auth.guestToolAllow`，默认 `qqbot,qqgroup,qq_websearch,qq_webfetch,qq_imgsearch,qq_history`）→ `run_code`（PTC 保留传输）这类"不在全局层"的特殊工具也会被自动挡住；访客联网统一走 `qq_websearch`（搜索）与 `qq_webfetch`（抓网页），DSH 自带的 `web_fetch` 已从默认白名单移除
 - 被拦时返回拒绝原因，模型会把它转达给用户（最多多一次"被拒绝的调用"往返）
 
 因此它同时满足：**0 额外 token**（不注入提示词、不改工具表、不记 `request/header`）、**单会话单历史**、**不改 DSH 本身**。
@@ -373,6 +383,14 @@ Agent 会话的工作目录**不需要任何配置**：插件读取 DSH 官方�
 - **`kind=comic` 漫画模式**（`qq_imgsearch` 参数）：漫画/本子截图优先 **Soutubot → SauceNAO（有 key）→ IQDB → TraceMoe**（无代理同链），有代理时再 Yandex/Tineye/Copyseeker 兜底；`weightedShuffle` 开启时漫画权重 Soutubot 40 / SauceNAO 30 / IQDB 20 / TraceMoe 10 / 通用 5。**`kind=comic` + 本地文件（`file`）时不上图床**：Soutubot 直接传文件（soutubot API 只收文件），失败/无结果回退 TraceMoe 文件直传。
 
 引擎实测（2026-10，PicImageSearch 图床 URL 全矩阵交叉验证）：直连可用 TraceMoe / IQDB / Soutubot；代理可用 Copyseeker（184 条）/ Yandex（15 条）/ Tineye（图床新图未收录时 0 条，收录后正常）；SauceNAO 需 `saucenaoKey`；其余（ascii2d / anime_trace / bing / google_lens / ehentai）不可用。`imgSearch` 配置段：`enabled`（默认开）/ `maxResults`（默认 5）/ `saucenaoKey` / `weightedShuffle`。
+
+### qq_history（聊天记录，AI 自取）
+
+访客白名单内可直接调用（群聊里被 @ 或需要结合群内近期消息/图片作答时，Agent 会主动调它）：
+
+- `{group_id?, user_id?, count?, with_images?}` —— 拉取当前群最近消息，返回 `{ok, group_id, messages:[{time, user_id, nickname, text, images:[{url, description}]}]}`；`group_id` 默认当前群，`user_id` 可只筛某人的发言，`count` 默认 20、上限 50，`with_images` 默认开。
+- **识别窗口锚定「最新提及」**：只对触发本条回复的那条消息（@ bot / 回复 bot / 命令前缀）**往前 `scopeMessages` 条**（默认 5）内的图片做识别，最多 `imageLimit` 张（默认 3，最近的优先）；更早的 @ 不锚定、其附近图片不因「也是被提及」而识别，避免重复拉取/重复识图。
+- 窗口内图片用插件的视觉链路识别（下载 + `askVision`），返回 URL + 描述；识别失败只给 URL 不阻塞。配置见 `history` 段（`scopeMessages` / `imageLimit`）。
 
 ### web_fetch（抓公网原文，仅拥有者）
 

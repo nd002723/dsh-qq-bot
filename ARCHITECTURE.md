@@ -19,7 +19,10 @@ NapCat / OneDisc / Lagrange …          ← 独立项目，本项目不包含
 lib/onebot-adapter.mjs                 ← 独立子进程；只懂协议，不懂业务
    │ stdin/stdout，换行分隔 JSON
    ▼
-lib/index.js（Cordis 插件，Host 侧）    ← 业务全在这
+lib/index.js（Cordis 插件，Host 侧）    ← napcat 通信 + 业务装配（瘦身后的主干）
+   │  ├─ 网络查询通道：lib/http.js / lib/websearch.js / lib/imgsearch.js / lib/moli.js
+   │  ├─ 配置契约：lib/config.js（DEFAULTS + Config + plainConfig/mergeConfig）
+   │  ├─ 业务模块：lib/admin.js（权限/群管理指令）/ lib/session.js（会话/路由）/ lib/tools.js（工具注册）
    │  ├─ sessionController → DSH Agent → 模型
    │  └─ lib/client.js（浏览器）→ 设置页
    ▼
@@ -38,11 +41,19 @@ DSH Agent
 | 文件 | 职责 | 你大概多久会动它 |
 | --- | --- | --- |
 | `lib/onebot-adapter.mjs` | OneBot 11 传输层。正向/反向 WS、HTTP API、帧编解码、重连、发送限速 | 换协议或加协议动作时 |
-| `lib/index.js` | 全部业务：配置、权限、指令、回复、工具、子进程监管 | 改行为，**最常动** |
+| `lib/index.js` | napcat 通信 + 业务装配：适配器监管、消息接收/回复路由、视觉链路、模块工厂注入（瘦身后的主干） | 改收/发/视觉链路时 |
+| `lib/admin.js` | 业务：权限三路鉴权（`resolveAuthority`/`hasPerm`/`describeAuthority`）+ 群管理指令（`handleAdminCommand`/`planAdminCommand`/`runGroupAction`） | 改权限/管理指令时 |
+| `lib/session.js` | 业务：会话条目与路由（`getEntry`/`sessionRoute`/`entryForAgent`）+ 被回复图片收集（`collectReplyImageUrls`） | 改会话/路由/上下文收集时 |
+| `lib/tools.js` | 业务：6 个动态工具注册（qqbot/qqgroup/qq_websearch/qq_webfetch/qq_imgsearch/qq_history） | 加/改工具时 |
+| `lib/http.js` | 通用 HTTP 传输：多引擎请求、公网 IP 校验、代理隧道、web_search 端点 | 改抓取/代理行为时 |
+| `lib/websearch.js` | 联网搜索：官方 DeepSeek + 多引擎组合（Tavily/DDG/Yandex/Bing/Wikipedia） | 加搜索源/调搜索参数时 |
+| `lib/imgsearch.js` | 图片反搜：TraceMoe/IQDB/Yandex/Tineye/Copyseeker/SauceNAO/Soutubot + 图床上传 | 加反搜源时 |
+| `lib/moli.js` | dsh-moli 联动：moli 探测 + 渲染抓取（qq_webfetch 的 moli 分支） | 调 moli 对接时 |
+| `lib/config.js` | 配置契约：`DEFAULTS` + `Config` schema + `plainConfig`/`mergeConfig`/`describeError` | **加/改设置项时（这里）** |
 | `lib/client.js` | 浏览器侧：设置面板的一个选项卡 | 加/改设置项时 |
 | `cordis.patch.yml` | bundle 补丁，把插件插进 profile 组合树 | 几乎不动 |
 | `test/mock-onebot.mjs` | 零依赖 OneBot 11 模拟器（手写 RFC 6455 帧编解码） | 要模拟新动作/新事件时 |
-| `test/test-*.mjs` | 5 个测试套件，共 124 项 | 每次改动后 |
+| `test/test-*.mjs` | 5 个测试套件，共 168 项（adapter 12 / plugin 88 / client 32 / admin 36） | 每次改动后 |
 | `examples/dynamic-package-host.js` | 同一套逻辑的「动态 Package」形态，不装包即可在运行中的 DSH 里跑 | 想快速试改时 |
 
 **只有 `lib/` 和 `cordis.patch.yml` 会进 npm 包**（见 `package.json` 的 `files`）。测试与示例只在仓库里。
@@ -60,7 +71,7 @@ DSH Agent
 | 3 | 同上 | `emit({type:'message', …})` 写 stdout |
 | 4 | `lib/index.js` → `spawnAdapter` 里的 `proc.stdout.on('data')` | 按行切 JSON |
 | 5 | `onAdapterFrame` | 分发到 `acceptMessage` |
-| 6 | `acceptMessage` | 自过滤 → **群指令优先**（`handleAdminCommand`）→ 白名单 → @ 门 → 前缀 → 取 `sessionRoute` → 取 `getEntry` → 记 `entry.speaker`（`resolveAuthority`）→ 入队 |
+| 6 | `acceptMessage` | 自过滤 → **群指令优先**（`handleAdminCommand`）→ 白名单 → @ 门 → 前缀 → 取 `sessionRoute` → 取 `getEntry` → 记 `entry.speaker`（`resolveAuthority`）+ `entry.currentFrame`（qq_history 识别窗口锚点）→ 入队（**不再自动拉聊天上下文**，需要历史时由 Agent 主动调 `qq_history`） |
 | 7 | `runTurn`（串行队列内） | 设 `entry.dshAllowed`；`agent.followup(msg)` → `agent.whenIdle()` |
 | 8 | `extractReply(agent)` | 从会话日志里取最新一条有文本的 assistant 消息 |
 | 9 | `sendReply` → `chunkText` | 分片后写适配器 stdin |
@@ -89,6 +100,8 @@ handleAdminCommand
 ## 3. 关键数据结构
 
 ### 3.1 配置：一个 schema，三层来源
+
+配置契约整体在 **`lib/config.js`**：`DEFAULTS`（离线兜底默认值）+ `Config`（schemastery schema）+ `plainConfig`/`mergeConfig`/`describeError`。`lib/index.js` 只负责消费刷新后的 `CONFIG`，不直接声明配置。
 
 DSH ≥ 0.1.7 的写法：插件**导出 schemastery 的 `Config`**，DSH 拿它当设置表单，把
 「composition 行配置 → profile 的 `cordis.patch.yml` → schema 默认值」合并求值后，
@@ -236,11 +249,21 @@ if (verb === 'warn') {
 
 3. 工具的 `description` 里补上这个 action 名（模型是照着它选的）
 
-### 5.3 加一个任意 OneBot 动作
+### 5.3 qq_history：聊天记录自取工具（识别窗口锚定「最新提及」）
+
+`qq_history` 让 Agent 自己决定何时拉群内近期消息/图片，替代旧的「自动硬塞上下文」：
+
+1. `acceptMessage` 把触发消息记进 `entry.currentFrame`（锚点）；**不再调用** `fetchReplyContext`/`replyTargetQQs`（已删除），只留 `collectReplyImageUrls` 用 `get_msg` 收被回复消息的图片并入识图。
+2. 工具调 NapCat `get_group_msg_history`/`get_msg`，返回 `{ok, group_id, messages:[{time,user_id,nickname,text,images:[{url,description}]}]}`。
+3. **识别窗口**：锚定 `entry.currentFrame`（触发本条回复的那条 @bot/回复bot/命令前缀消息），只对历史里它**往前 `scopeMessages` 条**（默认 5）内的图片做识别，最多 `imageLimit` 张（默认 3，最近的优先）；更早的 @ 不锚定、其附近图片不因「也是被提及」而识别，避免重复拉取/重复识图。
+4. 窗口内图片复用现有视觉链路（`downloadImage` + `attachments.saveImage` + `askVision`），失败只给 URL 不阻塞。
+5. 配置 `history.scopeMessages`/`history.imageLimit`（设置页可改）；`qq_history` 默认在访客白名单 `auth.guestToolAllow`。
+
+### 5.4 加一个任意 OneBot 动作
 
 只要对端支持，`callAdapterAction('some_action', {…})` 直接就能用，**两端都不用改**。
 
-### 5.4 改权限模型
+### 5.5 改权限模型
 
 - 加权限种类：`PERMISSION_LIST` + `PERMISSION_LABEL`
 - 改三路来源的判定：`resolveAuthority(userId, groupId)` 里的「路由 1/2/3」
@@ -249,12 +272,12 @@ if (verb === 'warn') {
 
 > 记住：**群维度**的权限（动态授权、群管理员）都必须带上 `groupId`，否则会跨群泄漏。
 
-### 5.5 加一个设置项
+### 5.6 加一个设置项
 
 **三处都要改**，少一处就看不到或存不下去：
 
-1. `lib/index.js` 的 `DEFAULTS` 加默认值（离线兜底）
-2. `lib/index.js` 的 `Config` schema 加同名同路径的字段，**并标 `.volatile()`**（决定设置页能不能出现、能不能保存）
+1. `lib/config.js` 的 `DEFAULTS` 加默认值（离线兜底）
+2. `lib/config.js` 的 `Config` schema 加同名同路径的字段，**并标 `.volatile()`**（决定设置页能不能出现、能不能保存）
 3. `lib/client.js` 的 `FIELDS` 加一行：
 
 ```js
@@ -269,7 +292,7 @@ if (verb === 'warn') {
 > `test-plugin.mjs` 里有一条契约断言：它会从 `lib/client.js` 抠出所有 `FIELDS` 的 path，
 > 逐条确认在 `Config` 里都是 volatile。新增设置项忘了第 2 步就会在那里挂掉。
 
-### 5.6 换掉 OneBot，接别的协议
+### 5.7 换掉 OneBot，接别的协议
 
 只需要新写一个适配器，保持 stdio 协议（§3.4）不变，然后改 `CONFIG.adapterPath` 指向它。
 `lib/index.js` 一行都不用动。
