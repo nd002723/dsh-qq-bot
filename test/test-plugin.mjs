@@ -804,6 +804,38 @@ try {
     JSON.stringify(liveConfig.auth.guestToolAllow.get()));
 
 
+  console.log('\n4g. 本轮运行失败：显示提示而不是重发上一轮回复内容');
+  const failSession = 'qqbot-group-99999';
+  const failMessages = [
+    { id: 'qqmsg-prev-1', role: 'user', content: [{ type: 'text', text: '上一轮问题' }], source: { kind: 'user' } },
+    { id: 'asst-prev-1', role: 'assistant', content: [{ type: 'text', text: '上一轮的回复内容' }], source: { kind: 'model' } },
+  ];
+  const silentAgent = {
+    id: failSession, guards: [], status: 'idle',
+    ctx: { tools: { guard(fn) { silentAgent.guards.push(fn); return () => {}; } } },
+    session: {
+      get seq() { return failMessages.length; },
+      deriveMessages: () => failMessages.slice(),
+      snapshotEvents: () => [{ type: 'turn/end', data: { reason: { kind: 'error', error: { type: 'internal_error', message: '本轮运行失败' } } } }],
+    },
+    followup(message) {
+      failMessages.push({ id: message.id, role: 'user', content: message.content, source: message.source });
+      // 不产生 assistant 消息 —— 模拟本轮运行失败
+      silentAgent.status = 'idle';
+    },
+    async whenIdle() {},
+  };
+  agents.set(failSession, silentAgent);
+  const beforeFail = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message_type: 'group', group_id: 99999, user_id: 55555, nickname: '路人',
+      message: [{ type: 'at', data: { qq: '10000' } }, { type: 'text', data: { text: '再问一次' } }] }),
+  });
+  const failSent = await waitFor(() => (mock.sent.length > beforeFail ? mock.sent.slice(beforeFail) : null), 15000, '失败轮提示');
+  const failText = textOf(failSent[0]);
+  check('本轮失败：显示提示而不是重发上一轮内容', failText.includes('本轮没有产生文字回复') && !failText.includes('上一轮的回复内容'), JSON.stringify(failText.slice(0, 90)));
+
   console.log('\n5. 工具 status 动作');
   const status = hasDshTools === true ? await tool.execute({ action: 'status' }, {}) : null;
   if (status !== null) {
