@@ -3,7 +3,7 @@ import {
   parseClock, parseQuietRanges, isQuiet, summarizeSegments,
   normalizeMessages, newerThan, buildDigest, buildPrompt, parseDecision, runSpeakStage,
   validateMessage, allowSend, analyzeEvent, topicKey, topicRepeated, resolveStageModels, buildSpeakPrompt, resolveModel,
-  resolvePersonaText,
+  resolvePersonaText, sanitizeStickerQuery, pickStickerSendStyle,
 } from '../lib/session/proactive.js';
 
 let pass = 0;
@@ -233,6 +233,25 @@ check('人格：宿主也没有时回退老配置', resolvePersonaText({ explici
 check('人格：三者都空返回空串', resolvePersonaText({ explicit: '', host: '   ', fallback: '' }) === '');
 check('人格：入参缺省不炸', resolvePersonaText() === '' && resolvePersonaText(null) === '');
 check('人格：空白会被 trim', resolvePersonaText({ explicit: '  猫咪  ', host: '', fallback: '' }) === '猫咪');
+
+// 表情包关键词：清洗 + 发送方式随机
+check('表情包关键词：普通词原样保留', sanitizeStickerQuery('无语') === '无语');
+check('表情包关键词：去掉换行与两侧空白', sanitizeStickerQuery('  猫猫\n鼓掌 ') === '猫猫 鼓掌');
+check('表情包关键词：无 / none / null 当作没给', sanitizeStickerQuery('无') === '' && sanitizeStickerQuery('none') === '' && sanitizeStickerQuery('NULL') === '');
+check('表情包关键词：超长截到 24 字', sanitizeStickerQuery('猫'.repeat(40)).length === 24);
+check('表情包关键词：非字符串不炸', sanitizeStickerQuery(undefined) === '' && sanitizeStickerQuery(null) === '');
+check('发送方式：random<0.5 合并成一条', pickStickerSendStyle(() => 0.2) === 'together');
+check('发送方式：random>=0.5 先图后字', pickStickerSendStyle(() => 0.8) === 'separate');
+
+// 判断阶段提示词：只有图库可用时才要 sticker 字段
+const promptNoSticker = buildPrompt({ digest: 'a：在吗', maxChars: 60 });
+check('不带 sticker 时提示词里没有表情包字段', promptNoSticker.includes('sticker') === false, promptNoSticker.slice(-120));
+const promptSticker = buildPrompt({ digest: 'a：在吗', maxChars: 60, sticker: true });
+check('带 sticker 时要求给关键词且 JSON 里有该字段', promptSticker.includes('sticker') && promptSticker.includes('表情包关键词或空字符串'), promptSticker.slice(-160));
+const decSticker = parseDecision('{"speak": true, "topic": "游戏", "message": "这也太难了", "sticker": "无语"}');
+check('决策解析出表情包关键词', decSticker !== null && decSticker.sticker === '无语', JSON.stringify(decSticker));
+const decNoSticker = parseDecision('{"speak": true, "topic": "游戏", "message": "这也太难了"}');
+check('没给关键词时是空串', decNoSticker !== null && decNoSticker.sticker === '', JSON.stringify(decNoSticker));
 
 console.log('\n' + pass + ' 通过 / ' + fail + ' 失败');
 process.exit(fail === 0 ? 0 : 1);

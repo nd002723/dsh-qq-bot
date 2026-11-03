@@ -64,7 +64,7 @@
       ],
       "label": "访客仍可用的工具白名单",
       "kind": "list",
-      "hint": "逗号分隔，默认 qqgroup,qq_websearch,qq_webfetch,qq_imgsearch,qq_history。用白名单能自动挡住 run_code 这类不在全局层的特殊工具；别放 moli_fetch（能写文件/eval/读本机 cookie）",
+      "hint": "逗号分隔，默认 qqgroup,qq_websearch,qq_webfetch,qq_imgsearch,qq_history,qq_sticker。用白名单能自动挡住 run_code 这类不在全局层的特殊工具；别放 moli_fetch（能写文件/eval/读本机 cookie）",
       "tab": "basic",
       "subtab": "access"
     },

@@ -5,7 +5,7 @@
 [![CI](https://github.com/arrow1031-dev/dsh-qq-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/arrow1031-dev/dsh-qq-bot/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/%40sputnikzaychik%2Fdsh-qq-bot?label=npm)](https://www.npmjs.com/package/@sputnikzaychik/dsh-qq-bot)
 [![npm downloads](https://img.shields.io/npm/dm/%40sputnikzaychik%2Fdsh-qq-bot?label=%E4%B8%8B%E8%BD%BD)](https://www.npmjs.com/package/@sputnikzaychik/dsh-qq-bot)
-[![tests](https://img.shields.io/badge/tests-1715%20passing-brightgreen)](docs/DEVELOPMENT.md)
+[![tests](https://img.shields.io/badge/tests-1735%20passing-brightgreen)](docs/DEVELOPMENT.md)
 [![node](https://img.shields.io/badge/node-%E2%89%A522.6-339933)](https://nodejs.org/)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -228,7 +228,8 @@ QQ_msg/sticker/                 ← 默认目录（sticker.dir 可改成任意�
 
 AI 侧：`qq_sticker` 支持 `list`（看系列与数量）、`search`（按标签/描述/系列找图，返回 id）、`send`（把选中的一张发进当前会话）；`rebuild` 会扫盘并可能调模型，**只给拥有者**。工具第一次被调用时会自动建索引（只算哈希，打标放后台），所以不会把一次回复拖成长任务。
 
-访客默认看不到 `qq_sticker`（`auth.guestToolAllow` 里没有它）。想让群里其他人也能触发发表情，把它加进那份白名单即可；重建索引仍然只认拥有者。
+访客默认**能**用 `qq_sticker`（`auth.guestToolAllow` 默认含它）：群里其他人让 bot 发表情也行，
+`send` 只会发到当前会话；重建索引仍然只认拥有者。不想给访客就去掉这一项。
 
 删掉 `index.json` 或把它改坏都不会炸：下次扫描当作「没有索引」重建（坏文件里的旧标签会丢）。
 
@@ -264,7 +265,7 @@ dsh plugin --profile web remove @sputnikzaychik/dsh-qq-bot          # 卸载
 
 | 文档 | 内容 |
 | --- | --- |
-| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 本地开发与测试（45 套件 / 1683 项）、完整配置参考、工具细节、文件清单、设计取舍、发布流程、部署备注 |
+| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 本地开发与测试（47 套件 / 1735 项）、完整配置参考、工具细节、文件清单、设计取舍、发布流程、部署备注 |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层图、模块职责、关键数据流、身份契约、已知边界 |
 | [CHANGELOG.md](CHANGELOG.md) | 0.1.0 → 0.12.8 的完整演进 |
 | [AI-DISCLOSURE.md](docs/AI-DISCLOSURE.md) | AI 生成方式、验证到什么程度、**尚未验证清单**（用前务必读） |

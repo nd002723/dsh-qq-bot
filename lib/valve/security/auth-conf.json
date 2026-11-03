@@ -12,7 +12,8 @@
       "qq_websearch",
       "qq_webfetch",
       "qq_imgsearch",
-      "qq_history"
+      "qq_history",
+      "qq_sticker"
     ],
     "guestDshTools": false,
     "ownerSettings": true,

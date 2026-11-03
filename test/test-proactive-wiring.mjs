@@ -21,6 +21,7 @@ function check(name, ok, detail = '') {
 
 const surfaceSrc = readFileSync(new URL('../lib/gateway/proactive-surface.js', import.meta.url), 'utf8');
 const pluginSrc = readFileSync(new URL('../lib/gateway/plugin.js', import.meta.url), 'utf8');
+const toolsSrc = readFileSync(new URL('../lib/tools/index.js', import.meta.url), 'utf8');
 
 console.log('1. 工厂要的键名');
 const destructure = /const \{([^}]*)\}\s*=\s*deps/.exec(surfaceSrc);
@@ -120,6 +121,24 @@ console.log('\n6. 读取器：缺服务 / 求值抛错 都降级成空串');
   const agent = { id: 'agent-1' };
   const text = await ok(agent);
   check('把 agent 交给宿主求值', seenAgent === agent && text === '鲸鱼娘', String(text));
+}
+
+console.log('\n7. 主动发言发表情包：接线 + 隐式引导');
+{
+  const callStart = pluginSrc.indexOf('createProactiveSurface({');
+  const callBlock = callStart < 0 ? '' : pluginSrc.slice(callStart, pluginSrc.indexOf('});', callStart));
+  check('plugin 传了 sendStickerWithText', /sendStickerWithText\s*:/.test(callBlock), callBlock.slice(0, 260));
+  check('plugin 传了 stickerAvailable', /stickerAvailable\s*:/.test(callBlock), callBlock.slice(0, 260));
+
+  check('表面层只在图库可用时向模型要关键词', /sticker:\s*wantsSticker/.test(surfaceSrc), '');
+  check('表面层把文字交给 sendStickerWithText', /sendStickerWithText\(\{ groupId, query: stickerQuery, text: verdict\.text \}\)/.test(surfaceSrc), '');
+  check('挑不到图时退回纯文字', /没挑到合适表情包，只发文字/.test(surfaceSrc), '');
+  check('演练模式不发表情包', /本想配表情包关键词/.test(surfaceSrc), '');
+
+  // 隐式引导只落在工具描述里，不进会话提示词
+  check('qq_sticker 描述里写明可以主动用', /就主动挑一张发出去，不用等用户开口要/.test(toolsSrc), '');
+  check('描述里限制一次一张', /一次最多一张，别刷屏/.test(toolsSrc), '');
+  check('主动发言提示词没有硬塞表情包引导（走决策字段）', /表情包关键词或空字符串/.test(readFileSync(new URL('../lib/session/proactive.js', import.meta.url), 'utf8')), '');
 }
 
 console.log('\n' + pass + ' 通过 / ' + fail + ' 失败');
