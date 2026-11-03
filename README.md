@@ -8,7 +8,7 @@
 
 [npm](https://www.npmjs.com/package/@sputnikzaychik/dsh-qq-bot) · [更新日志](CHANGELOG.md) · [反馈问题](https://github.com/arrow1031-dev/dsh-qq-bot/issues) · [AI 生成声明](docs/AI-DISCLOSURE.md)
 
-[![release](https://img.shields.io/badge/release-0.12.9-6f83ff?style=flat-square)](CHANGELOG.md)
+[![release](https://img.shields.io/npm/v/@sputnikzaychik/dsh-qq-bot?style=flat-square&label=release&color=6f83ff)](https://www.npmjs.com/package/@sputnikzaychik/dsh-qq-bot)
 [![DSH](https://img.shields.io/badge/DSH-%E2%89%A50.2.0--rc.2-8b5cf6?style=flat-square)](#版本支持政策)
 [![tests](https://img.shields.io/badge/tests-1775%20passing-brightgreen?style=flat-square)](docs/DEVELOPMENT.md)
 [![node](https://img.shields.io/badge/node-%E2%89%A522.6-339933?style=flat-square)](https://nodejs.org/)
@@ -23,18 +23,20 @@
 - **Agent 有 10 个工具**：联网搜索、抓网页、图片反搜、生图、发表情包、读聊天记录、群管理、改设置。
 - **只有一条运行时依赖**：`@deepseek-ai/schemastery`（须与宿主同版本）；其余走 Node 22 内置的 `WebSocket` / `fetch`，适配器是零依赖子进程。
 
-[更新内容](#v0129-更新内容) · [版本支持](#版本支持政策) · [安装](#安装与更新) · [接上 QQ](#接上-qq推荐-napcat) · [能力](#它能做什么) · [协议](#协议与连接方式) · [工具](#agent-能用的工具) · [常见问题](#常见问题)
+[更新内容](#v0130-更新内容) · [版本支持](#版本支持政策) · [安装](#安装与更新) · [接上 QQ](#接上-qq推荐-napcat) · [能力](#它能做什么) · [协议](#协议与连接方式) · [工具](#agent-能用的工具) · [常见问题](#常见问题)
 
-## v0.12.9 更新内容
+## v0.13.0 更新内容
 
-- **设置页两段式字段错位**：`发言阶段模型` 以前列的是判断阶段 provider 的模型；现在按阶段各找各的 provider，
-  provider 留空时发言模型跟随判断阶段、下拉禁用并写明原因。
-- **provider 下拉不再把已配置值显示成空**：不在模型目录里的 provider 会保留成一个选项（标注「已保留」），
-  不会在下次保存时把配置写空。
+- **表情包图库**：把本地表情包目录（子目录 = 系列）交给插件，它扫一遍就会给每张图自动打上标签和描述；
+  群里聊天时觉得合适，它自己挑一张发出去。入口：侧边栏「插件 → 已安装 → @sputnikzaychik/dsh-qq-bot → 能力 → 表情包」。
+- **不会刷图**：默认只有约三成概率真发、同一群每小时最多 6 张、同一张图 24 小时内不重复；
+  你明确要表情包时可以跳过概率与去重，每小时上限仍然生效。
+- **主动发言更像本人**：可以直接复用 DSH 里配的人格（如 dsh-soul-md），也能带表情包，挑不到图就只发文字。
+- **掉线自愈**：QQ / NapCat 重启后自动重连，不再出现「进程还活着但机器人静默离线」；
+  发大图不再误报失败，刚发完大图马上读聊天记录也能读到。
+- **设置与文档**：设置入口统一到插件详情页；README 瘦身，连接模式、权限、表情包、排错等细节移到
+  [docs/USAGE.md](docs/USAGE.md)。
 - 完整记录见 [CHANGELOG](CHANGELOG.md)。
-
-> **0.12.9 之后（未发布）**：表情包发送闸门（概率 / 每群每小时上限 / 同图去重）、主动发言可复用 `dsh-soul-md` 的人格、
-  动作帧不再排在大图后面（修 `qq_history` 读不到历史）等，详见 [CHANGELOG 顶部](CHANGELOG.md)。
 
 ## 版本支持政策
 
@@ -42,7 +44,7 @@
 
 | 项目 | 当前说明 |
 | --- | --- |
-| 插件发行版 | `0.12.9`（npm 包 `@sputnikzaychik/dsh-qq-bot`） |
+| 插件发行版 | `0.13.0`（npm 包 `@sputnikzaychik/dsh-qq-bot`） |
 | DSH 版本 | **≥ `0.2.0-rc.2`**；`0.2.1` 系列（rc.2 / rc.3 / rc.5）实测通过 |
 | Web | `dsh web` 部署用 `--profile web` |
 | 桌面端 | DSH Desktop 用 `--profile desktop`，插件在应用内 **插件** 页面安装 |
@@ -221,7 +223,7 @@ npx tsc --noEmit        # 类型检查（JSDoc + checkJs，不引入构建产物
 | [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 本地开发与测试（48 套件 / 1775 项）、完整配置参考、工具细节、文件清单、设计取舍、发布流程 |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层图、模块职责、关键数据流、身份契约、已知边界 |
 | [USAGE.md](docs/USAGE.md) | 连接模式细节、权限与指令表、表情包图库、排错手册 |
-| [CHANGELOG.md](CHANGELOG.md) | 0.1.0 → 0.12.9 的完整演进 |
+| [CHANGELOG.md](CHANGELOG.md) | 0.1.0 → 0.13.0 的完整演进 |
 | [AI-DISCLOSURE.md](docs/AI-DISCLOSURE.md) | AI 生成方式、验证到什么程度、**尚未验证清单**（用前务必读） |
 | [MEMORY.md](docs/MEMORY.md) | 「人设 + 长期记忆 + 语义检索 + 压缩不遗忘」的实践笔记（实验田，无安装脚本） |
 | [SECURITY.md](docs/SECURITY.md) | 安全模型与漏洞报告方式（别在公开 issue 里贴细节） |
