@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（45 个套件 / 1683 项）
+## 2. 测试（46 个套件 / 1693 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -58,6 +58,7 @@ npm test                   # 同上
 | `test-adapter.mjs` | 19 | OneBot 11 正向适配器 |
 | `test-adapter-reverse.mjs` | 19 | OneBot 11 反向适配器（含半开连接回收） |
 | `test-adapter-reconnect.mjs` | 11 | 适配器重连：握手超时必重试、open 前不算链路、断线后重试、reconnect() 主动重连、背压不判失败 |
+| `test-action-priority.mjs` | 10 | 适配器写调度：大帧按 64KB 分片、小帧（动作/指令）插队、空闲时小帧一片直写、动作往返与超时如实报错 |
 | `test-adapter-onebot12.mjs` | 30 | OneBot 12 适配器 |
 | `test-adapter-satori.mjs` | 70 | Satori 适配器 |
 | `test-adapter-milky.mjs` | 83 | Milky 适配器（含 WebHook 默认准入与读体上限） |
@@ -478,7 +479,7 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 | `lib/gateway/turn-text.js` | 无状态回合文本工具（人格段 / 配置脱敏 / 昵称清洗 / 失败原因 / id 归一），P3 2.4 第一阶段搬出 |
 | `lib/gateway/model-pick.js` | 模型选择：构建 `modelRouter` + `/model` 指令，依赖由插件注入 |
 | `lib/gateway/proactive-surface.js` | 主动发言表面层：排程、群级状态、tick 编排（P3 2.4 第二阶段搬出） |
-| `lib/gateway/adapter-supervision.js` | 适配器监管：启动参数、子进程、写帧、动作超时、重启退避（P3 2.4 第二阶段搬出） |
+| `lib/gateway/adapter-supervision.js` | 适配器监管：启动参数、子进程、写帧调度（小帧优先 / 大帧分片）、动作超时、重启退避（P3 2.4 第二阶段搬出） |
 | `lib/gateway/routes-glue.js` | 扫码绑定 / 版本探测 / 路由挂载接线（P3 2.4 第二阶段搬出） |
 | `lib/gateway/flow-delivery.js` | 流程产物打包与投递（P3 2.4 第二阶段搬出） |
 | `lib/gateway/inbound-limits.js` | 入站限制：限流窗口 / 队列深度 / 长度 / 提示去重（P3 2.4 第三阶段搬出） |

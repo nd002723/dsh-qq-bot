@@ -147,6 +147,9 @@ console.log('5. 背压不判失败（大图 base64 超过管道缓冲）');
   function makeSup(withSpawn) {
     const stdin = new EventEmitter();
     stdin.write = () => false;
+    // 大帧现在按 64KB 分片写、每片等一次 drain：真实管道每消费一批就 emit 一次，
+    // 这里用定时器模拟一个「一直在读」的适配器，否则分片写会卡在第一片。
+    const drainTimer = setInterval(() => stdin.emit('drain'), 5); // 不 unref：否则等 drain 的用例会随事件循环空转退出
     const proc = { stdin, stdout: new PassThrough(), stderr: new PassThrough(), done: new Promise(() => {}), terminate: async () => {} };
     const state = { stopping: false, connected: false, statusReason: '', stats: { errors: 0 }, pending: new Map() };
     const sup = createAdapterSupervision({
@@ -162,10 +165,10 @@ console.log('5. 背压不判失败（大图 base64 超过管道缓冲）');
       onFrame: () => {},
     });
     if (withSpawn) sup.spawnAdapter();
-    return { sup, stdin };
+    return { sup, stdin, stopDrain: () => clearInterval(drainTimer) };
   }
 
-  const { sup, stdin } = makeSup(true);
+  const { sup, stdin, stopDrain } = makeSup(true);
   check('write 返回 false 时同步写仍算接受', sup.writeToAdapter({ type: 'send', text: 'x'.repeat(200000) }) === true);
   const pending = sup.writeToAdapterAsync({ type: 'send', text: 'y'.repeat(200000) });
   setTimeout(() => stdin.emit('drain'), 20);
@@ -173,6 +176,8 @@ console.log('5. 背压不判失败（大图 base64 超过管道缓冲）');
   const empty = makeSup(false);
   check('适配器未运行时仍返回 false', empty.sup.writeToAdapter({ type: 'send' }) === false && (await empty.sup.writeToAdapterAsync({ type: 'send' })) === false);
   await sup.stopAdapter();
+  stopDrain();
+  empty.stopDrain();
 }
 
 console.log('\n' + pass + ' 通过 / ' + fail + ' 失败');
