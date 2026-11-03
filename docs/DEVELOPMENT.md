@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（41 个套件 / 1527 项）
+## 2. 测试（43 个套件 / 1582 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -57,6 +57,7 @@ npm test                   # 同上
 | --- | --- | --- |
 | `test-adapter.mjs` | 19 | OneBot 11 正向适配器 |
 | `test-adapter-reverse.mjs` | 19 | OneBot 11 反向适配器（含半开连接回收） |
+| `test-adapter-reconnect.mjs` | 8 | 适配器重连：握手超时必重试、open 前不算链路、断线后重试、reconnect() 主动重连 |
 | `test-adapter-onebot12.mjs` | 30 | OneBot 12 适配器 |
 | `test-adapter-satori.mjs` | 70 | Satori 适配器 |
 | `test-adapter-milky.mjs` | 83 | Milky 适配器（含 WebHook 默认准入与读体上限） |
@@ -84,6 +85,7 @@ npm test                   # 同上
 | `test-flow-gate.mjs` | 16 | 流程授权闸门 |
 | `test-flow-wiring.mjs` | 23 | 闸门接线：一次调用只吃一个授权 / 关着原样放行 / moli_fetch 进 gatedTools 后「没码被拦、拿码放行」 |
 | `test-flow-resume.mjs` | 17 | 授权后续跑：`/auth` 通过后重跑被拦回合；失败只打一行日志、不惊动用户 |
+| `test-session-archive.mjs` | 47 | 会话归档召回 / 删除后重建：两种删除器的终态、派生 id 确定性、连续消息只重建一次 |
 | `test-interim.mjs` | 14 | 中间发言：最后一条留给结论、锚点丢了不重播 |
 | `test-security.mjs` | 55 | 安全回归：帧 id 净化 / 越界复核 / 跨群重算 / 撤回绑群 / 出站公网判定与 F1 / 识图下载源码断言 |
 | `test-model-router.mjs` | 23 | 模型路由自动检测：agentDefaultModel 优先 / llm 只读 / 都没有不假装；偏好文件 fallback |
@@ -107,7 +109,7 @@ node -e "fetch('http://127.0.0.1:3000/__inject',{method:'POST',headers:{'content
 node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console.log(JSON.stringify(j.messages,null,2)))"
 ```
 
-> **文档里的测试数必须自洽**：改测试就同步本表、README 的「41 套件 / 1527 项」与顶部 `tests` 徽章（`tests-1527%20passing`）、`AI-DISCLOSURE.md` 的验证情况。数字以裸克隆跑 `npm test` 的输出为准；能解析到 `@deepseek-ai/dsh-tools` 的环境里 `test-plugin` 与 `test-admin` 会多跑工具注册段落，总数随之更多。跳过项按 `[SKIP]` 单列，不计入通过数；设 `DSH_TOOLS_DISABLE=1` 可以在这台机器上模拟裸克隆（否则 `test/dsh-tools-link.mjs` 会把链接建回来，永远看不到跳过路径——CI 就是这么红的）。
+> **文档里的测试数必须自洽**：改测试就同步本表、README 的「43 套件 / 1582 项」与顶部 `tests` 徽章（`tests-1582%20passing`）、`AI-DISCLOSURE.md` 的验证情况。数字以裸克隆跑 `npm test` 的输出为准；能解析到 `@deepseek-ai/dsh-tools` 的环境里 `test-plugin` 与 `test-admin` 会多跑工具注册段落，总数随之更多。跳过项按 `[SKIP]` 单列，不计入通过数；设 `DSH_TOOLS_DISABLE=1` 可以在这台机器上模拟裸克隆（否则 `test/dsh-tools-link.mjs` 会把链接建回来，永远看不到跳过路径——CI 就是这么红的）。
 
 <a id="完整配置参考"></a>
 ## 3. 完整配置参考

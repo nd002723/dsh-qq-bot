@@ -240,7 +240,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 | `gateway/turn-text.js` | 无状态回合文本工具：人格段、配置脱敏、昵称清洗、turn 失败原因归一、协议 id 归一（P3 2.4 第一阶段搬出） | `buildPersonaHint` `dropConfigPaths` `sanitizeDisplayName` `summarizeTurnReason` `idValue` |
 | `gateway/model-pick.js` | 模型选择：构建 `modelRouter` + `/model` 指令；依赖（ctx.get / 前缀 / 日志）由插件注入 | `createModelPicker` |
 | `gateway/proactive-surface.js` | 主动发言表面层：配置读取、排程、群级状态与 tick 编排；判定/提示词仍在 `session/proactive.js` | `createProactiveSurface` |
-| `gateway/adapter-supervision.js` | 适配器监管：启动参数、子进程生命周期、stdin 写帧、动作请求/超时、重启退避；状态仍在插件 `state` | `createAdapterSupervision` |
+| `gateway/adapter-supervision.js` | 适配器监管：启动参数、子进程生命周期、stdin 写帧、动作请求/超时、重启退避；每 30s 主动 ping，两次无 pong 发 `reconnect`（不重启进程）；状态仍在插件 `state` | `createAdapterSupervision` |
 | `gateway/routes-glue.js` | 扫码绑定 / 版本探测 / 路由挂载的接线层 | `createRouteGlue` |
 | `gateway/flow-delivery.js` | 流程产物投递：按 `flow.deliver` 打包并上传（私聊 / 群 / none） | `createFlowDelivery` |
 | `gateway/inbound-limits.js` | 入站限制：滑动窗口限流、队列深度、单条长度、限流提示去重 | `createInboundLimits` |
@@ -306,7 +306,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 | `transport/adapters/qq-official.mjs` | QQ 开放平台 API v2：WS 网关或 Webhook（Ed25519 签名） | 脚本本体 |
 | `transport/onebot-adapter.mjs` | 兼容入口，仅一行 `import './adapters/onebot11.mjs'` | — |
 | `transport/bridge/CONTRACT.md` | **写新适配器的权威指南**：stdio 帧定义、消息段归一、骨架代码 | —（文档） |
-| `transport/bridge/ws.mjs` | 手写 RFC 6455：帧编解码、正向/反向 WS、链路集合、指数退避重连 | `connectForward` `startReverseServer` `createLinkSet` `decodeFrames` |
+| `transport/bridge/ws.mjs` | 手写 RFC 6455：帧编解码、正向/反向 WS、链路集合、指数退避重连；握手超时 + open 后才算链路 + 任意失败都重试 | `connectForward` `startReverseServer` `createLinkSet` `decodeFrames` |
 | `transport/bridge/stdio.mjs` | stdio 帧工具：发射器、发送队列（限速）、stdin 命令循环 | `createEmitter` `createSendQueue` `installStdin` `postJson` |
 
 ### 2.9 公共层 `lib/shared/`
