@@ -20,6 +20,10 @@ check('imageGen.apiKey 被拒', isDenied('imageGen.apiKey') === true);
 check('proactive.apiKey 被拒', isDenied('proactive.apiKey') === true);
 check('proactive.model 被拒（模型名不许改）', isDenied('proactive.model') === true);
 check('proactive.enabled 允许', isDenied('proactive.enabled') === false);
+check('表情包开关允许（主人能在 QQ 里关掉图库）',
+  isDenied('sticker.enabled') === false && isDenied('sticker.autoTag') === false);
+check('表情包目录 / 打标模型被拒（只给设置页）',
+  isDenied('sticker.dir') === true && isDenied('sticker.provider') === true && isDenied('sticker.model') === true);
 check('空路径被拒', isDenied('') === true);
 
 // ---------- 值校验 ----------

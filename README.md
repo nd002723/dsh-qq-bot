@@ -5,7 +5,7 @@
 [![CI](https://github.com/arrow1031-dev/dsh-qq-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/arrow1031-dev/dsh-qq-bot/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/%40sputnikzaychik%2Fdsh-qq-bot?label=npm)](https://www.npmjs.com/package/@sputnikzaychik/dsh-qq-bot)
 [![npm downloads](https://img.shields.io/npm/dm/%40sputnikzaychik%2Fdsh-qq-bot?label=%E4%B8%8B%E8%BD%BD)](https://www.npmjs.com/package/@sputnikzaychik/dsh-qq-bot)
-[![tests](https://img.shields.io/badge/tests-1593%20passing-brightgreen)](docs/DEVELOPMENT.md)
+[![tests](https://img.shields.io/badge/tests-1683%20passing-brightgreen)](docs/DEVELOPMENT.md)
 [![node](https://img.shields.io/badge/node-%E2%89%A522.6-339933)](https://nodejs.org/)
 [![license](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
@@ -28,6 +28,7 @@
 | 群管理 | 禁言、踢人、撤回、改名片 / 群名、设管理员、全员禁言；指令与工具共用一套权限 |
 | 联网与媒体 | `qq_websearch` 多引擎搜索、`qq_webfetch` 抓网页（可走代理）、`qq_imgsearch` 图片反搜、`qq_draw` 生图直接发群 |
 | 看图 | 收到的图片用视觉模型识别后并入回答；群内近期图片由 AI 按需自取（不硬塞上下文） |
+| 表情包 | 本地目录即图库（子目录 = 系列），`index.json` 索引 + AI 自动打标；AI 用 `qq_sticker` 按标签挑一张发到当前会话，见[表情包图库](#表情包图库可选) |
 | 主动发言（可选） | 到点看一眼群里聊什么，自己决定要不要接话；判断与发言可分用两个模型 |
 | 流程授权（可选） | 子代理 / 队友 / 工作流 / 第三方抓取（`moli_fetch`）被拦下时，私聊回一次 6 位动态码才放行；改「哪些工具要码」的名单、或开关流程授权本身，也要一次码（设置页「高级 → 闸门区」，填码解锁、保存即消费） |
 | 人格 | 每个 QQ 会话可套自定义人格，或指定专属 agent preset |
@@ -173,7 +174,7 @@ dsh plugin --profile web update
 
 ## Agent 能用的工具
 
-插件向 DSH 注册 9 个工具（访客只看到白名单里的）：
+插件向 DSH 注册 10 个工具（访客只看到白名单里的）：
 
 | 工具 | 用途 |
 | --- | --- |
@@ -184,12 +185,52 @@ dsh plugin --profile web update
 | `qq_imgsearch` | 图片反搜（公网 URL 或本地上传），支持 `kind=comic` 漫画模式 |
 | `qq_history` | 读聊天记录（当前群/私聊直读，跨群按权限），窗口内图片自动识别 |
 | `qq_draw` | 按描述生图并直接发到当前会话 |
+| `qq_sticker` | 表情包图库：按标签/系列找图并发表情；`rebuild` 重建索引（仅拥有者） |
 | `qqconfig` | **仅拥有者私聊**：在 QQ 里改白名单 / 发言参数等设置（两步确认） |
 | `qqauth` | **仅拥有者私聊**：流程授权的申请与状态查询 |
 
 两条路径分工不同：`qq_webfetch` 的 Moli 渲染分支（含访客可用）由**内网拒绝 + 本地校验代理**保证安全；dsh-moli 的原装工具 `moli_fetch` 不在里面，它只设**一道**验证墙——默认进 `flowAuth.gatedTools`，开关打开后拥有者私聊调用要过一次 6 位动态码。
 
 细节（每个工具的参数、引擎顺序、失败策略）见 [DEVELOPMENT.md](docs/DEVELOPMENT.md#工具细节)。
+
+## 表情包图库（可选）
+
+**目录就是图库**，插件不搬运任何文件：
+
+```
+QQ_msg/sticker/                 ← 默认目录（sticker.dir 可改成任意路径）
+├── index.json                  ← 索引：每张图的 sha1 + 系列 + 标签 + 描述
+├── 猫猫/                        ← 一个子目录 = 一个系列（可以多层）
+│   ├── 无语.jpg
+│   └── 鼓掌.jpg
+└── 模糊.jpg                     ← 直接放根部的图算「未分系列」
+```
+
+打开设置页「能力 → 表情包」，卡片里是：
+
+- **启用开关**（`sticker.enabled`）与**目录**（留空 = `QQ_msg/sticker`；相对路径按 `QQ_msg` 解析）；
+- **AI 自动标记**（`sticker.autoTag`）：首次使用、或文件内容有变动时，先按哈希比对找出变动的图，**只给这些图**重新打标（标签 + 描述）；没变动的图一个 token 都不吃；
+- **GIF 兼容模式**（`sticker.gifCompat`，默认关）：关着的时候动图**原样**交给模型（多数能看图的模型自己会取首帧）；如果哪个模型不认 `image/gif`，打开它就在本地解出第一帧转 PNG 再发；
+- **打标 provider / 模型**：留空则跟随「识图与绘图」里的视觉模型（必须是能看图的模型）；
+- 状态区：张数、系列、已标记 / 待标记、索引更新时间、后台打标进度；
+- 两个按钮：**扫描并打标**（重建 + 补打标签）、**只重建索引**（只算哈希，不调模型）。
+
+卡片只在**启用后**展开这些东西；没启用时整卡收起，只留开关和一行提示，不占设置页的版面。
+
+单张图上限 **10 MB**（`sticker` 组内部的 `MAX_FILE_BYTES`），超大文件跳过不算进索引。
+
+增量规则（也是省 token 的关键）：
+
+1. 先比 `size + mtime` —— 完全没变就不读内容；
+2. 可疑或新增的文件才计算 sha1 —— **哈希相同就当作没变**（只 `touch` 过不会重打标）；
+3. **改名 / 换系列 / 复制一份**：路径变了但内容没变，按 sha1 把旧标签认领回来（日志与卡片状态里的「认领」计数），不会因为整理一次目录就把打标结果作废；
+4. 只有哈希真的变了（或确实没见过的图）才清空旧标签、重新交给视觉模型。
+
+AI 侧：`qq_sticker` 支持 `list`（看系列与数量）、`search`（按标签/描述/系列找图，返回 id）、`send`（把选中的一张发进当前会话）；`rebuild` 会扫盘并可能调模型，**只给拥有者**。工具第一次被调用时会自动建索引（只算哈希，打标放后台），所以不会把一次回复拖成长任务。
+
+访客默认看不到 `qq_sticker`（`auth.guestToolAllow` 里没有它）。想让群里其他人也能触发发表情，把它加进那份白名单即可；重建索引仍然只认拥有者。
+
+删掉 `index.json` 或把它改坏都不会炸：下次扫描当作「没有索引」重建（坏文件里的旧标签会丢）。
 
 ## 常见问题
 
@@ -223,7 +264,7 @@ dsh plugin --profile web remove @sputnikzaychik/dsh-qq-bot          # 卸载
 
 | 文档 | 内容 |
 | --- | --- |
-| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 本地开发与测试（38 套件 / 1476 项）、完整配置参考、工具细节、文件清单、设计取舍、发布流程、部署备注 |
+| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 本地开发与测试（45 套件 / 1683 项）、完整配置参考、工具细节、文件清单、设计取舍、发布流程、部署备注 |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层图、模块职责、关键数据流、身份契约、已知边界 |
 | [CHANGELOG.md](CHANGELOG.md) | 0.1.0 → 0.12.8 的完整演进 |
 | [AI-DISCLOSURE.md](docs/AI-DISCLOSURE.md) | AI 生成方式、验证到什么程度、**尚未验证清单**（用前务必读） |

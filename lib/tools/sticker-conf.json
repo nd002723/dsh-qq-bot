@@ -1,0 +1,13 @@
+{
+  "group": "sticker",
+  "defaults": {
+    "enabled": true,
+    "dir": "",
+    "autoTag": true,
+    "gifCompat": false,
+    "provider": "",
+    "model": "",
+    "maxPerRun": 40,
+    "timeoutMs": 60000
+  }
+}

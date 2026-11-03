@@ -1,0 +1,91 @@
+{
+  "priority": 400,
+  "group": "sticker",
+  "tab": "capability",
+  "subtab": "sticker",
+  "fields": [
+    {
+      "path": [
+        "sticker",
+        "enabled"
+      ],
+      "label": "表情包图库",
+      "kind": "sticker",
+      "hint": "扫描本地目录 + 建索引 + AI 自动打标，并让 Agent 用 qq_sticker 挑图发表情"
+    },
+    {
+      "path": [
+        "sticker",
+        "dir"
+      ],
+      "label": "表情包目录",
+      "kind": "text",
+      "in": "sticker-card",
+      "placeholder": "（留空 = QQ_msg/sticker）",
+      "hint": "留空 = 工作目录 QQ_msg 下的 sticker 子目录；相对路径按 QQ_msg 解析，也可以填绝对路径。目录里的每个子目录 = 一个表情包系列，索引文件写在目录根部的 index.json"
+    },
+    {
+      "path": [
+        "sticker",
+        "autoTag"
+      ],
+      "label": "AI 自动标记",
+      "kind": "bool",
+      "in": "sticker-card",
+      "hint": "首次使用或文件内容有变动时，先用哈希比对找出变动的图，再只给这些图重新打标（标签 + 描述）。关闭后只建索引不打标"
+    },
+    {
+      "path": [
+        "sticker",
+        "gifCompat"
+      ],
+      "label": "GIF 兼容模式",
+      "kind": "bool",
+      "in": "sticker-card",
+      "hint": "默认关闭：GIF 原样发给模型打标（文生图模型多支持动图首帧）。若某个模型不认 image/gif，打开这里会在本地解出首帧转 PNG 再发"
+    },
+    {
+      "path": [
+        "sticker",
+        "provider"
+      ],
+      "label": "打标 provider",
+      "kind": "select",
+      "in": "sticker-card",
+      "dynamic": "provider",
+      "placeholder": "（留空 = 跟随图片视觉的 provider）",
+      "hint": "复用 DSH 自定义 providers；留空则跟随上面「识图与绘图」里的视觉 provider"
+    },
+    {
+      "path": [
+        "sticker",
+        "model"
+      ],
+      "label": "打标模型",
+      "kind": "select",
+      "in": "sticker-card",
+      "dynamic": "model",
+      "placeholder": "（留空 = 跟随图片视觉的模型）",
+      "hint": "必须是能吃图片的模型（如 deepseek-v4-flash-vision-exp）；留空则跟随图片视觉的模型"
+    },
+    {
+      "path": [
+        "sticker",
+        "maxPerRun"
+      ],
+      "label": "每次最多标记几张",
+      "kind": "number",
+      "in": "sticker-card",
+      "hint": "一次重建里最多给几张新图打标，超出的留到下次（避免一次烧太多 token）"
+    },
+    {
+      "path": [
+        "sticker",
+        "timeoutMs"
+      ],
+      "label": "单张打标超时（毫秒）",
+      "kind": "number",
+      "in": "sticker-card"
+    }
+  ]
+}

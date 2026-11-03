@@ -77,6 +77,10 @@ const reactRuntime = (() => {
     },
     Fragment: 'Fragment',
     __beginRender() { cursor = 0; },
+    // 测试专用：位置式 useState 的槽位读写（只给「必须改组件内部状态」的断言用）。
+    __state(index) { return states[index]; },
+    __setState(index, value) { states[index] = value; },
+    __stateKeys() { return Object.keys(states); },
     __takeEffects() { const taken = effects; effects = []; return taken; },
   };
 })();
@@ -138,6 +142,8 @@ try {
     admin: { enabled: true, manageGroups: [], requireGroupAdmin: true, prefix: '/', dryRun: false, allowConsole: false },
     // 闸门区：动态码开着，用于验证「名单默认锁定」与「闸门区字段存在」。
     flowAuth: { enabled: true, gatedTools: ['subagent', 'moli_fetch'], gateEditCode: '', grantTtlSeconds: 30 },
+    // 表情包图库关着：验证「未启用就折叠」这条默认行为。
+    sticker: { enabled: false, dir: '', autoTag: true, provider: '', model: '', maxPerRun: 40, timeoutMs: 60000 },
   };
   // dsh-moli 引擎检测的假数据：插件清单 + 它自己命名空间里的 engineState/engineVersion。
   // 默认「插件装了但停用、引擎就绪」——正好验证「只借它装引擎」这条设计。
@@ -348,12 +354,12 @@ try {
   check('切到能力页后底部保存/重新读取仍常驻',
     findByTextEarly(capTree, '保存') !== null && findByTextEarly(capTree, '重新读取') !== null);
 
-  // 二级标签：三个都在，且能切换
+  // 二级标签：都在，且能切换（表情包是 0.13 新增的第四个）
   const subLabels = collectButtons(capTree, [])
     .filter((b) => b.props.role === 'tab' && b.props['data-subtab'] !== undefined).map(childText);
-  check('能力页渲染出三个二级标签', subLabels.length === 3, JSON.stringify(subLabels));
-  check('二级标签为 识图与绘图 / 搜索与抓取 / 对话与人格',
-    subLabels.join(',') === '识图与绘图,搜索与抓取,对话与人格', JSON.stringify(subLabels));
+  check('能力页渲染出四个二级标签', subLabels.length === 4, JSON.stringify(subLabels));
+  check('二级标签为 识图与绘图 / 搜索与抓取 / 对话与人格 / 表情包',
+    subLabels.join(',') === '识图与绘图,搜索与抓取,对话与人格,表情包', JSON.stringify(subLabels));
 
   const clickSubTabIn = (root, label) => {
     const btn = collectButtons(root, [])
@@ -888,6 +894,116 @@ try {
   check('还原不动密钥字段（输入的新 token 还在）', Boolean(tokenAfter) && tokenAfter.props.value === 'secret-xyz',
     String(tokenAfter && tokenAfter.props.value));
   check('提示说明密钥类字段未动', textsOf(treeN).includes('密钥类字段未动'), textsOf(treeN).slice(0, 200));
+  // ------------------------------------------------------------------
+  // 7. 表情包卡片（放在最后：这个卡片带 hooks，测试桩的 state 是位置式的，
+  //    提前渲染会把后面 ListInput 的 useRef 位置顶乱，所以只在这里验一次）
+  // ------------------------------------------------------------------
+  console.log('\n7. 表情包卡片（能力 → 表情包）');
+  const stickerFetchCalls = [];
+  const stickerStatusPayload = {
+    ok: true, enabled: true, autoTag: true, dir: '/tmp/QQ_msg/sticker', indexFile: '/tmp/QQ_msg/sticker/index.json',
+    indexExists: true, corrupt: false, total: 3, tagged: 2, untagged: 1,
+    series: [{ name: '', count: 1 }, { name: '猫猫', count: 2 }],
+    updatedAt: 1700000000000, model: { provider: 'test-provider', model: 'test-model' }, job: null, busy: false, maxPerRun: 40,
+  };
+  globalThis.fetch = (url) => {
+    stickerFetchCalls.push(String(url));
+    if (String(url).includes('/sticker/rebuild')) {
+      return Promise.resolve({ json: () => Promise.resolve(Object.assign({}, stickerStatusPayload, {
+        started: true, job: { running: true, mode: 'tag', total: 1, done: 0, tagged: 0, failed: 0, note: '', error: '' },
+      })) });
+    }
+    return Promise.resolve({ json: () => Promise.resolve(stickerStatusPayload) });
+  };
+  const renderWithEffects = () => {
+    reactRuntime.__beginRender();
+    const tree = registered.component(props);
+    return { tree, effects: reactRuntime.__takeEffects() };
+  };
+  const stickerStep0 = renderWithEffects();
+  const capabilityTabBtn = collectButtons(stickerStep0.tree, [])
+    .find((b) => b.props.role === 'tab' && b.props['data-tab'] === 'capability');
+  check('找得到「能力」标签按钮', Boolean(capabilityTabBtn));
+  capabilityTabBtn.props.onClick();
+  let stickerStep = renderWithEffects();
+  const stickerSubBtn0 = collectButtons(stickerStep.tree, [])
+    .find((b) => b.props.role === 'tab' && b.props['data-subtab'] === 'sticker');
+  check('找得到「表情包」二级标签', Boolean(stickerSubBtn0));
+  stickerSubBtn0.props.onClick();
+  stickerStep = renderWithEffects();
+  const collapsedToggle = findDataSet(stickerStep.tree, 'data-sticker-toggle');
+  const collapsedText = textsOf(stickerStep.tree);
+  check('未启用时卡片折叠（参数与状态区都不渲染）',
+    collapsedToggle !== null
+    && findDataSet(stickerStep.tree, 'data-sticker-collapsed') !== null
+    && findDataSet(stickerStep.tree, 'data-sticker-rebuild') === null
+    && collapsedText.includes('表情包目录') === false
+    && collapsedText.includes('勾上「启用表情包图库」后展开'),
+    collapsedText.slice(0, 200));
+
+  // 勾上开关 → 组件把 sticker.enabled 写进 draft，卡片当场展开。
+  if (collapsedToggle.props.checked !== true) {
+    collapsedToggle.props.onChange({ target: { checked: true } });
+  }
+  stickerStep = renderWithEffects();
+  const expandedToggle = findDataSet(stickerStep.tree, 'data-sticker-toggle');
+  check('勾上开关后卡片展开（开关变 checked，折叠提示消失）',
+    expandedToggle !== null && expandedToggle.props.checked === true
+    && findDataSet(stickerStep.tree, 'data-sticker-collapsed') === null,
+    textsOf(stickerStep.tree).slice(0, 160));
+  // 重建按钮住在状态区里：状态区要先拿到 GET 结果才会渲染按钮，所以放到下面那段之后断言。
+  check('展开后卡片参数已渲染（目录字段出现）',
+    textsOf(stickerStep.tree).includes('表情包目录'), textsOf(stickerStep.tree).slice(0, 200));
+
+  // 卡片展开后的这一轮渲染才会挂上状态区（StickerStatus）：先发 GET，拿到结果再重渲染。
+  // 测试桩是位置式 hook：渲染一次就没法回头跑「上一轮」的 effect，所以按
+  // 「渲染 → 立刻跑这一轮 effect → 等 fetch → 再渲染」的顺序推进，最多推几轮。
+  const capStickerTree = stickerStep.tree;
+  const capStickerJoined = textsOf(capStickerTree);
+  check('表情包页渲染出图库卡片',
+    capStickerJoined.includes('表情包图库') && capStickerJoined.includes('目录 = 图库 · 子目录 = 系列 · index.json = 索引'),
+    capStickerJoined.slice(0, 260));
+  const stickerToggle = findDataSet(capStickerTree, 'data-sticker-toggle');
+  check('卡片带启用开关（checkbox）', stickerToggle !== null && stickerToggle.props.type === 'checkbox',
+    JSON.stringify(stickerToggle === null ? null : stickerToggle.props));
+  check('卡片参数就位（重建按钮在状态区里，见下面的状态区断言）',
+    capStickerJoined.includes('AI 自动标记'), capStickerJoined.slice(0, 300));
+  check('卡片内参数都在（目录 / AI 自动标记 / 每次最多）',
+    capStickerJoined.includes('表情包目录') && capStickerJoined.includes('AI 自动标记')
+    && capStickerJoined.includes('每次最多标记几张'), capStickerJoined.slice(0, 600));
+  check('表情包页不串入其它分区的字段',
+    !capStickerJoined.includes('生图（qq_draw）') && !capStickerJoined.includes('联网搜索 HTTP 代理'),
+    capStickerJoined.slice(0, 240));
+  // 状态区（StickerStatus）是卡片里嵌的子组件。位置式 useState 的桩做不到「子组件自己的
+  // hook 列表」，所以这里不整页递归：直接把状态区的渲染结果单独拿一次，验证它取到的数据与按钮。
+  // 契约（GET 打在这里、按钮发 POST）由 routes-sticker 的测试与下面的 fetch 断言覆盖。
+  let statusSnapshot = null;
+  let statusText = '';
+  if (typeof plugin.__stickerStatusForTest === 'function') {
+    reactRuntime.__beginRender();
+    statusSnapshot = plugin.__stickerStatusForTest();
+    for (const effect of reactRuntime.__takeEffects()) effect();
+    await sleep(30);
+    reactRuntime.__beginRender();
+    statusSnapshot = plugin.__stickerStatusForTest();
+    statusText = textsOf(statusSnapshot);
+  }
+  check('状态区能渲染（test hook 可用）', statusSnapshot !== null, String(typeof plugin.__stickerStatusForTest));
+  check('状态区拿到了运行状态（走了 GET /dsh-qq-bot/sticker）',
+    stickerFetchCalls.includes('/dsh-qq-bot/sticker') && statusText.includes('共 3 张 · 2 个系列 · 已标记 2 / 待标记 1')
+    && statusText.includes('猫猫 2'), statusText.slice(0, 400));
+  check('状态区显示打标模型', statusText.includes('打标模型：test-provider / test-model'), statusText.slice(0, 400));
+  const statusRebuild = statusSnapshot === null ? null : findDataSet(statusSnapshot, 'data-sticker-rebuild');
+  check('卡片带「扫描并打标」「只重建索引」按钮',
+    statusRebuild !== null && statusText.includes('扫描并打标') && statusText.includes('只重建索引'),
+    statusText.slice(0, 300));
+  if (statusRebuild !== null) {
+    statusRebuild.props.onClick();
+    await sleep(10);
+  }
+  check('点「扫描并打标」会 POST 到 rebuild', stickerFetchCalls.includes('/dsh-qq-bot/sticker/rebuild'),
+    JSON.stringify(stickerFetchCalls));
+
   globalThis.fetch = realFetch;
 } catch (error) {
   failures += 1;

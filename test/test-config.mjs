@@ -154,8 +154,8 @@ console.log('\n10. 默认值 JSON：自动发现 / 与 schema 一致 / 邪门输
     && prioOf('imgSearch') === 200 && prioOf('moli') === 300
     && prioOf('auth') === 200 && prioOf('flowAuth') === 200,
     [prioOf('history'), prioOf('imageGen'), prioOf('imgSearch'), prioOf('moli'), prioOf('auth'), prioOf('flowAuth')].join('/'));
-  check('每份模板都声明了 priority（内置的 9 份）',
-    SETTINGS_SOURCES.every((s2) => typeof s2.priority === 'number') && SETTINGS_SOURCES.length === 9,
+  check('每份模板都声明了 priority（内置的 10 份）',
+    SETTINGS_SOURCES.every((s2) => typeof s2.priority === 'number') && SETTINGS_SOURCES.length === 10,
     SETTINGS_SOURCES.map((s2) => s2.group + ':' + s2.priority).join(' '));
 
   // 邪门输入：拷一份最小树到仓库内（这样 @deepseek-ai/schemastery 还能解析到），

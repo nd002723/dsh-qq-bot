@@ -462,8 +462,8 @@ try {
   if (hasDshTools !== true) {
     skip('工具注册需 @deepseek-ai/dsh-tools；路由/回复断言不受影响');
   } else {
-    const EXPECTED_TOOLS = ['qqbot', 'qqconfig', 'qqgroup', 'qq_websearch', 'qq_webfetch', 'qq_imgsearch', 'qq_history', 'qq_draw', 'qqauth'];
-    check('注册了 ' + EXPECTED_TOOLS.length + ' 个工具（qqbot / qqconfig / qqgroup / qq_websearch / qq_webfetch / qq_imgsearch / qq_history / qq_draw / qqauth）',
+    const EXPECTED_TOOLS = ['qqbot', 'qqconfig', 'qqgroup', 'qq_websearch', 'qq_webfetch', 'qq_imgsearch', 'qq_history', 'qq_draw', 'qq_sticker', 'qqauth'];
+    check('注册了 ' + EXPECTED_TOOLS.length + ' 个工具（qqbot / qqconfig / qqgroup / qq_websearch / qq_webfetch / qq_imgsearch / qq_history / qq_draw / qq_sticker / qqauth）',
       registeredTools.length === EXPECTED_TOOLS.length, String(registeredTools.length));
     check('工具名与预期完全一致', (() => {
       const names = registeredTools.map((t) => t.name).slice().sort();

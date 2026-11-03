@@ -315,6 +315,9 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 | --- | --- | --- |
 | `shared/http.js` | HTTP **传输机制**：直连 / CONNECT 隧道、超时、体积上限、截断语义。判定在 `valve/network/policy.js`，用哪个代理由阀门安装的解析器决定（`__setProxyResolver`），这里只负责「怎么出站」 | `multiEngineRequest` `fetchUrlViaProxy` `webSearchPost` `publicFetch` `currentProxy` `__setProxyResolver` |
 | `shared/compat.js` | DSH 版本兼容自检（范围只维护两个常量） | `SUPPORT_FLOOR` `SUPPORT_CEILING` `compatibilityInfo` |
+| `shared/imagemeta.js` | 图像元信息：扩展名 ↔ mediaType、按真实内容嗅探格式。与业务无关，凡判断/描述图片格式的地方都可复用 | `IMAGE_EXTS` `MIME_BY_EXT` `isImageExt` `mediaTypeOf` `sniffImage` |
+| `shared/gif.js` | GIF 解码（纯 JS）：调色板 / 透明索引 / 隔行 / 局部帧合成；解第 N 帧到 RGBA，或取首帧转 PNG | `decodeGifFrame` `gifFirstFrameToPng` |
+| `shared/png.js` | 手写 PNG 编码器（RGBA / 8bit / 无滤波），只用 `zlib.deflateRawSync`，不引图形库 | `encodePng` |
 
 ### 2.10 浏览器侧
 

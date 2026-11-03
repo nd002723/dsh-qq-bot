@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（44 个套件 / 1593 项）
+## 2. 测试（45 个套件 / 1683 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -62,12 +62,13 @@ npm test                   # 同上
 | `test-adapter-satori.mjs` | 70 | Satori 适配器 |
 | `test-adapter-milky.mjs` | 83 | Milky 适配器（含 WebHook 默认准入与读体上限） |
 | `test-adapter-qq-official.mjs` | 109 | QQ 官方适配器（含回调重放防护） |
-| `test-plugin.mjs` | 148 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、9 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（148 项含工具注册段落；解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 122 项 + 6 项 `[SKIP]`） |
-| `test-client.mjs` | 132 | 客户端设置页：模拟模块加载器 + 最小 React 渲染 + 四档标签（字段来自服务端模板）+ 只写密钥护栏 + 纯数字名单校验 + 一键还原默认 |
+| `test-plugin.mjs` | 148 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、10 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（148 项含工具注册段落；解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 122 项 + 6 项 `[SKIP]`） |
+| `test-client.mjs` | 142 | 客户端设置页：模拟模块加载器 + 最小 React 渲染 + 四档标签（字段来自服务端模板）+ 只写密钥护栏 + 纯数字名单校验 + 一键还原默认 |
 | `test-admin.mjs` | 38 | 权限 · 群管理 · 访客工具闸 |
 | `test-http.mjs` | 30 | HTTP / 代理隧道 / IP 归一与公网判定 |
-| `test-config.mjs` | 44 | 配置合并、volatile 还原、废弃键清理、`-conf.json` / `-set.json` 自动发现与护栏（组不存在 / 路径不存在 / 标签页不存在 / `priority` 非法 / 文件头 tab 也缺）、设置页分区顺序与字段继承 |
+| `test-config.mjs` | 50 | 配置合并、volatile 还原、废弃键清理、`-conf.json` / `-set.json` 自动发现与护栏（组不存在 / 路径不存在 / 标签页不存在 / `priority` 非法 / 文件头 tab 也缺）、设置页分区顺序与字段继承 |
 | `test-websearch.mjs` | 5 | 多引擎搜索结果解析 |
+| `test-sticker.mjs` | 74 | 表情包图库：目录扫描 / sha1 增量索引（touch 不重打标、改内容只重打一张、改名与换系列按 sha1 认领标签）/ 坏索引自愈 / 搜索与挑图 / 发送目标判定 / 状态与重建路由 / 配置契约 / GIF 首帧转码与兼容模式（含假 .gif 按真实内容发） |
 | `test-imagegen.mjs` | 22 | 生图重试 / 轮询 / 响应解析；本地图片白名单必须解符号链接（软链指向白名单外一律拒） |
 | `test-session-id.mjs` | 5 | 会话 id 回退 |
 | `test-compat.mjs` | 14 | 运行时兼容自检 |
@@ -301,6 +302,15 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
       poll: true
       pollIntervalMs: 5000
       maxPolls: 30
+    sticker:
+      enabled: true    # 表情包图库：目录 + index.json 索引 + AI 自动打标
+      dir: ''          # 留空 = QQ_msg/sticker；相对路径按 QQ_msg 解析
+      autoTag: true    # 首次使用 / 文件内容变动（哈希比对）时只给变动的图重新打标
+      gifCompat: false # GIF 兼容模式：false=原样发 GIF；true=本地解首帧转 PNG 再发
+      provider: ''     # 打标 provider（留空 = 跟随 vision.provider）
+      model: ''        # 打标模型（留空 = 跟随 vision.model；必须是能看图的模型）
+      maxPerRun: 40    # 一次重建最多打标几张（超出的留到下次）
+      timeoutMs: 60000 # 单张打标超时
     persona:
       enabled: false   # 自定义人格：每个新会话第一轮附一次
       name: ''
@@ -315,7 +325,7 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 <a id="工具细节"></a>
 ## 4. 工具细节
 
-插件注册 9 个工具，访客只能看到 `auth.guestToolAllow` 里的。工具之间共用同一套权限判定（见 README「权限与指令」）。
+插件注册 10 个工具，访客只能看到 `auth.guestToolAllow` 里的。工具之间共用同一套权限判定（见 README「权限与指令」）。
 
 ### qqbot
 
@@ -354,6 +364,23 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 `{prompt, model?, size?, reference?, caption?, send?}`：`send` 默认 true，直接画成 QQ 图片段发到当前会话。失败策略：429 / 5xx / 网络错 / 空结果按 `retryIntervalMs` 重试到 `maxAttempts`；4xx 直接报错不重试。响应是 `task_id` 时按 `pollIntervalMs` 轮询（依次试 `/images/generations/<id>`、`/images/tasks/<id>`、`/tasks/<id>`），最多 `maxPolls` 次。图片落盘 `<QQ_msg>/qq-images/gen/`。
 
 接口约定：OpenAI 兼容 `POST <baseUrl>/images/generations`，请求体 `{model, prompt, n:1, size?, image?}`，返回 `data[0].url` 或 `data[0].b64_json`。
+
+### qq_sticker
+
+表情包图库（`lib/tools/sticker.js`，目录默认 `<QQ_msg>/sticker`）：
+
+- `{action:'list'}` —— 目录、张数、系列、已标记 / 待标记、打标模型、后台任务进度。
+- `{action:'search', query?, series?, limit?}` —— 按标签 / 描述 / 文件名 / 系列找图，返回 `id`（即索引里的相对路径）、标签、描述、绝对路径。
+- `{action:'send', id?|query?, series?}` —— 把选中的一张发进**当前会话**（目标由 `resolveStickerTarget` 从 `entry.key`/发言人推出来，不接受外部指定的群号，所以不能拿它往别的群灌图）。
+- `{action:'rebuild', tag?}` —— 扫目录重建索引（**仅拥有者**；Web UI 要开 `admin.allowConsole`），`tag:false` 只算哈希不打标。
+
+索引约定：`<dir>/index.json`，`items[]` 每项 `{file, series, sha1, size, mtimeMs, tags, desc, taggedAt, tagModel, tagFailedAt?}`。重建是**增量**的：先比 `size+mtime` 跳过没变的文件，可疑的才算 sha1，哈希相同视为没变；只有真变了或新文件才清空标签重新打标。
+
+**改名 / 移动 / 复制不丢标签**：目录就是库，用户随时会在磁盘上整理（改名、换系列子目录、复制一份），路径一变旧记录就找不到了。所以重建时会额外建一张 `sha1 → 已打标记录` 的内容认领表：某个路径在旧索引里不存在、但它的 sha1 能对上一条已打标的记录时，直接继承 `tags / desc / taggedAt / tagModel / addedAt`（`series` 按新路径重算），计入报告的 `moved`（「认领」）。只在**路径此前不存在**时认领——同路径换了内容仍按真变动重新打标；`tagFailedAt` 不继承，挪过位置的图会重新获得一次打标机会。打标走 `ctx.llm.stream` + `ctx.attachments.saveImage`（与识图同一条路），provider/model 取 `sticker.provider/model`，留空跟随 `vision.*`；每次最多打 `sticker.maxPerRun` 张，每打一张就落盘，失败记 `tagFailedAt`（10 分钟内自动流程不重试）。
+
+送去模型前的 `visionPayload(buf, relPath, {gifCompat})` **只看真实内容**（`sniffImage`），不信扩展名：`.gif` 里装 JPEG 的按 JPEG 发；真 GIF 默认原样发（`image/gif`），`sticker.gifCompat: true` 时先 `gifFirstFrameToPng` 解首帧（纯 JS：GIF LZW 解码 + 手写 PNG 编码）。单张上限 `MAX_FILE_BYTES = 10 MB`，超了直接跳过不进索引。
+
+HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`（`{mode:'tag'|'index'}`）起后台任务——设置页卡片靠这两条显示进度。
 
 ### qqauth
 
@@ -461,13 +488,14 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 | `lib/gateway/turn-runtime.js` | 回合运行时：acceptMessage / 提示词 / 中间发言 / runTurn / extractReply / 图片清扫（P3 2.4 第三阶段搬出） |
 | `lib/gateway/index.js` | HTTP 路由统一挂载（`ROUTE_MOUNTS` 表 + webServer 就绪 + 逆序注销） |
 | `lib/gateway/routes-bind.js` | 扫码绑定的两条具名路由 |
+| `lib/gateway/routes-sticker.js` | 表情包图库：`GET /dsh-qq-bot/sticker`（状态）与 `POST /dsh-qq-bot/sticker/rebuild`（后台重建），响应不含配置值 |
 | `lib/gateway/routes-defaults.js` / `routes-settings.js` | `GET /dsh-qq-bot/defaults`（默认值）与 `GET /dsh-qq-bot/settings`（设置页模板：标签页 + 字段）。都只回模板/常量，不含任何配置值 |
 | `lib/gateway/commands.js` | `/auth` `/flow` 解析、拦截判定、产物输入归一 |
 | **消息组装层** | |
 | `lib/message/` | 组装全部在 `gateway/plugin.js` 的回复链路里；本目录只有纯函数：`chunk.js` 分条、`stream.js` 流式桥、`interim.js` 中间发言、`segments.mjs` 统一段、`msgid-cache.js` 入站去重 |
 | **工具层** | |
-| `lib/tools/index.js` | 9 个模型工具（统一走 `registerTool`，DSH 0.2 契约） |
-| `lib/tools/` | `websearch.js` 组合搜索、`imgsearch.js` 反搜 + 图床、`imagegen.js` 生图、`moli.js` 引擎封装、`qr.js` 二维码编码器；同目录的 `*-conf.json`（默认值）/ `*-set.json`（设置页字段）归各自工具所有 |
+| `lib/tools/index.js` | 10 个模型工具（统一走 `registerTool`，DSH 0.2 契约） |
+| `lib/tools/` | `websearch.js` 组合搜索、`imgsearch.js` 反搜 + 图床、`imagegen.js` 生图、`moli.js` 引擎封装、`qr.js` 二维码编码器、`sticker.js` 表情包图库（扫描 / 哈希索引 / 自动打标）；同目录的 `*-conf.json`（默认值）/ `*-set.json`（设置页字段）归各自工具所有 |
 | **会话层** | |
 | `lib/session/manager.js` | 会话创建 / 复用、固定命名、访客工具闸、编排工具闸门接管 |
 | `lib/session/` | `model-router.js` 模型选择、`workspace.js` QQ_msg 工作区根、`proactive.js` 主动发言纯逻辑 |
@@ -482,6 +510,9 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 | **公共层** | |
 | `lib/shared/http.js` | HTTP 传输机制：直连 / CONNECT 代理隧道 / 超时 / 体积上限（判定在 `valve/network/policy.js`） |
 | `lib/shared/compat.js` | DSH 版本兼容自检（只维护两个常量） |
+| `lib/shared/imagemeta.js` | 图像元信息：扩展名 ↔ mediaType、按真实内容嗅探格式（不信扩展名） |
+| `lib/shared/gif.js` | GIF 解码（纯 JS）：调色板 / 透明索引 / 隔行 / 局部帧合成，第 N 帧 → RGBA，首帧 → PNG |
+| `lib/shared/png.js` | 手写 PNG 编码器（RGBA / 8bit / 无滤波，只用 `zlib.deflateRawSync`） |
 | **浏览器侧** | |
 | `lib/client/settings.js` | 客户端半边（手写 bundle）：插件面板里的设置区，**纯渲染器**——字段与标签页由 `GET /dsh-qq-bot/settings` 下发。**模块 id 与插槽 key 必须等于 npm 包名**，设置命名空间仍是条目 id |
 | **其他** | |
