@@ -3,6 +3,7 @@ import {
   parseClock, parseQuietRanges, isQuiet, summarizeSegments,
   normalizeMessages, newerThan, buildDigest, buildPrompt, parseDecision, runSpeakStage,
   validateMessage, allowSend, analyzeEvent, topicKey, topicRepeated, resolveStageModels, buildSpeakPrompt, resolveModel,
+  resolvePersonaText,
 } from '../lib/session/proactive.js';
 
 let pass = 0;
@@ -224,6 +225,14 @@ const badJudge = await runSpeakStage({
   onBlocked: () => { blockedCount += 1; },
 });
 check('发言阶段：判断正文不可用时不回退、且逐次记录被拦', badJudge.used === 'none' && badJudge.text === '' && blockedCount === 2);
+
+// 人格来源优先级：手填 > 宿主求值的 soul 人格 > 插件自身 persona（垫底回退）
+check('人格：手填优先于一切', resolvePersonaText({ explicit: '手填', host: '宿主人格', fallback: '老配置' }) === '手填');
+check('人格：留空时用宿主求值的人格', resolvePersonaText({ explicit: '', host: '宿主人格', fallback: '老配置' }) === '宿主人格');
+check('人格：宿主也没有时回退老配置', resolvePersonaText({ explicit: '  ', host: '', fallback: '老配置' }) === '老配置');
+check('人格：三者都空返回空串', resolvePersonaText({ explicit: '', host: '   ', fallback: '' }) === '');
+check('人格：入参缺省不炸', resolvePersonaText() === '' && resolvePersonaText(null) === '');
+check('人格：空白会被 trim', resolvePersonaText({ explicit: '  猫咪  ', host: '', fallback: '' }) === '猫咪');
 
 console.log('\n' + pass + ' 通过 / ' + fail + ' 失败');
 process.exit(fail === 0 ? 0 : 1);

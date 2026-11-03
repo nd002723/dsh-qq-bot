@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（46 个套件 / 1693 项）
+## 2. 测试（47 个套件 / 1715 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -58,7 +58,7 @@ npm test                   # 同上
 | `test-adapter.mjs` | 19 | OneBot 11 正向适配器 |
 | `test-adapter-reverse.mjs` | 19 | OneBot 11 反向适配器（含半开连接回收） |
 | `test-adapter-reconnect.mjs` | 11 | 适配器重连：握手超时必重试、open 前不算链路、断线后重试、reconnect() 主动重连、背压不判失败 |
-| `test-action-priority.mjs` | 10 | 适配器写调度：大帧按 64KB 分片、小帧（动作/指令）插队、空闲时小帧一片直写、动作往返与超时如实报错 |
+| `test-action-priority.mjs` | 10 | 适配器写调度：大帧整帧原子写（不切片，帧完整性）、小帧在帧边界插队、空闲时一片直写、动作往返与超时如实报错 |
 | `test-adapter-onebot12.mjs` | 30 | OneBot 12 适配器 |
 | `test-adapter-satori.mjs` | 70 | Satori 适配器 |
 | `test-adapter-milky.mjs` | 83 | Milky 适配器（含 WebHook 默认准入与读体上限） |
@@ -75,7 +75,8 @@ npm test                   # 同上
 | `test-compat.mjs` | 14 | 运行时兼容自检 |
 | `test-update-check.mjs` | 19 | 上游新版本提示：range 判断、同版本/更旧不提示、不兼容标记、失败静默、缓存与开关、registry 回退、失败只缓存 5 分钟 |
 | `test-history.mjs` | 20 | 聊天记录鉴权与定向 |
-| `test-proactive.mjs` | 84 | 主动发言纯逻辑（时间窗、判据、去重、两段式） |
+| `test-proactive-wiring.mjs` | 16 | 主动发言接线与人格：依赖键名对账（getSessionApi）、缺依赖启动即告警、`soul:persona` 只取人格段、缺服务/求值抛错降级、agent 传给宿主 |
+| `test-proactive.mjs` | 90 | 主动发言纯逻辑（时间窗、判据、去重、两段式、人格优先级） |
 | `test-proactive-round.mjs` | 35 | 主动发言回合端到端（不动定时器） |
 | `test-owner-settings.mjs` | 58 | 拥有者设置通道（白名单 / 确认码 / 限流 / 审计） |
 | `test-totp.mjs` | 44 | TOTP / HOTP（RFC 4226 + 6238 官方向量） |
@@ -414,6 +415,12 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 - **`eventGuard`（默认开）**：最新消息超过 `staleMinutes` 视为过错窗口；最新一条只是应答不插话；两个人来回说时视为他们的对话；同话题 `topicCooldownMinutes` 内不重复。
 - 提示词有两道防编造约束（`topic` 只能来自聊天记录、发言阶段只用记录里的信息），但模型编造是概率性的，只能压低不能消除。
 - `dryRun: true` 只记日志，先观察再开。
+- **人设来源（三级）**：`proactive.persona`（设置页「主动发言 → 人设」，填了就用它）→
+  宿主求值的人格段（调 `ctx.systemPrompt.assemble({ agent })` 取 `soul:persona`，
+  即 dsh-soul-md 按「会话指定 → 工作区 → 默认卡」求值后的文本）→ `config.persona`
+  （插件自己的「人格 → 身份设定」，原有回退）。三级都空就不加人格段。
+  只取人格段、**不取记忆段**：短期上下文由群聊历史窗口提供，记忆几千字纯浪费 token。
+  宿主没有 `systemPrompt` 服务 / 没有该段 / 求值报错 → 静默回退，不影响主动发言本身。
 
 ## 6. 流程授权（细节）
 

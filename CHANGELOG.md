@@ -1,3 +1,37 @@
+## 未发布 —— 主动发言：会话模型依赖 + 宿主人格（2026-11-03）
+
+### 修复：每轮主动发言都报 `getSessionApi is not a function`
+
+现象：主动发言每 15 分钟一轮，日志固定出现
+`主动发言：取会话模型失败（getSessionApi is not a function）`，随后降级用判断模型的正文发言。
+
+根因是**依赖键名写错**：`gateway/proactive-surface.js` 解构的是 `getSessionApi`，
+而 `gateway/plugin.js` 传的键是 `sessionApi` —— 工厂拿到 `undefined`，调用即抛。
+这个错误要等启动后第一次 tick 才暴露，所以启动日志和测试都没拦住。
+
+- `plugin.js`：传 `getSessionApi: () => sessionApi`，与工厂解构的名字对齐。
+- `proactive-surface.js`：构造时检查该依赖，缺了立刻在启动日志里说清楚
+  （「取不到会话模型，会退回用判断模型的正文发言」），不再等 15 分钟后才冒一句 `is not a function`。
+
+### 新增：主动发言的人设可以来自 dsh-soul-md
+
+以前主动发言只能用插件自己的两个字段（`proactive.persona` / `config.persona.text`），
+用 dsh-soul-md 的用户在群里聊天有人格、主动插话却没有人格。
+
+现在人设按三级取：**`proactive.persona` → 宿主求值的 `soul:persona` 段 → `config.persona`**。
+
+- 取法：插件调宿主 `ctx.systemPrompt.assemble({ agent })`，把该群会话的 agent 传进去，
+  soul-md 按它自己的优先级（会话指定 → 工作区 → 默认卡）求值，我们只读 `soul:persona` 这一段的文本；
+- 只取人格段，不取记忆段：短期上下文由群聊历史窗口提供，把几千字记忆塞进一句群聊发言没意义；
+- 拿不到 `systemPrompt` 服务 / 没有该段 / 求值抛错 → 静默回退到原有行为，不影响主动发言；
+- 取会话条目现在只取一次（`proactiveEntry`），模型选项与 agent 复用同一个。
+
+### 测试
+
+- 新增 `test/test-proactive-wiring.mjs`（16 项）：依赖接线静态对账（工厂解构的键名 = plugin 传的键名）、
+  缺依赖要有可读告警、`soul:persona` 段只取人格、缺服务 / 求值抛错降级、agent 传给宿主；
+- `test-proactive.mjs` 补 6 条人格优先级用例；全套 47 个套件 / 1715 项。
+
 ## 未发布 —— 动作帧不再排在大图后面（2026-11-03）
 
 ### 修复：发完大图马上读历史，`qq_history` 返回 0 条
