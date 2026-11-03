@@ -1,3 +1,13 @@
+## 未发布 —— 发送背压与工具输出清理（2026-11-03）
+
+### 修复：大图发送被背压误判成失败 + 工具返回带 undefined 字段
+
+- 带 base64 图片的 `send` 帧超过适配器 stdin 管道缓冲时，`write()` 返回 false 被当成「适配器未连接」：
+  实际数据已进缓冲、图也到了群里。现在同步写按「接受即成功」处理，并新增 `writeToAdapterAsync`
+  （背压时等 drain，超时按已接受处理），qqbot send / qq_draw 的大帧改走它。
+- 工具返回值可能带 `error: undefined` 等字段，过不了宿主的 lossless JSON 检查。现在注册前统一递归删除 undefined。
+- 测试：`test-adapter-reconnect` 8 → 11（补背压），新增 `test-tool-output` 8 项；套件 43 → 44，总项 1582 → 1593。
+
 ## 未发布 —— 适配器静默掉线修复（2026-11-03）
 
 ### 修复：NapCat 重启后适配器再也不重连，机器人静默离线

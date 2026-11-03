@@ -10,7 +10,10 @@
  */
 import http from 'node:http';
 import crypto from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { createLinkSet, connectForward } from '../lib/transport/bridge/ws.mjs';
+import { createAdapterSupervision } from '../lib/gateway/adapter-supervision.js';
 
 let pass = 0;
 let fail = 0;
@@ -136,6 +139,40 @@ console.log('4. reconnect() 主动断开并重连');
   await waitFor(() => opens >= 2, 5000, 'reconnect 后 open');
   check('reconnect() 触发新的握手（open ≥2）', opens >= 2, 'opens=' + opens);
   cf.close(); srv.close();
+}
+
+
+console.log('5. 背压不判失败（大图 base64 超过管道缓冲）');
+{
+  function makeSup(withSpawn) {
+    const stdin = new EventEmitter();
+    stdin.write = () => false;
+    const proc = { stdin, stdout: new PassThrough(), stderr: new PassThrough(), done: new Promise(() => {}), terminate: async () => {} };
+    const state = { stopping: false, connected: false, statusReason: '', stats: { errors: 0 }, pending: new Map() };
+    const sup = createAdapterSupervision({
+      TAG: '[test]',
+      getConfig: () => ({ protocol: 'onebot11', mode: 'forward', onebot: { wsUrl: 'ws://x', httpUrl: '', accessToken: '' }, restart: { baseMs: 10, maxMs: 10 } }),
+      getState: () => state,
+      ctx: { timeout: (fn) => { const t = setTimeout(fn, 1000); return () => clearTimeout(t); } },
+      describeError: (e) => String(e),
+      nodePath: process.execPath,
+      getAdapterPath: () => '/tmp/fake-adapter.mjs',
+      spawn: () => proc,
+      qqMsgRoot: () => '/tmp',
+      onFrame: () => {},
+    });
+    if (withSpawn) sup.spawnAdapter();
+    return { sup, stdin };
+  }
+
+  const { sup, stdin } = makeSup(true);
+  check('write 返回 false 时同步写仍算接受', sup.writeToAdapter({ type: 'send', text: 'x'.repeat(200000) }) === true);
+  const pending = sup.writeToAdapterAsync({ type: 'send', text: 'y'.repeat(200000) });
+  setTimeout(() => stdin.emit('drain'), 20);
+  check('异步写在 drain 后返回 true', (await pending) === true);
+  const empty = makeSup(false);
+  check('适配器未运行时仍返回 false', empty.sup.writeToAdapter({ type: 'send' }) === false && (await empty.sup.writeToAdapterAsync({ type: 'send' })) === false);
+  await sup.stopAdapter();
 }
 
 console.log('\n' + pass + ' 通过 / ' + fail + ' 失败');
