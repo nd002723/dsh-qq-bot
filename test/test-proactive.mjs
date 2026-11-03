@@ -176,9 +176,13 @@ check('来源解析：空白字符串视为未配置', blanks.provider === 'p2' 
 const single = resolveStageModels({ provider: 'p1', model: 'm1' }, null);
 check('两段式：默认不启用', single.twoStage === false);
 check('两段式：默认判断与发言同源', single.judge.provider === 'p1' && single.judge.model === 'm1' && single.speak.model === 'm1');
-const both = resolveStageModels({ provider: 'p1', model: 'm1', speakModel: 'm2' }, null);
-check('两段式：配了 speakModel 才启用', both.twoStage === true && both.speak.model === 'm2' && both.judge.model === 'm1');
-check('两段式：发言沿用判断的 provider', both.speak.provider === 'p1');
+const noPair = resolveStageModels({ provider: 'p1', model: 'm1', speakModel: 'm2' }, null);
+check('两段式：只给 speakModel、没给 speakProvider 时不启用', noPair.twoStage === false && noPair.speak.model === 'm1');
+const both = resolveStageModels({ provider: 'p1', model: 'm1', speakProvider: 'p1', speakModel: 'm2' }, null);
+check('两段式：provider + model 成对才启用', both.twoStage === true && both.speak.model === 'm2' && both.judge.model === 'm1');
+check('两段式：发言 provider 显式指定', both.speak.provider === 'p1');
+const providerOnly = resolveStageModels({ provider: 'p1', model: 'm1', speakProvider: 'p2' }, null);
+check('两段式：只给 speakProvider、没给模型也不启用', providerOnly.twoStage === false && providerOnly.speak.provider === 'p1');
 const split = resolveStageModels({ provider: 'jp', model: 'jm', speakProvider: 'sp', speakModel: 'sm' }, null);
 check('两段式：判断沿用 provider/model、发言独立', split.judge.provider === 'jp' && split.judge.model === 'jm' && split.speak.provider === 'sp' && split.speak.model === 'sm');
 const aliasCheck = resolveStageModels({ judgeProvider: 'x1', judgeModel: 'x2', provider: 'p1', model: 'm1' }, null);

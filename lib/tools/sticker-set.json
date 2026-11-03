@@ -81,6 +81,36 @@
     {
       "path": [
         "sticker",
+        "chance"
+      ],
+      "label": "主动配图概率",
+      "kind": "number",
+      "in": "sticker-card",
+      "hint": "0–1：模型自己决定配表情包时，按这个概率真正发出（1=每次都发，0=只有你明确要求才发）"
+    },
+    {
+      "path": [
+        "sticker",
+        "maxPerHour"
+      ],
+      "label": "每群每小时上限",
+      "kind": "number",
+      "in": "sticker-card",
+      "hint": "同一个群每小时最多发几张表情包（含你明确要求的），0 = 不限"
+    },
+    {
+      "path": [
+        "sticker",
+        "dupTTLHours"
+      ],
+      "label": "同图去重（小时）",
+      "kind": "number",
+      "in": "sticker-card",
+      "hint": "同一张图这么多小时内不重复发（你明确要求时不受限），0 = 关"
+    },
+    {
+      "path": [
+        "sticker",
         "timeoutMs"
       ],
       "label": "单张打标超时（毫秒）",

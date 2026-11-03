@@ -313,11 +313,11 @@ try {
   const config = await import('../lib/config.js');
   check('schema 里有 sticker 组且默认开启', config.DEFAULTS.sticker.enabled === true && config.DEFAULTS.sticker.autoTag === true);
   const stickerFields = config.SETTINGS_FIELDS.filter((field) => field.group === 'sticker');
-  check('设置页有 8 个表情包字段', stickerFields.length === 8, String(stickerFields.length));
+  check('设置页有 11 个表情包字段（含闸门三项）', stickerFields.length === 11, String(stickerFields.length));
   check('卡片字段挂在 能力 → 表情包', stickerFields.every((field) => field.tab === 'capability' && field.subtab === 'sticker'));
   check('开关是 kind=sticker 的卡片，其余是卡片内字段',
     stickerFields.find((field) => field.path.join('.') === 'sticker.enabled').kind === 'sticker'
-    && stickerFields.filter((field) => field.in === 'sticker-card').length === 7,
+    && stickerFields.filter((field) => field.in === 'sticker-card').length === 10,
     JSON.stringify(stickerFields.map((field) => [field.path.join('.'), field.kind, field.in || ''])));
   console.log('\n18. 设置页路由：状态 / 重建 / 参数校验');
   const { registerStickerRoutes } = await import('../lib/gateway/routes-sticker.js');

@@ -239,8 +239,8 @@ for (const scenario of [
   {
     label: '两段式：发言模型两次回英文拒绝语 → 拦截 → 回退判断正文 → 发出',
     judgeMessage: JUDGE_TEXT,
-    // speakModel 一配就进两段式；兜底开关在这里控制发言阶段的校验。
-    proactive: { speakModel: 'speak-m', speakFallback: true, requireCjk: true },
+    // 两段式要求 provider + model 成对（provider 留空 = 跟随判断阶段，不启用）；兜底开关控制发言阶段的校验。
+    proactive: { speakProvider: 'speak-p', speakModel: 'speak-m', speakFallback: true, requireCjk: true },
     async verify({ mock, stats, logs, waitFor }) {
       const sentGroup = await waitFor(() => mock.sent.find((s) => Number(s.group_id) === 33333 || Number(s.target_id) === 33333), 20000, '主动发言发送');
       const text = textOf({ message: sentGroup.message });
@@ -259,7 +259,7 @@ for (const scenario of [
   {
     label: '单段式：判断正文就是整句英文拒绝语 → 拦截 → 一条都不发',
     judgeMessage: ENGLISH_REJECT,
-    // 不设 speakModel = 单段模式；requireCjk 必须把判断阶段那句英文拦在发送之前。
+    // 不设 speakProvider/speakModel = 单段模式；requireCjk 必须把判断阶段那句英文拦在发送之前。
     proactive: { requireCjk: true },
     async verify({ mock, stats, logs }) {
       // tick 已经把整轮检查 await 完了，再留一点余量给适配器的 HTTP 往返，避免「刚好还没写进去」。
@@ -285,7 +285,7 @@ for (const scenario of [
     label: '两段式关掉兜底：发言模型两次回英文 → 一条都不发（不回退）',
     judgeMessage: JUDGE_TEXT,
     // speakFallback:false 时发言阶段全军覆没就该闭嘴；此前没有用例，把它改成恒 true 也不会挂。
-    proactive: { speakModel: 'speak-m', speakFallback: false, requireCjk: true },
+    proactive: { speakProvider: 'speak-p', speakModel: 'speak-m', speakFallback: false, requireCjk: true },
     async verify({ mock, stats, logs }) {
       await sleep(300);
       check('关掉兜底：发言阶段仍旧试了 2 次', stats.speakCalls === 2, 'speakCalls=' + stats.speakCalls);

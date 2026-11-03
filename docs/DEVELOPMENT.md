@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（47 个套件 / 1748 项）
+## 2. 测试（48 个套件 / 1775 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -58,6 +58,7 @@ npm test                   # 同上
 | `test-adapter.mjs` | 19 | OneBot 11 正向适配器 |
 | `test-adapter-reverse.mjs` | 19 | OneBot 11 反向适配器（含半开连接回收） |
 | `test-adapter-reconnect.mjs` | 11 | 适配器重连：握手超时必重试、open 前不算链路、断线后重试、reconnect() 主动重连、背压不判失败 |
+| `test-sticker-gate.mjs` | 25 | 表情包闸门：概率抽样（注入 random）、每群每小时上限（force 也受限）、同图 TTL 去重（force 可绕过）、按群隔离、记录与 reset |
 | `test-action-priority.mjs` | 10 | 适配器写调度：大帧整帧原子写（不切片，帧完整性）、小帧在帧边界插队、空闲时一片直写、动作往返与超时如实报错 |
 | `test-adapter-onebot12.mjs` | 30 | OneBot 12 适配器 |
 | `test-adapter-satori.mjs` | 70 | Satori 适配器 |
@@ -76,7 +77,7 @@ npm test                   # 同上
 | `test-update-check.mjs` | 19 | 上游新版本提示：range 判断、同版本/更旧不提示、不兼容标记、失败静默、缓存与开关、registry 回退、失败只缓存 5 分钟 |
 | `test-history.mjs` | 20 | 聊天记录鉴权与定向 |
 | `test-proactive-wiring.mjs` | 25 | 主动发言接线与人格：依赖键名对账、缺依赖启动即告警、`soul:persona` 只取人格段、求值降级、agent 传给宿主、表情包接线与隐式引导 |
-| `test-proactive.mjs` | 101 | 主动发言纯逻辑（时间窗、判据、去重、两段式、人格优先级、表情包关键词与发送方式） |
+| `test-proactive.mjs` | 103 | 主动发言纯逻辑（时间窗、判据、去重、两段式、人格优先级、表情包关键词与发送方式） |
 | `test-proactive-round.mjs` | 35 | 主动发言回合端到端（不动定时器） |
 | `test-owner-settings.mjs` | 58 | 拥有者设置通道（白名单 / 确认码 / 限流 / 审计） |
 | `test-totp.mjs` | 44 | TOTP / HOTP（RFC 4226 + 6238 官方向量） |
@@ -313,6 +314,10 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
       model: ''        # 打标模型（留空 = 跟随 vision.model；必须是能看图的模型）
       maxPerRun: 40    # 一次重建最多打标几张（超出的留到下次）
       timeoutMs: 60000 # 单张打标超时
+      # —— 发送闸门（治「每轮对话都配图」）——
+      chance: 0.3        # 主动配图概率（0–1）：模型自己想配时按这个概率发；用户明确要求不受限
+      maxPerHour: 6      # 同一群每小时最多几张（含用户明确要求的），0 = 不限
+      dupTTLHours: 24    # 同一张图多少小时内不重复发（用户明确要求时不受限），0 = 关
     persona:
       enabled: false   # 自定义人格：每个新会话第一轮附一次
       name: ''
@@ -384,6 +389,8 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 
 HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`（`{mode:'tag'|'index'}`）起后台任务——设置页卡片靠这两条显示进度。
 
+发送闸门（`lib/tools/sticker-gate.js`，状态只在内存）：`send` 会先过三道判定——**概率**（`sticker.chance`，`random()<chance` 才发）、**每群每小时上限**（`maxPerHour`，`force` 也受它限制）、**同图去重**（`dupTTLHours`）。用户明确要求发表情时传 `force: true`，跳过概率与去重（上限仍生效，防刷屏）。发送方式随机：`pickStickerSendStyle()` 决定「图文合并一条」还是「先图后字两条」，返回里带 `style` 字段。
+
 ### qqauth
 
 只在拥有者私聊可用（`flowAuth.enabled` 关着时直接拒绝）：`{action:'request', purpose?}` 申请一次授权、`{action:'status'}` 看开关 / 绑定状态 / 待授权与未用授权（不打印密钥）。
@@ -410,7 +417,7 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 
 默认关闭，只有 `enabled: true` **且** `groups` 显式列了群号才生效。流程：按 `intervalMinutes` 看一次群里最近 `windowMessages` 条 → 频率 / 时段 / 新消息量闸门 → 模型判断要不要接、接什么 → 文本校验（长度、链接、@、重复）→ 发送或安静待着。
 
-- **两段式（可选）**：填了 `speakModel` / `speakProvider` 才启用；判断阶段只出 `{speak, topic}`，正文交给发言模型写。判断阶段仍在写回退正文，精简 judge 提示词时别把它删了，否则 `speakFallback` 会静默失效。最坏 5 次模型调用（判断 3 + 发言 2）。
+- **两段式（可选）**：`speakProvider` 与 `speakModel` **必须成对填**才启用（provider 留空 = 与判断阶段相同，此时发言模型自动跟随判断模型，设置页不给单独设）。判断阶段只出 `{speak, topic}`，正文交给发言模型写。判断阶段仍在写回退正文，精简 judge 提示词时别把它删了，否则 `speakFallback` 会静默失效。最坏 5 次模型调用（判断 3 + 发言 2）。
 - **`requireCjk`（默认关）**：正文没有 CJK 且长度 > 12 判为不可用。治的是「中文群里整句英文拒答模板」；长度按**码点**算（`Array.from(text).length`），阈值是代码常量 `CJK_MIN_LENGTH`。
 - **`eventGuard`（默认开）**：最新消息超过 `staleMinutes` 视为过错窗口；最新一条只是应答不插话；两个人来回说时视为他们的对话；同话题 `topicCooldownMinutes` 内不重复。
 - 提示词有两道防编造约束（`topic` 只能来自聊天记录、发言阶段只用记录里的信息），但模型编造是概率性的，只能压低不能消除。

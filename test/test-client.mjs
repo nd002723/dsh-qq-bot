@@ -548,8 +548,8 @@ try {
   // 第 6 项：三处 key 的回退链与独立性
   // 空选项文案现在跟随字段自己的 placeholder（判断阶段是「群会话模型」，发言阶段是「与判断阶段相同」）。
   check('主动发言 provider 是模型目录下拉（留空 = 群会话模型）', capDialogueJoined.includes('（留空 = 群会话模型）'), capDialogueJoined.slice(0, 240));
-  check('发言阶段 model 在两级 provider 都空时给出专门的提示（不再说成跟随会话模型）',
-    capDialogueJoined.includes('发言阶段 provider 也留空、判断阶段也没有 provider'), capDialogueJoined.slice(0, 600));
+  check('发言阶段 provider 留空时，发言模型标明自动跟随、不给单独设',
+    capDialogueJoined.includes('发言模型自动跟随判断模型，不用单独设'), capDialogueJoined.slice(0, 600));
   check('生图 key 说明不再给主动发言兜底', capJoined.includes('不再给主动发言兜底'), capJoined.slice(0, 240));
   check('搜索 key 声明与生图/主动发言互不影响', capRetrievalJoined.includes('与生图的 key 互不影响'), capRetrievalJoined.slice(0, 200));
 

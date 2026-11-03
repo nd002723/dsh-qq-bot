@@ -8,6 +8,9 @@
     "provider": "",
     "model": "",
     "maxPerRun": 40,
-    "timeoutMs": 60000
+    "timeoutMs": 60000,
+    "chance": 0.3,
+    "maxPerHour": 6,
+    "dupTTLHours": 24
   }
 }
