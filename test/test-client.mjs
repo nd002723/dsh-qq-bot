@@ -546,7 +546,10 @@ try {
   check('全局人格说明提到主动发言会复用', capDialogueJoined.includes('主动发言未单独设人设时也会复用这里'), capDialogueJoined.slice(0, 200));
 
   // 第 6 项：三处 key 的回退链与独立性
-  check('主动发言 provider 是模型目录下拉（留空=会话模型）', capDialogueJoined.includes('（留空 = 会话模型）'), capDialogueJoined.slice(0, 240));
+  // 空选项文案现在跟随字段自己的 placeholder（判断阶段是「群会话模型」，发言阶段是「与判断阶段相同」）。
+  check('主动发言 provider 是模型目录下拉（留空 = 群会话模型）', capDialogueJoined.includes('（留空 = 群会话模型）'), capDialogueJoined.slice(0, 240));
+  check('发言阶段 model 在两级 provider 都空时给出专门的提示（不再说成跟随会话模型）',
+    capDialogueJoined.includes('发言阶段 provider 也留空、判断阶段也没有 provider'), capDialogueJoined.slice(0, 600));
   check('生图 key 说明不再给主动发言兜底', capJoined.includes('不再给主动发言兜底'), capJoined.slice(0, 240));
   check('搜索 key 声明与生图/主动发言互不影响', capRetrievalJoined.includes('与生图的 key 互不影响'), capRetrievalJoined.slice(0, 200));
 
@@ -989,6 +992,32 @@ try {
     statusText = textsOf(statusSnapshot);
   }
   check('状态区能渲染（test hook 可用）', statusSnapshot !== null, String(typeof plugin.__stickerStatusForTest));
+
+  // 两段式的那两个字段：provider/model 必须是**一对**，发言模型不能去列判断阶段的模型。
+  if (typeof plugin.__providerPathForTest === 'function') {
+    const pp = plugin.__providerPathForTest;
+    check('proactive.model 的 provider 是 proactive.provider',
+      JSON.stringify(pp(['proactive', 'model'])) === JSON.stringify(['proactive', 'provider']), JSON.stringify(pp(['proactive', 'model'])));
+    check('proactive.speakModel 的 provider 是 proactive.speakProvider（不是判断阶段那个）',
+      JSON.stringify(pp(['proactive', 'speakModel'])) === JSON.stringify(['proactive', 'speakProvider']), JSON.stringify(pp(['proactive', 'speakModel'])));
+    check('vision.model 的 provider 仍是 vision.provider',
+      JSON.stringify(pp(['vision', 'model'])) === JSON.stringify(['vision', 'provider']), JSON.stringify(pp(['vision', 'model'])));
+    check('空路径不炸', JSON.stringify(pp([])) === JSON.stringify([]));
+  } else {
+    check('provider 路径推导钩子可用', false, '缺少 __providerPathForTest');
+  }
+
+  if (typeof plugin.__providerOptionsForTest === 'function') {
+    const opts = plugin.__providerOptionsForTest([{ id: 'uymu-free', name: '鸡蛋', models: [] }], 'uymu-image', '（留空）');
+    const values = opts.map((pair) => pair[0]);
+    check('已配但不在目录里的 provider 仍出现在选项里（不会显示成空）',
+      values.includes('uymu-image') && values[0] === '' && values.includes('uymu-free'), JSON.stringify(values));
+    check('该选项带「不在模型目录里」提示', opts.some((pair) => pair[0] === 'uymu-image' && String(pair[1]).includes('不在模型目录里')), JSON.stringify(opts));
+    check('目录里已有的 provider 不重复追加',
+      plugin.__providerOptionsForTest([{ id: 'uymu-free', name: '鸡蛋', models: [] }], 'uymu-free', '（留空）').filter((pair) => pair[0] === 'uymu-free').length === 1);
+  } else {
+    check('provider 选项钩子可用', false, '缺少 __providerOptionsForTest');
+  }
   check('状态区拿到了运行状态（走了 GET /dsh-qq-bot/sticker）',
     stickerFetchCalls.includes('/dsh-qq-bot/sticker') && statusText.includes('共 3 张 · 2 个系列 · 已标记 2 / 待标记 1')
     && statusText.includes('猫猫 2'), statusText.slice(0, 400));

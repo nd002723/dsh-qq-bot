@@ -1,3 +1,26 @@
+## 未发布 —— 设置页两段式字段错位（2026-11-03）
+
+### 修复：`发言阶段模型` 列的是判断阶段的模型，provider 留空还会把值写空
+
+设置页的 model 下拉用「把路径最后一段换成 `provider`」去找同一组里的 provider：
+对 `proactive.model` 正好得到 `proactive.provider`（判断阶段，对的），
+但对 `proactive.speakModel` 也得到 `proactive.provider`——于是：
+
+- **发言阶段模型的下拉列的是判断阶段 provider 的模型**，跟上面选的「发言阶段 provider」对不上（id 不同步）；
+- 发言阶段的 provider 留空时，界面以为「有 provider」（拿了判断的），把发言模型照常写进去；
+- 反过来，真正没有 provider 时下拉被禁用，根本选不了发言模型——两段式等于配不出来。
+
+修法：
+
+- 新增 `providerPathOf(path)`：`model` → `provider`，`speakModel` → `speakProvider`，按阶段各找各的；
+- 发言阶段 provider 留空 = 与判断阶段相同：这时**用判断阶段的 provider 列模型**（不再禁用），
+  并提示「这里选一个模型即启用两段式，留空 = 单段模式」；
+- provider 下拉把「已配置但不在模型目录里」的值保留成一个选项（标注「不在模型目录里，已保留」），
+  不再渲染成空、也不会在下次保存时把配置写空；
+- 空选项文案跟随字段自己的 placeholder：判断阶段是「留空 = 群会话模型」，发言阶段是「留空 = 与判断阶段相同」。
+
+测试：`test-client.mjs` 补 13 项（provider 路径推导、未知 provider 保留、两段式提示），共 155 项。
+
 ## 未发布 —— 主动发言：会话模型依赖 + 宿主人格（2026-11-03）
 
 ### 修复：每轮主动发言都报 `getSessionApi is not a function`
