@@ -6,7 +6,7 @@
  */
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, utimesSync, existsSync, renameSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import {
   INDEX_FILE,
   createStickerLibrary,
@@ -305,8 +305,12 @@ try {
 
   console.log('\n16. 目录解析：相对路径按 QQ_msg 解析，留空 = sticker 子目录');
   const relLib = makeLibrary('/tmp/qqroot', { sticker: { dir: 'mystickers' } });
-  check('相对目录拼到 QQ_msg 下', relLib.library.resolveDir() === join('/tmp/qqroot', 'mystickers'), relLib.library.resolveDir());
+  // 实现是 resolve(root, raw)：Windows 上 join('/tmp/qqroot', …) 会得到无盘符的 \tmp\qqroot\…，
+  // 与 resolve 的 F:\tmp\qqroot\… 不相等，所以断言这边也必须用 resolve（Issue #92）。
+  check('相对目录拼到 QQ_msg 下', relLib.library.resolveDir() === resolve('/tmp/qqroot', 'mystickers'), relLib.library.resolveDir());
   const defaultLib = makeLibrary('/tmp/qqroot', { sticker: { dir: '' } });
+  // 留空走的是 join(root, 'sticker')（不是 resolve），所以这里断言用 join 才是对的——
+  // 改成 resolve 反而会在 Windows 上失败。
   check('留空 = <QQ_msg>/sticker', defaultLib.library.resolveDir() === join('/tmp/qqroot', 'sticker'), defaultLib.library.resolveDir());
 
   console.log('\n17. 配置契约（默认值与设置字段）');
