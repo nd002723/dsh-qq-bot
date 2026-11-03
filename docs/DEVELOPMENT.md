@@ -114,7 +114,7 @@ node -e "fetch('http://127.0.0.1:3000/__inject',{method:'POST',headers:{'content
 node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console.log(JSON.stringify(j.messages,null,2)))"
 ```
 
-> **文档里的测试数必须自洽**：改测试就同步本表、README 的「44 套件 / 1593 项」与顶部 `tests` 徽章（`tests-1593%20passing`）、`AI-DISCLOSURE.md` 的验证情况。数字以裸克隆跑 `npm test` 的输出为准；能解析到 `@deepseek-ai/dsh-tools` 的环境里 `test-plugin` 与 `test-admin` 会多跑工具注册段落，总数随之更多。跳过项按 `[SKIP]` 单列，不计入通过数；设 `DSH_TOOLS_DISABLE=1` 可以在这台机器上模拟裸克隆（否则 `test/dsh-tools-link.mjs` 会把链接建回来，永远看不到跳过路径——CI 就是这么红的）。
+> **文档里的测试数必须自洽**：改测试就同步本表、README 顶部的 `tests` 徽章与「更多文档」里那一行、以及 `AI-DISCLOSURE.md` 的验证情况。正文里别再手写第二份数字（写一次就会过期一次）。数字以裸克隆跑 `npm test` 的输出为准；能解析到 `@deepseek-ai/dsh-tools` 的环境里 `test-plugin` 与 `test-admin` 会多跑工具注册段落，总数随之更多。跳过项按 `[SKIP]` 单列，不计入通过数；设 `DSH_TOOLS_DISABLE=1` 可以在这台机器上模拟裸克隆（否则 `test/dsh-tools-link.mjs` 会把链接建回来，永远看不到跳过路径——CI 就是这么红的）。
 
 <a id="完整配置参考"></a>
 ## 3. 完整配置参考

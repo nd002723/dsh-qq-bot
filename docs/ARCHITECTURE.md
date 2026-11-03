@@ -327,7 +327,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 
 **扩展点**：加协议 → 新写 `lib/transport/adapters/<协议>.mjs` + 在 `lib/transport/index.js` 与 `lib/config.js` 各加一项；加 Agent 工具 → 改 `lib/tools/index.js`，要在设置页露出参数就再往 `lib/tools/` 丢一个 `{group, defaults}` 的 JSON（**不用改 `config.js`**，它会自己扫到）；加 HTTP 路由 → 只改 `lib/gateway/index.js` 的 `ROUTE_MOUNTS`（**处理器第一行必须过 `deps.guard`**，否则这条路由绕开鉴权）；调阀门优先级 → 只改 `lib/valve/index.js` 的 `STAGE`。
 
-**测试与发布**：`test/run-all.mjs` 汇总 **37 个套件**（5 个协议各一套 + 阀门/组装/权限/设置/搜索/生图/历史/授权链路等），每个协议都自带零依赖假协议端（OneBot 11 的是 `test/mock-onebot.mjs`，其余在各自 `test-adapter-*.mjs` 内）；`npm test` 即跑全部。进 npm 包的只有 `lib/`、`cordis.patch.yml` 与根目录文档（见 `package.json` 的 `files`），`test/`、`examples/` 只在仓库里。
+**测试与发布**：`test/run-all.mjs` 汇总 **48 个套件**（5 个协议各一套 + 阀门/组装/权限/设置/搜索/生图/历史/授权链路/表情包/写调度等），每个协议都自带零依赖假协议端（OneBot 11 的是 `test/mock-onebot.mjs`，其余在各自 `test-adapter-*.mjs` 内）；`npm test` 即跑全部。进 npm 包的只有 `lib/`、`cordis.patch.yml` 与根目录文档（见 `package.json` 的 `files`），`test/`、`examples/` 只在仓库里。
 
 ## 3. 关键数据流
 
