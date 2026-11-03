@@ -36,7 +36,7 @@
 
 ### 验证情况
 
-- **自动化测试 46 个套件 / 1693 项全部通过**（`npm test` = `node test/run-all.mjs`；CI 在 Node 22 / 24 双版本上跑）：
+- **自动化测试 47 个套件 / 1715 项全部通过**（`npm test` = `node test/run-all.mjs`；CI 在 Node 22 / 24 双版本上跑）：
   - 协议适配器 330 项：正向 WebSocket 19 ／ 反向 19（含半开回收）／ OneBot 12 30 ／ Satori 70 ／ Milky 83 ／ QQ 官方 109
   - Host 插件端到端 148 项（假 ctx + 真适配器 + Config 契约 + 配置热更新 + 废弃配置清理 + 默认准入 fail-closed + 入站限流 + 点名判定与白名单次序 + 路由鉴权闸门；能解析到 `@deepseek-ai/dsh-tools` 时会多跑 9 个工具注册断言）
   - 客户端设置页 132 项 ／ 中间发言 14 项 ／ 权限·群管理·访客工具闸 38 项
@@ -48,7 +48,7 @@
   - 表情包图库 74 项（`test-sticker.mjs`：目录扫描 ／ sha1 增量索引 ／ 坏索引自愈 ／ 搜索挑图 ／ GIF 首帧转码与假 .gif 按真实内容发）／ 适配器写调度 10 项（小帧插队、大帧 64KB 分片、动作超时如实报错）
   - 生图引擎 22 项（URL 拼接、响应解析、500/429 重试、4xx 不重试、网络异常重试、task_id 轮询、关闭轮询、本地图片白名单解符号链接）
   - 会话 id 作用域回退 5 项（旧工作区会话不删、改用 `-ws<哈希>` 新 id）
-  - 主动发言 84 项 ／ 主动发言回合端到端 35 项 ／ 拥有者设置通道 58 项 ／ 扫码绑定状态机 20 项
+  - 主动发言 90 项 ／ 主动发言接线与人格 16 项 ／ 主动发言回合端到端 35 项 ／ 拥有者设置通道 58 项 ／ 扫码绑定状态机 20 项
   - 阀门组装 27 项（STAGE 表 + 依赖顺序 + 冻结后的对外契约）
   - 适配器重连 11 项 ／ 会话归档 47 项 ／ 工具返回值清理 8 项 ／ 流程授权链路 271 项：TOTP 44 ／ 终端绑定 14 ／ 二维码 18 ／ 状态机 43 ／ 流程脚本存取 17 ／ 指令解析 49 ／ 闸门 16 ／ 接线 23 ／ 闸门码判定 30 ／ 续跑 17
 - 测试对端是项目自带的**零依赖 OneBot 11 模拟器**（`test/mock-onebot.mjs`，手写 RFC 6455 帧编解码），
@@ -165,10 +165,10 @@ No source code from third-party projects was copied into this repository.
 | Tools verified | `qqbot` / `qqconfig` / `qqgroup` / `qq_websearch` / `qq_webfetch` / `qq_imgsearch` / `qq_history` / `qq_draw` / `qqauth` — all nine registered |
 
 - **Verification:** the browser settings page was **manually confirmed on a real device**.
-  **46 suites / 1693 automated checks pass** (`npm test` = `node test/run-all.mjs`; CI runs on Node 22 and 24),
+  **47 suites / 1715 automated checks pass** (`npm test` = `node test/run-all.mjs`; CI runs on Node 22 and 24),
   covering the forward/reverse WebSocket adapter, the Host plugin (fake `ctx` + real adapter + Config contract
   + config hot reload), the settings page, the permission/group-management subsystem, HTTP/proxy, multi-engine
-  search parsing, the image-gen engine (retry / poll / response parsing), the sticker library (hash-indexed incremental tagging, GIF first-frame transcode), the adapter write scheduler (small-frame priority, 64 KB chunking) and the session-id workspace fallback.
+  search parsing, the image-gen engine (retry / poll / response parsing), the sticker library (hash-indexed incremental tagging, GIF first-frame transcode), the adapter write scheduler (small-frame priority, 64 KB chunking), the proactive-speak wiring (host persona reuse, dependency-key assertions) and the session-id workspace fallback.
   The QQ-side peer used in CI is a zero-dependency OneBot 11 simulator bundled in `test/`,
   so **no real QQ account is required** to reproduce the suite.
 - **Observed on the real deployment** (evidence in DSH logs, reproducible): all nine tool registrations;
