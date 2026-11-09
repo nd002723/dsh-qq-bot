@@ -7,10 +7,9 @@
         "auth",
         "owners"
       ],
-      "label": "拥有者 QQ 号",
+      "label": "拥有者账号（QQ 号 / OpenID）",
       "kind": "list",
-      "hint": "逗号分隔。拥有者 = 全部权限 + 永久授权 + 可走独立会话；留空则不驱动任何会话（必填）",
-      "numeric": true,
+      "hint": "逗号分隔。OneBot 协议填 QQ 号；QQ 官方协议（qq-official）填 OpenID（user_openid / member_openid，32 位十六进制，每个群不同）。拥有者 = 全部权限 + 永久授权 + 可走独立会话；留空则不驱动任何会话（必填）",
       "tab": "basic",
       "subtab": "access"
     },

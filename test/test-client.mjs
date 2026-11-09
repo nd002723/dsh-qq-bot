@@ -236,7 +236,7 @@ try {
   check('默认标签页含连接类关键字段', expectLabels.every((label) => joined.includes(label)),
     expectLabels.filter((label) => !joined.includes(label)).join(','));
   check('默认标签页不显示群聊/权限等基本组字段',
-    !joined.includes('群号白名单') && !joined.includes('拥有者 QQ 号'), joined.slice(0, 160));
+    !joined.includes('群号白名单') && !joined.includes('拥有者账号'), joined.slice(0, 160));
   check('反向模式时才出现监听地址（forward 下不出现）', !joined.includes('反向 WS 监听地址'), joined.slice(0, 120));
 
   const findByTextEarly = (node, text) => {
@@ -304,7 +304,7 @@ try {
   // 切到「基本」：默认二级标签「准入与名单」
   const basicTree = clickTab('基本');
   const basicJoined = textsOf(basicTree);
-  const accessLabels = ['群里必须 @ 机器人才回复', '群号白名单', '拥有者 QQ 号', '后台设定的高级管理员', '允许非拥有者使用 DSH 内部工具', '访客仍可用的工具白名单'];
+  const accessLabels = ['群里必须 @ 机器人才回复', '群号白名单', '拥有者账号', '后台设定的高级管理员', '允许非拥有者使用 DSH 内部工具', '访客仍可用的工具白名单'];
   check('基本页默认「准入与名单」含群聊私聊与权限字段', accessLabels.every((label) => basicJoined.includes(label)),
     accessLabels.filter((label) => !basicJoined.includes(label)).join(','));
   check('准入名单页不含发言类字段（单条最大字数/演练模式）',
@@ -337,7 +337,7 @@ try {
   // 注意：管理组的说明文字里会合法地提到「群号白名单」（回退关系），
   // 所以这里只断言准入组独有的字段标签不出现。
   check('发言与管理页不含准入名单字段（拥有者/私聊开关/必须 @）',
-    !basicGovernJoined.includes('拥有者 QQ 号') && !basicGovernJoined.includes('启用私聊')
+    !basicGovernJoined.includes('拥有者账号') && !basicGovernJoined.includes('启用私聊')
     && !basicGovernJoined.includes('群里必须 @ 机器人才回复'), basicGovernJoined.slice(0, 160));
   check('切到发言与管理后底部保存仍在', findByTextEarly(clickBasicSub('发言与管理'), '保存') !== null);
   // 回到「准入与名单」，保持后续断言（basicJoined）语义
@@ -778,7 +778,7 @@ try {
   await renderSettled();
   await clickTabN('基本');
   const numericInputs = () => collectInputs(treeN, []).filter((el) => el.props.inputMode === 'numeric');
-  check('数字名单输入框标了 inputMode=numeric', numericInputs().length >= 4, String(numericInputs().length));
+  check('数字名单输入框标了 inputMode=numeric', numericInputs().length >= 3, String(numericInputs().length));
 
   const emptyList = numericInputs().find((el) => el.props.value === '');
   check('找到空的群号白名单输入框', Boolean(emptyList));
@@ -860,9 +860,10 @@ try {
 
   await renderSettled();
   await clickTabN('基本');
-  check('还原前：拥有者 QQ 号是 66666',
-    numericInputs().some((el) => el.props.value === '66666'),
-    JSON.stringify(numericInputs().map((el) => el.props.value)));
+  const allBasicInputs = () => collectInputs(treeN, []).filter((el) => el.type === 'input');
+  check('还原前：拥有者账号是 66666',
+    allBasicInputs().some((el) => el.props.value === '66666'),
+    JSON.stringify(allBasicInputs().map((el) => el.props.value)));
   const restoreBtn = findByText(treeN, '还原本页默认');
   check('底栏出现「还原本页默认」按钮', Boolean(restoreBtn) && typeof restoreBtn.props.onClick === 'function');
   mutateCalls.length = 0;
