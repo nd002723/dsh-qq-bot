@@ -188,6 +188,9 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
       interim: true   # 中间发言：长回合里先说的那几句单独发（不引用、不 @）
       interimMaxPerTurn: 4   # 每回合最多几条（0 = 关）
       interimMinGapMs: 2500   # 两条之间最短间隔
+      bubbleSplit: true   # 按空行把回复拆成 2–3 个气泡（代码块/表格/列表不拆）
+      bubbleGapMinMs: 0   # 气泡之间最短延迟
+      bubbleGapMaxMs: 5000   # 气泡之间最长延迟；每段之间在这个区间里随机取
     limits:
       perMinute: 20   # 每个（会话, 用户）每分钟最多驱动几个回合（防刷额度；超了回一句提示）
       queueMax: 5   # 同一会话最多排几个待处理回合（超了直接拒收，不排队）

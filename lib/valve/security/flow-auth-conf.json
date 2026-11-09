@@ -2,7 +2,6 @@
   "group": "flowAuth",
   "defaults": {
     "enabled": false,
-    "totpSecret": "",
     "enrolledAt": 0,
     "grantTtlSeconds": 30,
     "maxAttempts": 5,
@@ -14,8 +13,6 @@
       "workflow",
       "moli_fetch"
     ],
-    "gateEditCode": "",
-    "recoveryHashes": [],
-    "recoverySalt": ""
+    "recoveryHashes": []
   }
 }

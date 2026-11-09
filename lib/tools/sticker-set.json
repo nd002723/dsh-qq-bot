@@ -76,7 +76,12 @@
       "label": "每次最多标记几张",
       "kind": "number",
       "in": "sticker-card",
-      "hint": "一次重建里最多给几张新图打标，超出的留到下次（避免一次烧太多 token）"
+      "hint": "一次重建里最多给几张新图打标，超出的留到下次（避免一次烧太多 token）",
+      "min": 1,
+      "max": 1000,
+      "step": 10,
+      "slider": true,
+      "unit": "张"
     },
     {
       "path": [
@@ -86,7 +91,11 @@
       "label": "主动配图概率",
       "kind": "number",
       "in": "sticker-card",
-      "hint": "0–1：模型自己决定配表情包时，按这个概率真正发出（1=每次都发，0=只有你明确要求才发）"
+      "hint": "0–1：模型自己决定配表情包时，按这个概率真正发出（1=每次都发，0=只有你明确要求才发）",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "slider": true
     },
     {
       "path": [
@@ -96,7 +105,12 @@
       "label": "每群每小时上限",
       "kind": "number",
       "in": "sticker-card",
-      "hint": "同一个群每小时最多发几张表情包（含你明确要求的），0 = 不限"
+      "hint": "同一个群每小时最多发几张表情包（含你明确要求的），0 = 不限",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "slider": true,
+      "unit": "张"
     },
     {
       "path": [
@@ -106,7 +120,12 @@
       "label": "同图去重（小时）",
       "kind": "number",
       "in": "sticker-card",
-      "hint": "同一张图这么多小时内不重复发（你明确要求时不受限），0 = 关"
+      "hint": "同一张图这么多小时内不重复发（你明确要求时不受限），0 = 关",
+      "min": 0,
+      "max": 168,
+      "step": 1,
+      "slider": true,
+      "unit": "小时"
     },
     {
       "path": [
@@ -115,7 +134,12 @@
       ],
       "label": "单张打标超时（毫秒）",
       "kind": "number",
-      "in": "sticker-card"
+      "in": "sticker-card",
+      "min": 0,
+      "max": 300000,
+      "step": 1000,
+      "slider": true,
+      "unit": "毫秒"
     }
   ]
 }

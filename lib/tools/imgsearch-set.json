@@ -19,7 +19,12 @@
         "maxResults"
       ],
       "label": "每次反搜最多返回结果数",
-      "kind": "number"
+      "kind": "number",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "slider": true,
+      "unit": "条"
     },
     {
       "path": [

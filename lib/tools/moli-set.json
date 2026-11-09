@@ -42,7 +42,12 @@
       "label": "渲染超时（毫秒）",
       "kind": "number",
       "hint": "对应 moli 的 -t，默认 30000",
-      "in": "moli-card"
+      "in": "moli-card",
+      "min": 0,
+      "max": 300000,
+      "step": 1000,
+      "slider": true,
+      "unit": "毫秒"
     },
     {
       "path": [
@@ -52,7 +57,12 @@
       "label": "单次输出上限（字符）",
       "kind": "number",
       "hint": "超出按头尾省略，默认 200000",
-      "in": "moli-card"
+      "in": "moli-card",
+      "min": 0,
+      "max": 20000,
+      "step": 500,
+      "slider": true,
+      "unit": "字符"
     },
     {
       "path": [
@@ -92,7 +102,12 @@
       "label": "每分钟最多渲染几次（每个会话）",
       "kind": "number",
       "hint": "默认 5，0 = 不限。一次渲染要起一个无头浏览器（几十 MB 内存），群里刷屏就是这个开销；普通抓取不受这条限制",
-      "in": "moli-card"
+      "in": "moli-card",
+      "min": 0,
+      "max": 600,
+      "step": 1,
+      "slider": true,
+      "unit": "次/分"
     },
     {
       "path": [
@@ -102,7 +117,12 @@
       "label": "同时最多渲染几个（全局）",
       "kind": "number",
       "hint": "默认 2，0 = 不限。跨会话的总闸：多个群同时刷渲染时，超出的请求直接回「忙，稍后再试」而不是排队——一次渲染实测峰值约 47 MB 常驻内存，这台机器扛不住十几个同时开",
-      "in": "moli-card"
+      "in": "moli-card",
+      "min": 1,
+      "max": 8,
+      "step": 1,
+      "slider": true,
+      "unit": "个"
     }
   ]
 }

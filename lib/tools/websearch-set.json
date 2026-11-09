@@ -39,7 +39,12 @@
         "maxUses"
       ],
       "label": "每次搜索最多触发次数",
-      "kind": "number"
+      "kind": "number",
+      "min": 0,
+      "max": 20,
+      "step": 1,
+      "slider": true,
+      "unit": "次"
     },
     {
       "path": [

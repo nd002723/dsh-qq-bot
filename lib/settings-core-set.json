@@ -442,7 +442,12 @@
       "kind": "number",
       "hint": "同一会话的同一个人每分钟最多驱动几个回合（防刷）",
       "tab": "basic",
-      "subtab": "govern"
+      "subtab": "govern",
+      "min": 0,
+      "max": 200,
+      "step": 1,
+      "slider": true,
+      "unit": "条/分"
     },
     {
       "path": [
@@ -453,7 +458,12 @@
       "kind": "number",
       "hint": "超过就直接拒收，不排队",
       "tab": "basic",
-      "subtab": "govern"
+      "subtab": "govern",
+      "min": 0,
+      "max": 20,
+      "step": 1,
+      "slider": true,
+      "unit": "条"
     },
     {
       "path": [
@@ -464,7 +474,12 @@
       "kind": "number",
       "hint": "超出截断，避免超长文本整段进提示词",
       "tab": "basic",
-      "subtab": "govern"
+      "subtab": "govern",
+      "min": 0,
+      "max": 8000,
+      "step": 100,
+      "slider": true,
+      "unit": "字"
     },
     {
       "path": [
@@ -694,7 +709,12 @@
       "label": "检查间隔（分钟）",
       "kind": "number",
       "tab": "capability",
-      "subtab": "dialogue"
+      "subtab": "dialogue",
+      "min": 0,
+      "max": 240,
+      "step": 1,
+      "slider": true,
+      "unit": "分钟"
     },
     {
       "path": [
@@ -704,7 +724,12 @@
       "label": "至少多少条新消息才考虑",
       "kind": "number",
       "tab": "capability",
-      "subtab": "dialogue"
+      "subtab": "dialogue",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "slider": true,
+      "unit": "条"
     },
     {
       "path": [
@@ -714,7 +739,12 @@
       "label": "每次拉取消息条数",
       "kind": "number",
       "tab": "capability",
-      "subtab": "dialogue"
+      "subtab": "dialogue",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "slider": true,
+      "unit": "条"
     },
     {
       "path": [
@@ -722,8 +752,8 @@
         "quietHours"
       ],
       "label": "免打扰时段",
-      "kind": "list",
-      "hint": "如 23:00-08:00；逗号分隔可多段",
+      "kind": "clocks",
+      "hint": "每段选开始与结束时刻（24 小时制），跨零点也支持；留空 = 不设免打扰",
       "tab": "capability",
       "subtab": "dialogue"
     },
@@ -735,7 +765,12 @@
       "label": "每小时上限",
       "kind": "number",
       "tab": "capability",
-      "subtab": "dialogue"
+      "subtab": "dialogue",
+      "min": 0,
+      "max": 60,
+      "step": 1,
+      "slider": true,
+      "unit": "条"
     },
     {
       "path": [
@@ -745,7 +780,12 @@
       "label": "每天上限",
       "kind": "number",
       "tab": "capability",
-      "subtab": "dialogue"
+      "subtab": "dialogue",
+      "min": 0,
+      "max": 500,
+      "step": 1,
+      "slider": true,
+      "unit": "条"
     },
     {
       "path": [
@@ -755,7 +795,12 @@
       "label": "两次发言最小间隔（分钟）",
       "kind": "number",
       "tab": "capability",
-      "subtab": "dialogue"
+      "subtab": "dialogue",
+      "min": 0,
+      "max": 240,
+      "step": 1,
+      "slider": true,
+      "unit": "分钟"
     },
     {
       "path": [
@@ -777,7 +822,12 @@
       "kind": "number",
       "hint": "最新消息超过这么久就不再接话，避免对聊完的事重复回复",
       "tab": "capability",
-      "subtab": "dialogue"
+      "subtab": "dialogue",
+      "min": 0,
+      "max": 120,
+      "step": 1,
+      "slider": true,
+      "unit": "分钟"
     },
     {
       "path": [
@@ -788,7 +838,12 @@
       "kind": "number",
       "hint": "同一话题在这么久内不再重复接话",
       "tab": "capability",
-      "subtab": "dialogue"
+      "subtab": "dialogue",
+      "min": 0,
+      "max": 2880,
+      "step": 10,
+      "slider": true,
+      "unit": "分钟"
     },
     {
       "path": [
@@ -873,7 +928,12 @@
       "kind": "number",
       "hint": "单次模型判断的超时，低于 5000 会按 5000 处理",
       "tab": "capability",
-      "subtab": "dialogue"
+      "subtab": "dialogue",
+      "min": 0,
+      "max": 300000,
+      "step": 1000,
+      "slider": true,
+      "unit": "毫秒"
     },
     {
       "path": [
@@ -883,7 +943,12 @@
       "label": "单条最大字数",
       "kind": "number",
       "tab": "capability",
-      "subtab": "dialogue"
+      "subtab": "dialogue",
+      "min": 0,
+      "max": 2000,
+      "step": 10,
+      "slider": true,
+      "unit": "字"
     },
     {
       "path": [
@@ -935,7 +1000,12 @@
       "label": "单条最大字数",
       "kind": "number",
       "tab": "basic",
-      "subtab": "govern"
+      "subtab": "govern",
+      "min": 0,
+      "max": 8000,
+      "step": 100,
+      "slider": true,
+      "unit": "字"
     },
     {
       "path": [
@@ -946,7 +1016,12 @@
       "kind": "number",
       "hint": "0 = 关闭「正在处理」提示",
       "tab": "basic",
-      "subtab": "govern"
+      "subtab": "govern",
+      "min": 0,
+      "max": 60000,
+      "step": 500,
+      "slider": true,
+      "unit": "毫秒"
     },
     {
       "path": [
@@ -1000,7 +1075,12 @@
       "kind": "number",
       "hint": "0 = 关闭（等于关掉上一项）",
       "tab": "basic",
-      "subtab": "govern"
+      "subtab": "govern",
+      "min": 0,
+      "max": 20,
+      "step": 1,
+      "slider": true,
+      "unit": "条"
     },
     {
       "path": [
@@ -1011,7 +1091,55 @@
       "kind": "number",
       "hint": "低于 500 按 500 处理，避免刷屏",
       "tab": "basic",
+      "subtab": "govern",
+      "min": 0,
+      "max": 60000,
+      "step": 500,
+      "slider": true,
+      "unit": "毫秒"
+    },
+    {
+      "path": [
+        "reply",
+        "bubbleSplit"
+      ],
+      "label": "按空行拆成多个气泡",
+      "kind": "bool",
+      "hint": "模型输出「一句 + 空行 + 一句」时拆成 2–3 条短消息依次发送；代码块 / 表格 / 列表不拆",
+      "tab": "basic",
       "subtab": "govern"
+    },
+    {
+      "path": [
+        "reply",
+        "bubbleGapMinMs"
+      ],
+      "label": "气泡之间最短延迟（毫秒）",
+      "kind": "number",
+      "hint": "相邻两个气泡的等待下限；0 = 连续发",
+      "tab": "basic",
+      "subtab": "govern",
+      "slider": true,
+      "min": 0,
+      "max": 5000,
+      "step": 100,
+      "unit": "毫秒"
+    },
+    {
+      "path": [
+        "reply",
+        "bubbleGapMaxMs"
+      ],
+      "label": "气泡之间最长延迟（毫秒）",
+      "kind": "number",
+      "hint": "每个间隔在这个区间里随机取值，看起来更像真人；上下限相同即固定间隔",
+      "tab": "basic",
+      "subtab": "govern",
+      "slider": true,
+      "min": 0,
+      "max": 5000,
+      "step": 100,
+      "unit": "毫秒"
     },
     {
       "path": [
@@ -1094,7 +1222,12 @@
       "label": "产物打包上限（字节）",
       "kind": "number",
       "tab": "advanced",
-      "subtab": "flow"
+      "subtab": "flow",
+      "min": 0,
+      "max": 104857600,
+      "step": 1048576,
+      "slider": true,
+      "unit": "字节"
     },
     {
       "path": [
@@ -1104,7 +1237,12 @@
       "label": "最多打包文件数",
       "kind": "number",
       "tab": "advanced",
-      "subtab": "flow"
+      "subtab": "flow",
+      "min": 0,
+      "max": 200,
+      "step": 1,
+      "slider": true,
+      "unit": "个"
     },
     {
       "path": [

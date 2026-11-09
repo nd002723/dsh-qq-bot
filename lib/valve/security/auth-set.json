@@ -33,7 +33,12 @@
       "label": "动态授权默认时长（分钟）",
       "kind": "number",
       "tab": "basic",
-      "subtab": "access"
+      "subtab": "access",
+      "min": 0,
+      "max": 1440,
+      "step": 10,
+      "slider": true,
+      "unit": "分钟"
     },
     {
       "path": [
@@ -43,7 +48,12 @@
       "label": "群管理员单次可授最长（分钟）",
       "kind": "number",
       "tab": "basic",
-      "subtab": "access"
+      "subtab": "access",
+      "min": 0,
+      "max": 10080,
+      "step": 60,
+      "slider": true,
+      "unit": "分钟"
     },
     {
       "path": [
@@ -86,7 +96,12 @@
       "label": "拥有者改设置每小时上限",
       "kind": "number",
       "tab": "basic",
-      "subtab": "access"
+      "subtab": "access",
+      "min": 0,
+      "max": 100,
+      "step": 1,
+      "slider": true,
+      "unit": "次"
     },
     {
       "path": [
@@ -96,7 +111,12 @@
       "label": "拥有者改设置每天上限",
       "kind": "number",
       "tab": "basic",
-      "subtab": "access"
+      "subtab": "access",
+      "min": 0,
+      "max": 1000,
+      "step": 10,
+      "slider": true,
+      "unit": "次"
     },
     {
       "priority": 150,

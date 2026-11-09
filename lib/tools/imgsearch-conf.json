@@ -3,7 +3,6 @@
   "defaults": {
     "enabled": true,
     "maxResults": 5,
-    "saucenaoKey": "",
     "weightedShuffle": false
   }
 }

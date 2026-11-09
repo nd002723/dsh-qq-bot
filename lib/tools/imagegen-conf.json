@@ -4,7 +4,6 @@
     "enabled": false,
     "baseUrl": "",
     "apiKeyEnv": "IMAGE_API_KEY",
-    "apiKey": "",
     "model": "seedream-5.0-lite",
     "size": "1024x1024",
     "timeoutMs": 180000,

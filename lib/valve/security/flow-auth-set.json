@@ -40,7 +40,12 @@
       "label": "一次授权有效期（秒）",
       "kind": "number",
       "hint": "默认 30 秒（最小 30），一次一用；超时作废——窗口短才叫一次性",
-      "subtab": "flow"
+      "subtab": "flow",
+      "min": 30,
+      "max": 3600,
+      "step": 30,
+      "slider": true,
+      "unit": "秒"
     },
     {
       "path": [
@@ -49,7 +54,12 @@
       ],
       "label": "连续输错几次锁定",
       "kind": "number",
-      "subtab": "flow"
+      "subtab": "flow",
+      "min": 1,
+      "max": 20,
+      "step": 1,
+      "slider": true,
+      "unit": "次"
     },
     {
       "path": [
@@ -58,7 +68,12 @@
       ],
       "label": "锁定时长（分钟）",
       "kind": "number",
-      "subtab": "flow"
+      "subtab": "flow",
+      "min": 0,
+      "max": 1440,
+      "step": 5,
+      "slider": true,
+      "unit": "分钟"
     },
     {
       "path": [

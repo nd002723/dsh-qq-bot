@@ -112,7 +112,10 @@ console.log('\n10. 默认值 JSON：自动发现 / 与 schema 一致 / 邪门输
       drift.push(path + ': ' + JSON.stringify(value) + ' vs ' + JSON.stringify(schemaLeaves.get(path)));
     }
   }
-  for (const path of schemaLeaves.keys()) {
+  for (const [path, value] of schemaLeaves) {
+    // undefined 表示「这个字段没有默认值」（密钥类字段就是这样：没填就不该存在键）。
+    // JSON 表达不了 undefined，所以这类叶子只要求 JSON 里也「没有」——两边都空才算一致。
+    if (value === undefined) { if (jsonLeaves.has(path) && jsonLeaves.get(path) !== undefined) drift.push(path + ': schema 无默认值、JSON 却写了'); continue; }
     if (!jsonLeaves.has(path)) drift.push(path + ': schema 有、JSON 没写');
   }
   check('JSON 默认值与 schema 求值逐叶子一致（嵌套也能抓到）', drift.length === 0, drift.slice(0, 4).join('；'));
