@@ -132,7 +132,8 @@ console.log('\n7. 主动发言发表情包：接线 + 隐式引导');
 
   check('表面层只在图库可用时向模型要关键词', /sticker:\s*wantsSticker/.test(surfaceSrc), '');
   check('表面层把文字交给 sendStickerWithText', /sendStickerWithText\(\{ groupId, query: stickerQuery, text: verdict\.text \}\)/.test(surfaceSrc), '');
-  check('挑不到图时退回纯文字', /没挑到合适表情包，只发文字/.test(surfaceSrc), '');
+  check('挑不到图时退回纯文字（带上插件侧给出的原因）', /没挑到合适表情包/.test(surfaceSrc) && /stickerWhy/.test(surfaceSrc), '');
+  check('插件侧把「挑不到」与「闸门拒绝」分成两种原因', /没挑到合适表情包（关键词：/.test(pluginSrc) && /表情包闸门未通过：/.test(pluginSrc), '');
   check('演练模式不发表情包', /本想配表情包关键词/.test(surfaceSrc), '');
 
   // 隐式引导只落在工具描述里，不进会话提示词
