@@ -56,12 +56,9 @@
       ],
       "label": "单次输出上限（字符）",
       "kind": "number",
-      "hint": "超出按头尾省略，默认 200000",
+      "hint": "超出按头尾省略，默认 200000；直接填纯数字（字符数）",
       "in": "moli-card",
-      "min": 0,
-      "max": 20000,
-      "step": 500,
-      "slider": true,
+      "digitsOnly": true,
       "unit": "字符"
     },
     {
