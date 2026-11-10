@@ -314,14 +314,20 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
       dir: ''          # 留空 = QQ_msg/sticker；相对路径按 QQ_msg 解析
       autoTag: true    # 首次使用 / 文件内容变动（哈希比对）时只给变动的图重新打标
       gifCompat: false # GIF 兼容模式：false=原样发 GIF；true=本地解首帧转 PNG 再发
-      provider: ''     # 打标 provider（留空 = 跟随 vision.provider）
-      model: ''        # 打标模型（留空 = 跟随 vision.model；必须是能看图的模型）
+      provider: ''     # 打标 provider（留空 = 跟随 vision.provider；两者都留空 = 跟随会话模型）
+      model: ''        # 打标模型（留空 = 跟随 vision.model；两者都留空 = 跟随会话模型；必须是能看图的模型）
       maxPerRun: 40    # 一次重建最多打标几张（超出的留到下次）
       timeoutMs: 60000 # 单张打标超时
       # —— 发送闸门（治「每轮对话都配图」）——
       chance: 0.3        # 主动配图概率（0–1）：模型自己想配时按这个概率发；用户明确要求不受限
       maxPerHour: 6      # 同一群每小时最多几张（含用户明确要求的），0 = 不限
       dupTTLHours: 24    # 同一张图多少小时内不重复发（用户明确要求时不受限），0 = 关
+      # —— 偷表情包（默认关）——
+      collect: false          # 自动把群里/私聊收到的表情包收进图库
+      collectMaxMb: 2         # 单张收图上限（MB，0.1–10）
+      collectMaxCount: 100    # 图库上限（张），满了不再收
+      collectAutoTrim: false  # 到上限自动删最早的，腾位置给新图
+      collectChance: 0.3      # 看到表情包时实际收下的概率（0–1）
     persona:
       enabled: false   # 自定义人格：每个新会话第一轮附一次
       name: ''
@@ -391,7 +397,7 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 
 索引约定：`<dir>/index.json`，`items[]` 每项 `{file, series, sha1, size, mtimeMs, tags, desc, taggedAt, tagModel, tagFailedAt?}`。重建是**增量**的：先比 `size+mtime` 跳过没变的文件，可疑的才算 sha1，哈希相同视为没变；只有真变了或新文件才清空标签重新打标。
 
-**改名 / 移动 / 复制不丢标签**：目录就是库，用户随时会在磁盘上整理（改名、换系列子目录、复制一份），路径一变旧记录就找不到了。所以重建时会额外建一张 `sha1 → 已打标记录` 的内容认领表：某个路径在旧索引里不存在、但它的 sha1 能对上一条已打标的记录时，直接继承 `tags / desc / taggedAt / tagModel / addedAt`（`series` 按新路径重算），计入报告的 `moved`（「认领」）。只在**路径此前不存在**时认领——同路径换了内容仍按真变动重新打标；`tagFailedAt` 不继承，挪过位置的图会重新获得一次打标机会。打标走 `ctx.llm.stream` + `ctx.attachments.saveImage`（与识图同一条路），provider/model 取 `sticker.provider/model`，留空跟随 `vision.*`；每次最多打 `sticker.maxPerRun` 张，每打一张就落盘，失败记 `tagFailedAt`（10 分钟内自动流程不重试）。
+**改名 / 移动 / 复制不丢标签**：目录就是库，用户随时会在磁盘上整理（改名、换系列子目录、复制一份），路径一变旧记录就找不到了。所以重建时会额外建一张 `sha1 → 已打标记录` 的内容认领表：某个路径在旧索引里不存在、但它的 sha1 能对上一条已打标的记录时，直接继承 `tags / desc / taggedAt / tagModel / addedAt`（`series` 按新路径重算），计入报告的 `moved`（「认领」）。只在**路径此前不存在**时认领——同路径换了内容仍按真变动重新打标；`tagFailedAt` 不继承，挪过位置的图会重新获得一次打标机会。打标走 `ctx.llm.stream` + `ctx.attachments.saveImage`（与识图同一条路），provider/model 取 `sticker.provider/model`，留空跟随 `vision.*`，两者都留空跟随会话模型；每次最多打 `sticker.maxPerRun` 张，每打一张就落盘，失败记 `tagFailedAt`（10 分钟内自动流程不重试）。
 
 送去模型前的 `visionPayload(buf, relPath, {gifCompat})` **只看真实内容**（`sniffImage`），不信扩展名：`.gif` 里装 JPEG 的按 JPEG 发；真 GIF 默认原样发（`image/gif`），`sticker.gifCompat: true` 时先 `gifFirstFrameToPng` 解首帧（纯 JS：GIF LZW 解码 + 手写 PNG 编码）。单张上限 `MAX_FILE_BYTES = 10 MB`，超了直接跳过不进索引。
 

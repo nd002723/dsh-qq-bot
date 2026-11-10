@@ -36,11 +36,20 @@ node test/run-all.mjs
 1. **工具注册**：一律走 `lib/tools/index.js` 的 `registerTool(ctx, make)`。
    DSH 0.2 的 Cordis Guard 不允许直接读 `ctx.tools`，必须先 `ctx.get('tools')`，
    未就绪时用 `ctx.inject(['tools'], ...)` 动态挂载。绕过它会静默丢掉工具。
-2. **配置**：新字段加到 `lib/config.js` 的 `DEFAULTS` 与 `Config`，可热改的标 `.volatile()`；
-   设置页字段在 `lib/client/settings.js` 的 `FIELDS` 里加。
-3. **测试**：新增行为在 `test/` 补用例，并挂到 `test/run-all.mjs`。
-4. **新协议**：读 `lib/transport/bridge/CONTRACT.md`，在 `lib/transport/adapters/` 下加一个 stdin/stdout 适配器，再到 `lib/transport/index.js` 的 `ADAPTER_ENTRIES` 与 `lib/config.js` 的 `protocols` 登记；适配器必须零 npm 依赖，并自带上限为一条的协议端假服务端测试。
-5. **文档**：面向用户的行为变化写进 `CHANGELOG.md`；结构变化同步 `ARCHITECTURE.md`；新协议写进 README 的协议表。
+2. **配置默认值**：写进对应工具/阀门目录的 `*-conf.json`（不属于任何工具、阀门的放进
+   `lib/config.js` 的 `CORE_DEFAULTS`），`DEFAULTS` 由这两份组装——改默认值只改 JSON。
+   schema 加在 `lib/config.js` 的 `Config`，运行期可热改的字段标 `.volatile()`。
+3. **设置页字段**：写进对应工具的 `*-set.json`；不属于任何工具、阀门的放
+   `lib/settings-core-set.json`，标签页骨架在 `lib/settings-page-set.json`。
+   客户端（`lib/client/settings.js`）只是渲染器——`FIELDS` 在加载时由模板填充，
+   不要再往客户端里手写字段定义。
+4. **测试与类型**：新增行为在 `test/` 补用例，并挂到 `test/run-all.mjs`；提交前跑
+   `npm test`（全量套件）与 `npm run typecheck`（JSDoc + `checkJs`，源码仍是 `.js`/`.mjs`，不引入构建）。
+5. **新协议**：读 `lib/transport/bridge/CONTRACT.md`，在 `lib/transport/adapters/` 下加一个 stdin/stdout 适配器，再到 `lib/transport/index.js` 的 `ADAPTER_ENTRIES` 与 `lib/config.js` 的 `protocols` 登记；适配器必须零 npm 依赖，并自带上限为一条的协议端假服务端测试。
+6. **文档**：面向用户的行为变化写进 `CHANGELOG.md`；结构变化同步 `ARCHITECTURE.md`；新协议写进 README 的协议表。
+   `CHANGELOG.md` 的「未发布」段只写**这一版最终交付的样子**：同一版本号只保留一节，开发过程中的
+   反复调整合并成一条，不要保留「先改成 A、后来又改回 B」「实装到本机才发现又修了一版」这类中间态叙事——
+   修 bug 就直接写修好之后的行为，别把中间过程抄进发布说明。
 
 ## 版本与发布
 
