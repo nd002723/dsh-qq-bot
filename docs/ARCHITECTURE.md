@@ -158,17 +158,18 @@ moli 卡片就卡在「能力 → 检索」分区中间，而它本该收尾—�
 
 | 模板 | priority | 落在哪个分区 |
 | --- | --- | --- |
-| `settings-core-set.json` | 10 | 连接 / 基础 / 会话 / 对话 |
-| `valve/security/auth-set.json` | 20 | 基础·准入、会话·会话 |
-| `valve/security/flow-auth-set.json` | 30 | 高级·流程、高级·闸门 |
-| `tools/vision-set.json` | 40 | 能力·视觉 |
-| `tools/websearch-set.json` | 50 | 能力·检索 |
-| `tools/imgsearch-set.json` | 60 | 能力·检索 |
-| `tools/history-set.json` | 70 | 能力·视觉 |
-| `tools/imagegen-set.json` | 80 | 能力·视觉 |
-| `tools/moli-set.json` | 90 | 能力·检索（收尾） |
+| `settings-core-set.json` | 100 | 连接 / 基础 / 会话 / 对话 |
+| `valve/security/auth-set.json` | 200 | 基础·准入、会话·会话 |
+| `valve/security/flow-auth-set.json` | 200 | 高级·流程、高级·闸门 |
+| `tools/vision-set.json` | 100 | 能力·视觉 |
+| `tools/websearch-set.json` | 100 | 能力·检索 |
+| `tools/imgsearch-set.json` | 200 | 能力·检索 |
+| `tools/history-set.json` | 200 | 能力·视觉 |
+| `tools/imagegen-set.json` | 300 | 能力·视觉 |
+| `tools/moli-set.json` | 300 | 能力·检索（收尾） |
+| `tools/sticker-set.json` | 400 | 能力·表情包 |
 
-不写 `priority` 时默认 **500**：内置的都写了 10~90，将来第三方或临时加的文件落在这之后，
+不写 `priority` 时默认 **500**：内置的都写了 100~400，将来第三方或临时加的文件落在这之后，
 既不插队到连接页前面，也不会莫名掉到最后。写了但不是有限数字 → 加载期直接炸。
 
 `path` 一律写绝对路径，不做「相对 group」的隐式约定。`when` 是**声明式**的
@@ -261,7 +262,8 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 | `message/chunk.js` | 回复分条：Markdown 感知切分（代码块/表格整块搬，超长才硬切） | `chunkMarkdown` |
 | `message/stream.js` | 官方 v2 私聊流式桥（增量合并 / 节流 / done 收尾 / 失败停用），**特有能力** | `createStreamBridge` `shouldStream` |
 | `message/interim.js` | 中间发言：把「已经说完、后面还有内容」的 assistant 文本挑出来先发 | `pickInterim` |
-| `message/segments.mjs` | 统一消息段（text/at/image/reply/face/…）与摘要 | `segmentsToText` `countImages` `imageUrlsOf` `summarizeSegments` |
+| `message/segments.mjs` | 统一消息段（text/at/image/reply/face/…）与摘要 | `segmentsToText` `countImages` `imageUrlsOf` `imageMetaOf` `isStickerLike` `summarizeSegments` |
+| `message/bubbles.js` | 回复气泡拆分：按空行切 2–3 段；代码块 / 表格 / 列表 / 标题 / 引用块整条不拆 | `splitBubbles` |
 | `message/msgid-cache.js` | 入站去重：按 message_id 记最近见过的消息（有界 + TTL） | `createMsgIdCache` |
 
 ### 2.5 工具层 `lib/tools/`
@@ -327,7 +329,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 
 **扩展点**：加协议 → 新写 `lib/transport/adapters/<协议>.mjs` + 在 `lib/transport/index.js` 与 `lib/config.js` 各加一项；加 Agent 工具 → 改 `lib/tools/index.js`，要在设置页露出参数就再往 `lib/tools/` 丢一个 `{group, defaults}` 的 JSON（**不用改 `config.js`**，它会自己扫到）；加 HTTP 路由 → 只改 `lib/gateway/index.js` 的 `ROUTE_MOUNTS`（**处理器第一行必须过 `deps.guard`**，否则这条路由绕开鉴权）；调阀门优先级 → 只改 `lib/valve/index.js` 的 `STAGE`。
 
-**测试与发布**：`test/run-all.mjs` 汇总 **48 个套件**（5 个协议各一套 + 阀门/组装/权限/设置/搜索/生图/历史/授权链路/表情包/写调度等），每个协议都自带零依赖假协议端（OneBot 11 的是 `test/mock-onebot.mjs`，其余在各自 `test-adapter-*.mjs` 内）；`npm test` 即跑全部。进 npm 包的只有 `lib/`、`cordis.patch.yml` 与根目录文档（见 `package.json` 的 `files`），`test/`、`examples/` 只在仓库里。
+**测试与发布**：`test/run-all.mjs` 汇总 **49 个套件**（5 个协议各一套 + 阀门/组装/权限/设置/搜索/生图/历史/授权链路/表情包/写调度等），每个协议都自带零依赖假协议端（OneBot 11 的是 `test/mock-onebot.mjs`，其余在各自 `test-adapter-*.mjs` 内）；`npm test` 即跑全部。进 npm 包的只有 `lib/`、`cordis.patch.yml` 与根目录文档（见 `package.json` 的 `files`），`test/`、`examples/` 只在仓库里。
 
 ## 3. 关键数据流
 
@@ -339,7 +341,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 | 2 | `gateway/plugin.js onAdapterFrame` | 按行切 JSON，`message` 交给 `acceptMessage` |
 | 3 | `acceptMessage` | 自过滤（`user_id === self_id`）→ **群管理指令优先**（`handleAdminCommand`，命中即结束，不进模型）→ 白名单 → `commandPrefix` → 是否点名（@bot / 回复 bot / 前缀）→ 收集被回复消息里的图片 |
 | 4 | `session/manager.js sessionRoute/getEntry` | 按拥有者/访客取或建会话（`sessionController.create` + `resolveAgent`，只建一次）；**取或建之前先做归档召回**（`session-archive.js`，否则宿主的归档闸门会 reject 整回合）；记 `entry.speaker`（鉴权依据）与 `entry.currentFrame`（qq_history 的识图锚点） |
-| 5 | `entry.queue`（串行） | `runTurn`：设 `entry.dshAllowed` → `describeImages`（下载 → `attachments.saveImage` → `llm` 视觉）→ `agent.followup` → `agent.whenIdle` |
+| 5 | `entry.queue`（串行） | `runTurn`：设 `entry.dshAllowed` → `describeImages`（两条路径：provider/model 都留空 → 图片作附件直传会话；至少填一项 → 下载后由视觉模型描述再并入）→ `agent.followup` → `agent.whenIdle` |
 | 6 | `extractReply / sendReply / chunkText` | 只取本条用户消息之后的新 assistant 文本，按 `reply.maxChars` 分片，写 `send` 帧 |
 
 回合必须走 `entry.queue`：同会话并发会让 `whenIdle` 等错回合、`dshAllowed` 互相覆盖。

@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（48 个套件 / 1775 项）
+## 2. 测试（49 个套件 / 1853 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -55,32 +55,33 @@ npm test                   # 同上
 
 | 套件 | 项数 | 覆盖什么 |
 | --- | --- | --- |
-| `test-adapter.mjs` | 19 | OneBot 11 正向适配器 |
+| `test-adapter.mjs` | 22 | OneBot 11 正向适配器 |
 | `test-adapter-reverse.mjs` | 19 | OneBot 11 反向适配器（含半开连接回收） |
 | `test-adapter-reconnect.mjs` | 11 | 适配器重连：握手超时必重试、open 前不算链路、断线后重试、reconnect() 主动重连、背压不判失败 |
 | `test-sticker-gate.mjs` | 25 | 表情包闸门：概率抽样（注入 random）、每群每小时上限（force 也受限）、同图 TTL 去重（force 可绕过）、按群隔离、记录与 reset |
+| `test-bubbles.mjs` | 16 | 回复气泡拆分：空行切 2–3 段、每段单行且 ≤80 字、代码块 / 表格 / 列表 / 标题 / 引用块整条不拆 |
 | `test-action-priority.mjs` | 10 | 适配器写调度：大帧整帧原子写（不切片，帧完整性）、小帧在帧边界插队、空闲时一片直写、动作往返与超时如实报错 |
 | `test-adapter-onebot12.mjs` | 30 | OneBot 12 适配器 |
 | `test-adapter-satori.mjs` | 70 | Satori 适配器 |
 | `test-adapter-milky.mjs` | 83 | Milky 适配器（含 WebHook 默认准入与读体上限） |
 | `test-adapter-qq-official.mjs` | 109 | QQ 官方适配器（含回调重放防护） |
-| `test-plugin.mjs` | 148 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、10 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（148 项含工具注册段落；解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 122 项 + 6 项 `[SKIP]`） |
-| `test-client.mjs` | 155 | 客户端设置页：模拟模块加载器 + 最小 React 渲染 + 四档标签（字段来自服务端模板）+ 只写密钥护栏 + 纯数字名单校验 + 一键还原默认 + 两段式 provider/model 配对与未知值保留 |
-| `test-admin.mjs` | 38 | 权限 · 群管理 · 访客工具闸 |
+| `test-plugin.mjs` | 169 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、10 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（169 项含工具注册段落；解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 122 项 + 6 项 `[SKIP]`） |
+| `test-client.mjs` | 161 | 客户端设置页：模拟模块加载器 + 最小 React 渲染 + 四档标签（字段来自服务端模板）+ 只写密钥护栏 + 纯数字名单校验 + 一键还原默认 + 两段式 provider/model 配对与未知值保留 |
+| `test-admin.mjs` | 40 | 权限 · 群管理 · 访客工具闸 |
 | `test-http.mjs` | 30 | HTTP / 代理隧道 / IP 归一与公网判定 |
 | `test-config.mjs` | 50 | 配置合并、volatile 还原、废弃键清理、`-conf.json` / `-set.json` 自动发现与护栏（组不存在 / 路径不存在 / 标签页不存在 / `priority` 非法 / 文件头 tab 也缺）、设置页分区顺序与字段继承 |
 | `test-websearch.mjs` | 5 | 多引擎搜索结果解析 |
-| `test-sticker.mjs` | 74 | 表情包图库：目录扫描 / sha1 增量索引（touch 不重打标、改内容只重打一张、改名与换系列按 sha1 认领标签）/ 坏索引自愈 / 搜索与挑图 / 发送目标判定 / 状态与重建路由 / 配置契约 / GIF 首帧转码与兼容模式（含假 .gif 按真实内容发） |
-| `test-imagegen.mjs` | 22 | 生图重试 / 轮询 / 响应解析；本地图片白名单必须解符号链接（软链指向白名单外一律拒） |
+| `test-sticker.mjs` | 91 | 表情包图库：目录扫描 / sha1 增量索引（touch 不重打标、改内容只重打一张、改名与换系列按 sha1 认领标签）/ 坏索引自愈 / 搜索与挑图 / 发送目标判定 / 状态与重建路由 / 配置契约 / GIF 首帧转码与兼容模式（含假 .gif 按真实内容发） |
+| `test-imagegen.mjs` | 25 | 生图重试 / 轮询 / 响应解析；本地图片白名单必须解符号链接（软链指向白名单外一律拒） |
 | `test-session-id.mjs` | 5 | 会话 id 回退 |
 | `test-compat.mjs` | 14 | 运行时兼容自检 |
 | `test-update-check.mjs` | 19 | 上游新版本提示：range 判断、同版本/更旧不提示、不兼容标记、失败静默、缓存与开关、registry 回退、失败只缓存 5 分钟 |
 | `test-history.mjs` | 20 | 聊天记录鉴权与定向 |
-| `test-proactive-wiring.mjs` | 25 | 主动发言接线与人格：依赖键名对账、缺依赖启动即告警、`soul:persona` 只取人格段、求值降级、agent 传给宿主、表情包接线与隐式引导 |
+| `test-proactive-wiring.mjs` | 26 | 主动发言接线与人格：依赖键名对账、缺依赖启动即告警、`soul:persona` 只取人格段、求值降级、agent 传给宿主、表情包接线与隐式引导 |
 | `test-proactive.mjs` | 103 | 主动发言纯逻辑（时间窗、判据、去重、两段式、人格优先级、表情包关键词与发送方式） |
-| `test-proactive-round.mjs` | 35 | 主动发言回合端到端（不动定时器） |
-| `test-owner-settings.mjs` | 58 | 拥有者设置通道（白名单 / 确认码 / 限流 / 审计） |
-| `test-totp.mjs` | 44 | TOTP / HOTP（RFC 4226 + 6238 官方向量） |
+| `test-proactive-round.mjs` | 43 | 主动发言回合端到端（不动定时器） |
+| `test-owner-settings.mjs` | 60 | 拥有者设置通道（白名单 / 确认码 / 限流 / 审计） |
+| `test-totp.mjs` | 43 | TOTP / HOTP（RFC 4226 + 6238 官方向量） |
 | `test-totp-cli.mjs` | 14 | 终端绑定（secret / otpauth URI / 二维码） |
 | `test-qr.mjs` | 18 | 二维码编码器（固定矩阵守回归） |
 | `test-flow-auth.mjs` | 43 | 授权状态机（授权 / 重放 / 锁定 / 过期 / 工具绑定）；`/flow unbind` 的显式工具通道；恢复码独立节流且不牵连动态码 |
@@ -188,7 +189,7 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
       interim: true   # 中间发言：长回合里先说的那几句单独发（不引用、不 @）
       interimMaxPerTurn: 4   # 每回合最多几条（0 = 关）
       interimMinGapMs: 2500   # 两条之间最短间隔
-      bubbleSplit: true   # 按空行把回复拆成 2–3 个气泡（代码块/表格/列表不拆）
+      bubbleSplit: true   # 按空行把回复拆成 2–3 个气泡（代码块/表格/列表/标题/引用块不拆）
       bubbleGapMinMs: 0   # 气泡之间最短延迟
       bubbleGapMaxMs: 5000   # 气泡之间最长延迟；每段之间在这个区间里随机取
     limits:
@@ -511,13 +512,13 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 | `lib/gateway/turn-text.js` | 无状态回合文本工具（人格段 / 配置脱敏 / 昵称清洗 / 失败原因 / id 归一），P3 2.4 第一阶段搬出 |
 | `lib/gateway/model-pick.js` | 模型选择：构建 `modelRouter` + `/model` 指令，依赖由插件注入 |
 | `lib/gateway/proactive-surface.js` | 主动发言表面层：排程、群级状态、tick 编排（P3 2.4 第二阶段搬出） |
-| `lib/gateway/adapter-supervision.js` | 适配器监管：启动参数、子进程、写帧调度（小帧优先 / 大帧分片）、动作超时、重启退避（P3 2.4 第二阶段搬出） |
+| `lib/gateway/adapter-supervision.js` | 适配器监管：启动参数、子进程、写帧调度（小帧优先 / 大帧整帧不切分）、动作超时、重启退避（P3 2.4 第二阶段搬出） |
 | `lib/gateway/routes-glue.js` | 扫码绑定 / 版本探测 / 路由挂载接线（P3 2.4 第二阶段搬出） |
 | `lib/gateway/flow-delivery.js` | 流程产物打包与投递（P3 2.4 第二阶段搬出） |
 | `lib/gateway/inbound-limits.js` | 入站限制：限流窗口 / 队列深度 / 长度 / 提示去重（P3 2.4 第三阶段搬出） |
 | `lib/gateway/auth-flow.js` | 授权与流程：私聊提示、动态码、`/auth` `/flow`、授权续跑（P3 2.4 第三阶段搬出） |
 | `lib/gateway/artifact-collect.js` | 产物收集与打包：按 mtime 收新文件、异步 zip/tar（P3 2.4 第三阶段搬出） |
-| `lib/gateway/vision.js` | 识图：下载 / 视觉模型描述 / 拼上下文（P3 2.4 第三阶段搬出） |
+| `lib/gateway/vision.js` | 识图两条路径：provider/model 都留空 → 图片作附件直传会话；至少填一项 → 下载后由视觉模型描述再并入（P3 2.4 第三阶段搬出） |
 | `lib/gateway/turn-runtime.js` | 回合运行时：acceptMessage / 提示词 / 中间发言 / runTurn / extractReply / 图片清扫（P3 2.4 第三阶段搬出） |
 | `lib/gateway/index.js` | HTTP 路由统一挂载（`ROUTE_MOUNTS` 表 + webServer 就绪 + 逆序注销） |
 | `lib/gateway/routes-bind.js` | 扫码绑定的两条具名路由 |
@@ -550,7 +551,7 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 | `lib/client/settings.js` | 客户端半边（手写 bundle）：插件面板里的设置区，**纯渲染器**——字段与标签页由 `GET /dsh-qq-bot/settings` 下发。**模块 id 与插槽 key 必须等于 npm 包名**，设置命名空间仍是条目 id |
 | **其他** | |
 | `cordis.patch.yml` | bundle 补丁：把插件插入 profile 组合树（`id` 固定，`name` 跟包名走） |
-| `test/` | 37 个测试套件 + `mock-onebot.mjs`（零依赖 OneBot 11 模拟器）+ `dsh-tools-link.mjs`（给宿主编译期服务建临时链接） |
+| `test/` | 49 个测试套件 + `mock-onebot.mjs`（零依赖 OneBot 11 模拟器）+ `dsh-tools-link.mjs`（给宿主编译期服务建临时链接） |
 | `examples/dynamic-package-host.js` | 动态 Cordis Package 版（不装包也能在当前进程里试） |
 
 ## 9. 设计说明（踩过的坑）

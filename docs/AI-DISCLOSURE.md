@@ -36,9 +36,9 @@
 
 ### 验证情况
 
-- **自动化测试 48 个套件 / 1775 项全部通过**（`npm test` = `node test/run-all.mjs`；CI 在 Node 22 / 24 双版本上跑）：
+- **自动化测试 49 个套件 / 1853 项全部通过**（`npm test` = `node test/run-all.mjs`；CI 在 Node 22 / 24 双版本上跑）：
   - 协议适配器 330 项：正向 WebSocket 19 ／ 反向 19（含半开回收）／ OneBot 12 30 ／ Satori 70 ／ Milky 83 ／ QQ 官方 109
-  - Host 插件端到端 148 项（假 ctx + 真适配器 + Config 契约 + 配置热更新 + 废弃配置清理 + 默认准入 fail-closed + 入站限流 + 点名判定与白名单次序 + 路由鉴权闸门；能解析到 `@deepseek-ai/dsh-tools` 时会多跑 9 个工具注册断言）
+  - Host 插件端到端 169 项（假 ctx + 真适配器 + Config 契约 + 配置热更新 + 废弃配置清理 + 默认准入 fail-closed + 入站限流 + 点名判定与白名单次序 + 路由鉴权闸门；能解析到 `@deepseek-ai/dsh-tools` 时会多跑 9 个工具注册断言）
   - 客户端设置页 155 项 ／ 中间发言 14 项 ／ 权限·群管理·访客工具闸 38 项
   - 安全回归 `test-security.mjs` 55 项（SSRF 公网判定与 F1 / IPv6 映射写法 / 6to4 与 Teredo 内嵌 IPv4 / 识图下载源码断言 / 跨群与撤回绑群）／ 历史消息鉴权 20 项
   - 内网校验代理 `test-guard-proxy.mjs` 53 项（拒绝路径 + 「本地监听器 accept 计数 = 0」的判别力断言 + 上游代理链路 + 403/502 语义分离 + CONNECT 目标归一 + 并发 start 去重 + 解析失败必须拒绝；离网可跑）
@@ -165,7 +165,7 @@ No source code from third-party projects was copied into this repository.
 | Tools verified | `qqbot` / `qqconfig` / `qqgroup` / `qq_websearch` / `qq_webfetch` / `qq_imgsearch` / `qq_history` / `qq_draw` / `qqauth` — all nine registered |
 
 - **Verification:** the browser settings page was **manually confirmed on a real device**.
-  **48 suites / 1775 automated checks pass** (`npm test` = `node test/run-all.mjs`; CI runs on Node 22 and 24),
+  **49 suites / 1853 automated checks pass** (`npm test` = `node test/run-all.mjs`; CI runs on Node 22 and 24),
   covering the forward/reverse WebSocket adapter, the Host plugin (fake `ctx` + real adapter + Config contract
   + config hot reload), the settings page, the permission/group-management subsystem, HTTP/proxy, multi-engine
   search parsing, the image-gen engine (retry / poll / response parsing), the sticker library (hash-indexed incremental tagging, GIF first-frame transcode), the adapter write scheduler (small-frame priority, 64 KB chunking), the proactive-speak wiring (host persona reuse, dependency-key assertions) and the session-id workspace fallback.
