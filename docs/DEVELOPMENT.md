@@ -581,16 +581,19 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 
 ## 11. 发布流程
 
-1. 改 `package.json` 的 `version`（**不要手动打 tag**），同时更新 `CHANGELOG.md` 与文档里的版本号。
-2. 推 `main`。`.github/workflows/release.yml`（Auto Release）在 push 触达 `package.json` 时启动：
+1. **先做「上一个 tag → HEAD」的完整对照**：`git diff --stat v上一个版本..HEAD` 看范围，再逐文件读改动，
+   最后用 `git log v上一个版本..HEAD --oneline` 只做「有没有漏记」的核对。按实际改动重写这一版的 CHANGELOG 条目，
+   不要从提交日志或开发草稿里拼——同一版本只写最终形态，中间态（先改 A 又改回 B、上线后又补一版）不进发布说明。
+2. 改 `package.json` 的 `version`（**不要手动打 tag**），同时更新 `CHANGELOG.md` 与文档里的版本号。
+3. 推 `main`。`.github/workflows/release.yml`（Auto Release）在 push 触达 `package.json` 时启动：
    checkout（含全部历史与 tag）→ `actions/setup-node@v4`（node 24）→ 读版本 →
    **按产物是否已存在分别判定幂等**（npm 上已有该版本 → 跳过发布；release 已存在 → 跳过创建；两者互不牵连）→
    `npm install && npm test`（仅在需要发布时）→ `npm publish --provenance --access public` →
    用「首次引入当前版本号的那个提交」的提交信息做正文 `gh release create`（tag 由它创建或复用）。
    曾经只看 tag：tag 先于 workflow 存在时整条流水线被跳过，npm 与 release 都不补，而 skipped 不算失败、run 照样绿（0.12.6 就这么漏过一次），所以改成了现在的写法。
-3. 发布走 **Trusted Publishing（OIDC）**：`permissions: id-token: write`，runner 的 npm 必须 ≥ 11.5.1（所以有 setup-node 那一步；npm 10 会在 OIDC 之前就报 `ENEEDAUTH`）。
-4. tag 与 Release 由工作流创建；版本号一经发布不可复用（unpublish 过的版本也不行）。
-5. 发版后抽查一次 tarball（`npm pack` 或直接下载）确认关键文件在包里。
+4. 发布走 **Trusted Publishing（OIDC）**：`permissions: id-token: write`，runner 的 npm 必须 ≥ 11.5.1（所以有 setup-node 那一步；npm 10 会在 OIDC 之前就报 `ENEEDAUTH`）。
+5. tag 与 Release 由工作流创建；版本号一经发布不可复用（unpublish 过的版本也不行）。
+6. 发版后抽查一次 tarball（`npm pack` 或直接下载）确认关键文件在包里。
 
 ## 12. 兼容性
 
