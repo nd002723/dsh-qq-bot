@@ -69,7 +69,7 @@
       "label": "锁定时长（分钟）",
       "kind": "number",
       "subtab": "flow",
-      "min": 0,
+      "min": 1,
       "max": 1440,
       "step": 5,
       "slider": true,
