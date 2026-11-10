@@ -39,7 +39,7 @@
         "sticker",
         "collect"
       ],
-      "label": "偷表情包（群里收到的图自动入库）",
+      "label": "偷表情包（群里/私聊收到的图自动入库）",
       "kind": "bool",
       "in": "sticker-card",
       "hint": "默认关闭。开启后群里/私聊收到的图片按消息元数据判定：收藏表情（sub_type=1）、带「动画表情」标记的、以及 .gif 才会收进图库的 get_stickers 系列；普通实拍照片、截图一律不收"
@@ -81,7 +81,7 @@
       "label": "收图数量上限",
       "kind": "number",
       "in": "sticker-card",
-      "hint": "直接填纯数字：get_stickers 系列最多留几张（0 = 不限）。到上限后**不再收新图**；想继续收就调大它，或打开下面「超上限自动删最早的」腾位置",
+      "hint": "直接填纯数字：get_stickers 系列最多留几张（0 = 不限）。到上限后不再收新图；想继续收就调大它，或打开下面「超上限自动删最早的」腾位置",
       "digitsOnly": true
     },
     {
@@ -195,7 +195,7 @@
       "label": "单张打标超时（毫秒）",
       "kind": "number",
       "in": "sticker-card",
-      "min": 0,
+      "min": 5000,
       "max": 300000,
       "step": 1000,
       "slider": true,

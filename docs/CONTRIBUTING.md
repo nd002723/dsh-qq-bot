@@ -56,6 +56,18 @@ node test/run-all.mjs
 维护者合并后在 `main` 打 tag（`vX.Y.Z`）并发 Release。安装方式跟随 `main`，不再锁死某个 tag。
 自动化：`.github/workflows/release.yml` 在 push 到 `main` 且改动包含 `package.json` 时跑全量测试并发布，Release 正文取「首次引入该版本号的提交信息」；`ci.yml` 对每次 push / PR 跑 `npm test`。
 
+**发版前必须按「上一个 tag → HEAD」做一次完整对照**，而不是从提交日志或开发过程中的草稿里拼条目：
+
+```sh
+git diff --stat v上一个版本..HEAD        # 先看改了哪些文件
+git diff v上一个版本..HEAD -- lib/ docs/ # 再逐块读实际改动
+git log  v上一个版本..HEAD --oneline     # 日志只用来核对「有没有漏记」，不是素材来源
+```
+
+对照完再**按实际改动重写**该版本的 CHANGELOG 条目：每一条用户可感知的变化都要能对上代码里的最终形态；
+同一版本只留一节，中间态（先做 A 又改回 B、上线后又补一版、调试过程）一律不进发布说明。
+只从 commit message 拼凑或凭印象补写，就会漏掉「做了但没写」和「写了但已改掉」两类内容。
+
 ## 成为协作者
 
 持续贡献（2 个以上被合并的 PR）后，维护者会邀请你成为 collaborator（write 权限：可在本仓库推分支、管 issue/PR；

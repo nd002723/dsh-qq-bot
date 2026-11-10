@@ -952,7 +952,6 @@ try {
   console.log('\n4b2a. 识别文本不重复（text-delta 与 block-end 只能二选一）');
   {
     // 实测 bug：上游既有 text-delta 又有 block-end（整块文本），两者相加会让描述重复两遍。
-    const streamsBefore = visionCalls.filter((c) => c.kind === 'stream').length;
     const sentBefore = mock.sent.length;
     await fetch(mock.httpUrl + '/__inject', {
       method: 'POST', headers: { 'content-type': 'application/json' },
@@ -978,7 +977,6 @@ try {
     // maxTokens 给少了会被思考吃光，看起来像「识别失败」。这里锁住兜底行为。
     visionModelModalities = ['text', 'image'];
     visionStreamReasoningOnly = true;
-    const streamsBefore = visionCalls.filter((c) => c.kind === 'stream').length;
     const sentBefore = mock.sent.length;
     await fetch(mock.httpUrl + '/__inject', {
       method: 'POST', headers: { 'content-type': 'application/json' },
