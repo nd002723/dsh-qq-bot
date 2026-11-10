@@ -113,8 +113,8 @@
       "kind": "select",
       "in": "sticker-card",
       "dynamic": "provider",
-      "placeholder": "（留空 = 跟随图片视觉的 provider）",
-      "hint": "复用 DSH 自定义 providers；留空则跟随上面「识图与绘图」里的视觉 provider"
+      "placeholder": "（留空 = 跟随图片视觉；都留空 = 跟随会话模型）",
+      "hint": "复用 DSH 自定义 providers；留空则跟随上面「识图与绘图」里的视觉 provider，两者都留空则跟随会话模型"
     },
     {
       "path": [
@@ -125,8 +125,8 @@
       "kind": "select",
       "in": "sticker-card",
       "dynamic": "model",
-      "placeholder": "（留空 = 跟随图片视觉的模型）",
-      "hint": "必须是能吃图片的模型（如 deepseek-v4-flash-vision-exp）；留空则跟随图片视觉的模型"
+      "placeholder": "（留空 = 跟随图片视觉；都留空 = 跟随会话模型）",
+      "hint": "必须是能吃图片的模型；留空则跟随图片视觉的模型，两者都留空则跟随会话模型（取不到才跳过）"
     },
     {
       "path": [
