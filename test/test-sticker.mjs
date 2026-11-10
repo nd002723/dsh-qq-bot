@@ -69,6 +69,8 @@ function makeLibrary(root, options = {}) {
     getConfig: () => config,
     getRoot: () => root,
     ctx,
+    // 第三级回退：表情包与 vision 都留空时跟随会话模型（缺省不给 = 取不到，保持旧行为）。
+    getDefaultModel: options.getDefaultModel,
     describeError: (error) => (error && error.message ? error.message : String(error)),
     log: () => {},
   });
@@ -217,6 +219,18 @@ try {
     const model = visionLib.library.resolveModel();
     return model !== null && model.provider === 'vp' && model.model === 'vm';
   })());
+  const sessionModelLib = makeLibrary(join(tmpRoot, 'session-model'), {
+    sticker: { provider: '', model: '' }, vision: { provider: '', model: '' },
+    getDefaultModel: () => ({ provider: 'sess-p', model: 'sess-m' }),
+  });
+  check('两项都留空时跟随会话模型（第三级回退）', (() => {
+    const model = sessionModelLib.library.resolveModel();
+    return model !== null && model.provider === 'sess-p' && model.model === 'sess-m';
+  })());
+  writeImage(join(tmpRoot, 'session-model'), 'a/1.jpg', 'sm-1');
+  const smReport = await sessionModelLib.library.sync({ tag: true });
+  check('跟随会话模型后能正常打标（不再是「未配置视觉模型」）',
+    smReport.ok === true && smReport.tagged === 1 && smReport.failed === 0, JSON.stringify(smReport));
   const noModelLib = makeLibrary(join(tmpRoot, 'no-model'), { sticker: { provider: '', model: '' }, vision: { provider: '', model: '' } });
   writeImage(join(tmpRoot, 'no-model'), 'a/1.jpg', 'nm-1');
   const nmReport = await noModelLib.library.sync({ tag: true });

@@ -22,10 +22,13 @@ import fs from 'node:fs';
 import process from 'node:process';
 import { startMockOneBot } from './mock-onebot.mjs';
 import { __setNetworkHooks } from '../lib/shared/http.js';
+import { encodePng } from '../lib/shared/png.js';
 
 // 公共抓取（qq_websearch / qq_imgsearch / 识图下载）走 lib/shared/http.js 的 node:http 实现，不再经过
 // globalThis.fetch：要打桩只能用 http.js 的 __setNetworkHooks（解析 + 单次请求两个动作）。
 const TEST_PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+// 第二张图的内容必须与第一张不同（内容 sha1 是文件名，同内容同文件是设计如此）。
+const TEST_PNG_B = Buffer.from(encodePng(2, 2, Buffer.alloc(16, 0x88)));
 const TEST_DDG_HTML = '<html><body><div class="result">'
   + '<h2 class="result__title"><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Ftest-page">测试结果标题</a></h2>'
   + '<a class="result__snippet" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fexample.com%2Ftest-page">这是测试搜索的摘要内容</a>'
@@ -49,7 +52,8 @@ __setNetworkHooks({
     // 解析不到才退到 result-link（lite 形态），一份夹具两边都能用。
     if (host === 'html.duckduckgo.com' || host === 'lite.duckduckgo.com') return ok('text/html', TEST_DDG_HTML);
     if (host === 'api.trace.moe') return ok('application/json', TEST_TRACEMOE_JSON);
-    if (host === 'example.com' || host === 'cdn.example.com') return ok('image/png', TEST_PNG);
+    if (host === 'example.com') return ok('image/png', TEST_PNG);
+    if (host === 'cdn.example.com') return ok('image/png', TEST_PNG_B);
     return { status: 404, location: '', setCookie: '', contentType: 'text/plain', body: Buffer.from('no stub'), truncated: false };
   },
 });
@@ -75,6 +79,12 @@ function check(name2, ok, detail = '') {
   console.log('  [' + (ok ? 'PASS' : 'FAIL') + '] ' + name2 + (ok || detail === '' ? '' : ' — ' + detail));
 }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// 假 Agent 已经收到的消息（vision 附件路径要断言 user 消息的 content 块）。
+const messagesOf = (sessionId) => {
+  const agent = agents.get(sessionId);
+  if (agent === undefined || agent === null || typeof agent.session.deriveMessages !== 'function') return [];
+  return agent.session.deriveMessages();
+};
 // 从一条 mock 发送记录里取 text 段（可能带引用 reply 段，不能只取 message[0]）。
 const textOf = (sent) => {
   const msg = (sent && Array.isArray(sent.message)) ? sent.message : [];
@@ -147,6 +157,9 @@ function fakeAgent(sessionId) {
         register(definition) { agent.registers.push(definition); return () => {}; },
       },
     },
+    // 会话路由：vision 留空复用会话模型时要读它（优先 model.current()，退回 options）。
+    options: { provider: 'conv-provider', model: 'conv-model' },
+    model: { current: () => ({ provider: 'conv-provider', model: 'conv-model' }) },
     status: 'idle',
     session: {
       get seq() { return messages.length; },
@@ -257,8 +270,11 @@ const ctx = {
   get(name) { return name === 'tools' ? this.tools : undefined; },
   // 图片视觉桩：saveImage 返回假 ref；resolveModelInfo 返回能力；stream 产出识别文本。
   attachments: {
-    async saveImage({ data, mediaType }) {
-      return { attachmentId: 'test-img-' + (visionRefs.length + 1), mediaType, bytes: data, width: 0, height: 0 };
+    async saveImage({ data, mediaType, name }) {
+      const ref = { attachmentId: 'test-img-' + (visionRefs.length + 1), mediaType, bytes: data, width: 0, height: 0 };
+      if (name !== undefined) ref.name = name;
+      visionRefs.push({ mediaType, bytes: data.length, name: name === undefined ? '' : name });
+      return ref;
     },
   },
   llm: {
@@ -268,15 +284,25 @@ const ctx = {
       throw new Error('no such model');
     },
     async *stream(options) {
-      visionCalls.push({ kind: 'stream', provider: options.provider, model: options.model });
+      visionCalls.push({ kind: 'stream', provider: options.provider, model: options.model, maxTokens: options.maxTokens });
+      // 推理型模型：内容全在 reasoning-delta、没有 text-delta（实测 deepseek-account/deepseek-flash）。
+      if (visionStreamReasoningOnly === true) {
+        yield { type: 'reasoning-delta', index: 0, text: '（推理）画面里是一只白猫' };
+        yield { type: 'reasoning-delta', index: 0, text: '，坐在窗台上。' };
+        return;
+      }
       yield { type: 'text-delta', index: 0, text: '【视觉识别】画面里是一只白猫' };
       yield { type: 'text-delta', index: 0, text: '，坐在窗台上。' };
+      // 真实上游（DSH 的 deepseek-messages 回放）会再给一个 block-end，带整块文本。
+      // 这里必须给：它只能当「没有 delta」时的兜底，不能跟 delta 相加，否则描述会重复两遍。
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: '【视觉识别】画面里是一只白猫，坐在窗台上。' } };
     },
   },
 };
 const visionRefs = [];
 const visionCalls = [];
 let visionModelModalities = null;
+let visionStreamReasoningOnly = false;
 
 try {
   const mod = await import(pathToFileURL(path.join(PKG_ROOT, 'lib', 'index.js')).href);
@@ -874,6 +900,23 @@ try {
     String(visionCalls.filter((c) => c.kind === 'stream').length));
   check('识别文本并入了 Agent 输入', visionReply.includes('【视觉识别】画面里是一只白猫，坐在窗台上。'),
     JSON.stringify(visionReply.slice(0, 200)));
+  // 显式识图模型这条路也统一：文件名 sha1，正文占位符带名字，描述带名字前缀。
+  {
+    const ownRef = visionRefs[visionRefs.length - 1];
+    const ownName = ownRef === undefined ? '' : ownRef.name;
+    check('显式识图模型路径：附件名同样是 sha1 + 扩展名', /^[0-9a-f]{16}\.png$/.test(ownName), JSON.stringify(ownRef));
+    check('显式识图模型路径：正文占位符换成 [图片<文件名>]', visionReply.includes('[图片<' + ownName + '>]'),
+      JSON.stringify(visionReply.slice(0, 240)));
+    check('显式识图模型路径：识别描述归到底部 [图片描述] 段、按文件名对号',
+      visionReply.includes('[图片描述]\n<' + ownName + '> 【视觉识别】'),
+      JSON.stringify(visionReply.slice(0, 320)));
+    check('显式识图模型路径：描述不再掺进正文（正文只留 [图片<文件名>] 标记）',
+      visionReply.indexOf('[图片<' + ownName + '>]') < visionReply.indexOf('[图片描述]')
+      && visionReply.indexOf('[图片描述]') > visionReply.indexOf('[图片文件]'),
+      JSON.stringify(visionReply.slice(0, 320)));
+    check('显式识图模型路径：没有裸的 [图片] 占位符', !visionReply.includes('[图片]'),
+      JSON.stringify(visionReply.slice(0, 240)));
+  }
 
   console.log('\n4b2. 回复别人时，被回复消息的图片也被识别并入');
   mock.history.length = 0;
@@ -897,6 +940,180 @@ try {
   const text2 = textOf(sent2[0]);
   check('被回复图片的识别文本并入 Agent 输入', text2.includes('【视觉识别】画面里是一只白猫'), JSON.stringify(text2.slice(0, 200)));
   check('被回复图片不再以 [图片] 占位塞进消息文本（改由视觉识别并入）', !text2.includes('[图片]'), JSON.stringify(text2.slice(0, 200)));
+  {
+    const replyRef = visionRefs[visionRefs.length - 1];
+    const replyName = replyRef === undefined ? '' : replyRef.name;
+    check('显式识图模型路径：被回复消息的图片单列一段并带 sha1 名',
+      text2.includes('[被回复消息的图片] ' + replyName), JSON.stringify(text2.slice(0, 260)));
+    check('显式识图模型路径：被回复图片的描述也归到底部并标明来源',
+      text2.includes('[图片描述]\n（被回复消息）<' + replyName + '> 【视觉识别】'), JSON.stringify(text2.slice(0, 320)));
+  }
+
+  console.log('\n4b2a. 识别文本不重复（text-delta 与 block-end 只能二选一）');
+  {
+    // 实测 bug：上游既有 text-delta 又有 block-end（整块文本），两者相加会让描述重复两遍。
+    const streamsBefore = visionCalls.filter((c) => c.kind === 'stream').length;
+    const sentBefore = mock.sent.length;
+    await fetch(mock.httpUrl + '/__inject', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+        message: [
+          { type: 'at', data: { qq: '10000' } },
+          { type: 'image', data: { url: 'https://example.com/cat.png' } },
+          { type: 'text', data: { text: '看看这张图' } },
+        ],
+      }),
+    });
+    const sent = await waitFor(() => (mock.sent.length > sentBefore ? mock.sent.slice(sentBefore) : null), 15000, '去重后的识别回复');
+    const reply = sent.length > 0 ? textOf(sent[0]) : '';
+    check('识别描述只出现一次（没有和 block-end 相加）',
+      reply.split('【视觉识别】画面里是一只白猫').length === 2,
+      '出现 ' + String(reply.split('【视觉识别】画面里是一只白猫').length - 1) + ' 次：' + JSON.stringify(reply.slice(0, 260)));
+  }
+
+  console.log('\n4b2b. 推理型识图模型：正文为空时从 reasoning 兜底（deepseek-flash 实测）');
+  {
+    // 实测 deepseek-account/deepseek-flash：上游回包，但内容全在 reasoning-delta，
+    // maxTokens 给少了会被思考吃光，看起来像「识别失败」。这里锁住兜底行为。
+    visionModelModalities = ['text', 'image'];
+    visionStreamReasoningOnly = true;
+    const streamsBefore = visionCalls.filter((c) => c.kind === 'stream').length;
+    const sentBefore = mock.sent.length;
+    await fetch(mock.httpUrl + '/__inject', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+        message: [
+          { type: 'at', data: { qq: '10000' } },
+          { type: 'image', data: { url: 'https://example.com/cat.png' } },
+          { type: 'text', data: { text: '看看这张图' } },
+        ],
+      }),
+    });
+    const sent = await waitFor(() => (mock.sent.length > sentBefore ? mock.sent.slice(sentBefore) : null), 15000, 'reasoning 兜底回复');
+    const reply = sent.length > 0 ? textOf(sent[0]) : '';
+    const lastStream = visionCalls.filter((c) => c.kind === 'stream').slice(-1)[0];
+    check('推理型模型：识别预算提到 2000（不被思考吃光）',
+      lastStream !== undefined && lastStream.maxTokens === 2000, JSON.stringify(lastStream));
+    check('推理型模型：只有 reasoning 时兜底取内容并并入回复',
+      reply.includes('【视觉识别】') === false && reply.includes('（推理）画面里是一只白猫'),
+      JSON.stringify(reply.slice(0, 240)));
+    check('推理型模型：不再报「图片下载或识别失败」',
+      !reply.includes('图片下载或识别失败'), JSON.stringify(reply.slice(0, 240)));
+    visionStreamReasoningOnly = false;
+  }
+
+  console.log('\n4b3. 识图模型留空 -> 图片作为附件直接进会话（不再先描述再塞文本）');
+  {
+    // vision.provider/model 是 volatile：就地把两项清空，模拟「留空 = 复用会话模型」。
+    const VOLATILE_WRITE4B3 = Symbol.for('cosmokit.volatile.write');
+    liveConfig.vision.provider[VOLATILE_WRITE4B3]('');
+    liveConfig.vision.model[VOLATILE_WRITE4B3]('');
+    for (const handler of volatileUpdateHandlers) handler([['vision', 'provider'], ['vision', 'model']]);
+    await sleep(200);
+    visionModelModalities = ['text', 'image'];
+    const streamsBefore4b3 = visionCalls.filter((c) => c.kind === 'stream').length;
+    const refsBefore4b3 = visionRefs.length;
+    const sentBefore4b3 = mock.sent.length;
+    await fetch(mock.httpUrl + '/__inject', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+        message: [
+          { type: 'at', data: { qq: '10000' } },
+          { type: 'image', data: { url: 'https://example.com/cat.png' } },
+          { type: 'text', data: { text: '看看这张图' } },
+        ],
+      }),
+    });
+    const sent4b3 = await waitFor(() => (mock.sent.length > sentBefore4b3 ? mock.sent.slice(sentBefore4b3) : null), 15000, '附件路径回复到达假 OneBot');
+    const newRefs = visionRefs.slice(refsBefore4b3);
+    const newMessages = messagesOf('qqbot-group-33333').filter((m) => m.role === 'user');
+    const lastUser = newMessages.length > 0 ? newMessages[newMessages.length - 1] : null;
+    const blocks = (lastUser !== null && Array.isArray(lastUser.content)) ? lastUser.content : [];
+    check('图片作为附件块随 user 消息提交（content 里有 image 块）',
+      blocks.some((b) => b !== null && typeof b === 'object' && b.type === 'image' && b.attachment !== undefined),
+      JSON.stringify(blocks.map((b) => (b && b.type) || '?')));
+    check('附件显示名 = 内容 sha1 前 16 位 + 扩展名',
+      newRefs.length === 1 && typeof newRefs[0].name === 'string' && /^[0-9a-f]{16}\.png$/.test(newRefs[0].name),
+      JSON.stringify(newRefs));
+    check('没有额外调识别模型（stream 不增加）',
+      visionCalls.filter((c) => c.kind === 'stream').length === streamsBefore4b3,
+      String(visionCalls.filter((c) => c.kind === 'stream').length - streamsBefore4b3));
+    check('正文里的 [图片] 占位符换成了 [图片<文件名>]（能对上是谁发的哪张）',
+      sent4b3.length > 0 && textOf(sent4b3[0]).includes('[图片<' + (newRefs.length > 0 ? newRefs[0].name : '?') + '>]'),
+      JSON.stringify(textOf(sent4b3[0] || {}).slice(0, 220)));
+    check('不再出现裸的 [图片] 占位符（本条消息的图都带上了名字）',
+      sent4b3.length > 0 && !textOf(sent4b3[0]).includes('[图片]'),
+      JSON.stringify(textOf(sent4b3[0] || {}).slice(0, 220)));
+
+    // 一次发两张图：每个 [图片] 都按顺序换成自己的文件名，模型能分清「第几张」。
+    const refsBeforeMulti = visionRefs.length;
+    const sentBeforeMulti = mock.sent.length;
+    await fetch(mock.httpUrl + '/__inject', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+        message: [
+          { type: 'at', data: { qq: '10000' } },
+          { type: 'image', data: { url: 'https://example.com/a.png' } },
+          { type: 'image', data: { url: 'https://cdn.example.com/b.png' } },
+          { type: 'text', data: { text: '这两张像吗' } },
+        ],
+      }),
+    });
+    const multiSent = await waitFor(() => (mock.sent.length > sentBeforeMulti ? mock.sent.slice(sentBeforeMulti) : null), 15000, '两张图的消息');
+    const multiRefs = visionRefs.slice(refsBeforeMulti);
+    const multiText = multiSent.length > 0 ? textOf(multiSent[0]) : '';
+    check('两张图都作为附件提交（附件数 = 2、名字各不相同）',
+      multiRefs.length === 2 && multiRefs[0].name !== multiRefs[1].name,
+      JSON.stringify(multiRefs.map((r) => r.name)));
+    check('两张图的占位符按顺序各自带上文件名',
+      multiText.includes('[图片<' + (multiRefs[0] ? multiRefs[0].name : '?') + '>]')
+      && multiText.includes('[图片<' + (multiRefs[1] ? multiRefs[1].name : '?') + '>]')
+      && multiText.indexOf('[图片<' + (multiRefs[0] ? multiRefs[0].name : '?') + '>]')
+        < multiText.indexOf('[图片<' + (multiRefs[1] ? multiRefs[1].name : '?') + '>]'),
+      JSON.stringify(multiText.slice(0, 260)));
+    check('不再塞 [图片识别] 描述文本',
+      sent4b3.length > 0 && !textOf(sent4b3[0]).includes('[图片识别]'),
+      JSON.stringify(textOf(sent4b3[0] || {}).slice(0, 220)));
+
+    // 会话模型不支持图片：直接给可读报错，**不回退**成「先描述再注入」
+    //（同一个模型做描述同样过不了图片输入，回退是白搭）。
+    visionModelModalities = ['text'];
+    const streamsBeforeNoImage = visionCalls.filter((c) => c.kind === 'stream').length;
+    const refsBeforeNoImage = visionRefs.length;
+    const sentBeforeNoImage = mock.sent.length;
+    await fetch(mock.httpUrl + '/__inject', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        message_type: 'group', group_id: 33333, user_id: 22222, nickname: '小明',
+        message: [
+          { type: 'at', data: { qq: '10000' } },
+          { type: 'image', data: { url: 'https://example.com/cat.png' } },
+          { type: 'text', data: { text: '再看看这张' } },
+        ],
+      }),
+    });
+    const noImageSent = await waitFor(() => (mock.sent.length > sentBeforeNoImage ? mock.sent.slice(sentBeforeNoImage) : null), 15000, '会话模型不支持图片的报错');
+    const noImageText = noImageSent.length > 0 ? textOf(noImageSent[0]) : '';
+    check('会话模型不支持图片：回可读报错并指向设置页',
+      noImageText.includes('不支持图片输入') && noImageText.includes('识图与绘图'),
+      JSON.stringify(noImageText.slice(0, 220)));
+    check('会话模型不支持图片：不回退成描述注入（没有额外识别流、没有新附件）',
+      visionCalls.filter((c) => c.kind === 'stream').length === streamsBeforeNoImage
+      && visionRefs.length === refsBeforeNoImage,
+      'streams+' + String(visionCalls.filter((c) => c.kind === 'stream').length - streamsBeforeNoImage)
+      + ' refs+' + String(visionRefs.length - refsBeforeNoImage));
+
+    // 还原：4c 继续测「显式识图模型不支持图片」的老路径。
+    visionModelModalities = ['text', 'image'];
+    liveConfig.vision.provider[VOLATILE_WRITE4B3]('mock-provider');
+    liveConfig.vision.model[VOLATILE_WRITE4B3]('vision-exp');
+    for (const handler of volatileUpdateHandlers) handler([['vision', 'provider'], ['vision', 'model']]);
+    await sleep(200);
+  }
 
   console.log('\n4c. 图片视觉：模型不支持 -> 可读报错（不进入 Agent）');
   const streamsBefore4c = visionCalls.filter((c) => c.kind === 'stream').length;

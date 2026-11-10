@@ -252,8 +252,9 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
     logAdapterFrames: false
     vision:
       enabled: true
-      provider: ''   # 视觉 provider（留空 = 会话模型）
-      model: ''   # 视觉模型 id（留空 = 会话模型；须声明 input: [text, image]）
+      provider: ''   # 识图 provider（与 model 都留空 = 复用会话模型，图片当附件直接进会话）
+      model: ''   # 识图模型 id（填了则先识别成文字再并入回复；须声明 input: [text, image]）
+      # 两条路径共用：附件名/落盘名 = 内容 sha1 前 16 位 + 扩展名；正文 [图片] 占位符会换成 [图片<文件名>]
       maxImages: 3   # 单条消息最多送入几张图
       downloadTimeoutMs: 10000
     webSearch:
@@ -336,6 +337,10 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 ## 4. 工具细节
 
 插件注册 10 个工具，访客只能看到 `auth.guestToolAllow` 里的。工具之间共用同一套权限判定（见 README「权限与指令」）。
+
+工具描述是**零成本引导位**：`description` 每轮请求都会随 schema 下发，所以「什么时候该主动用」直接写在描述里
+（`qq_sticker` 是最早这么写的一个：合适就主动挑一张发出去）。这样不用往会话提示词里塞东西，也不会因为
+不同 preset 的人格提示词不同而失效。新增工具时请把触发条件写进描述，而不是只罗列能力。
 
 ### qqbot
 

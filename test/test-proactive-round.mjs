@@ -73,7 +73,7 @@ const ENGLISH_REJECT = "Sorry, it looks like I can't chat about this topic right
  * @param {{ label: string, judgeMessage: string, proactive?: object, verify: Function }} options
  */
 async function runScenario(options) {
-  const { label, judgeMessage, proactive: overrides, verify } = options;
+  const { label, judgeMessage, proactive: overrides, verify, speakReasoningOnly } = options;
   console.log('\n场景：' + label);
   const mock = await startMockOneBot({ quiet: true });
   const disposers = [];
@@ -161,8 +161,17 @@ async function runScenario(options) {
           return;
         }
         stats.speakCalls += 1;
+        // 推理型模型：正文全落在 reasoning-delta（实测 deepseek-flash 就是这样）。
+        // 走 shared/stream-text.js 的兜底后，思考里的内容应当被当作发言正文发出去。
+        if (speakReasoningOnly === true) {
+          yield { type: 'reasoning-delta', index: 0, text: '那就下午三点老地方见' };
+          return;
+        }
         // 发言阶段故意返回整句英文拒绝语：requireCjk 开着时应当被拦，然后回退到判断正文。
+        // 顺带模拟真实上游：text-delta 之后还会给一个 block-end（整块文本），
+        // 两者只能二选一——如果被相加，同一句拒绝语会变成两遍。
         yield { type: 'text-delta', index: 0, text: ENGLISH_REJECT };
+        yield { type: 'block-end', index: 0, block: { type: 'text', text: ENGLISH_REJECT } };
       },
     },
   };
@@ -254,6 +263,20 @@ for (const scenario of [
       check('英文拒绝语没有被发出去', !/^Sorry,/i.test(text), JSON.stringify(text.slice(0, 40)));
       check('回退到了判断阶段的正文', text.includes('老地方'), JSON.stringify(text));
       check('verbose 日志记录了 no-cjk 拦截', logs().some((l) => l.includes('no-cjk')), 'logLines=' + logs().length);
+    },
+  },
+  {
+    label: '两段式 + 推理型发言模型：正文为空 → 从 reasoning 兜底 → 正常发出',
+    judgeMessage: JUDGE_TEXT,
+    speakReasoningOnly: true,
+    proactive: { speakProvider: 'speak-p', speakModel: 'speak-m', speakFallback: true, requireCjk: true },
+    async verify({ mock, stats, logs, waitFor }) {
+      const sentGroup = await waitFor(() => mock.sent.find((s) => Number(s.group_id) === 33333 || Number(s.target_id) === 33333), 20000, 'reasoning 兜底后的主动发言');
+      const text = textOf({ message: sentGroup.message });
+      check('推理型发言模型：只调用了 1 次（没被当空返回重试）', stats.speakCalls === 1, 'speakCalls=' + stats.speakCalls);
+      check('推理型发言模型：思考里的内容被发出来了', text.includes('老地方'), JSON.stringify(text));
+      check('推理型发言模型：内容没有被重复两遍', text.split('老地方').length === 2, JSON.stringify(text));
+      check('推理型发言模型：日志说明了从 reasoning 兜底', logs().some((line) => line.includes('reasoning')), 'logLines=' + logs().length);
     },
   },
   {
