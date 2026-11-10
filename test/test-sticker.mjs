@@ -313,15 +313,134 @@ try {
   // 改成 resolve 反而会在 Windows 上失败。
   check('留空 = <QQ_msg>/sticker', defaultLib.library.resolveDir() === join('/tmp/qqroot', 'sticker'), defaultLib.library.resolveDir());
 
+  console.log('\n16b. 偷表情包：大小闸 / 去重 / 元数据判定');
+
+  // 大小闸：publicFetch 是「边读边截」，超限的响应 body 会被截到 maxBytes。
+  // 原来只看 `buf.length > maxBytes`，恒为 false → 超限图被静默截成残缺文件写进库。
+  // 修法是多要 1 字节并看 truncated 标记，这里用网络钩子把两种情形都跑一遍。
+  {
+    const policy = await import('../lib/valve/network/policy.js');
+    const root = join(tmpRoot, 'collect');
+    // collectChance=1：这一段测的是大小闸/去重/下限，不要被随机闸干扰
+    const { library: collectLib } = makeLibrary(root, { sticker: { collect: true, collectMaxMb: 1, collectMaxCount: 0, autoTag: false, collectChance: 1 } });
+    const gifBytes = (size) => {
+      const b = Buffer.alloc(size, 0);
+      b[0] = 0x47; b[1] = 0x49; b[2] = 0x46; b[3] = 0x39;   // GIF89a
+      return b;
+    };
+    let nextBody = gifBytes(1024);
+    let nextTruncated = false;
+    policy.__setNetworkHooks({
+      lookup: async () => [{ address: '93.184.216.34', family: 4 }],
+      request: async () => ({
+        status: 200, body: nextBody, headers: {}, contentType: 'image/gif',
+        setCookie: '', location: '', truncated: nextTruncated, finalUrl: 'https://example.com/a.gif',
+      }),
+    });
+
+    // 1MB 上限内：收下
+    nextBody = gifBytes(900 * 1024);
+    nextTruncated = false;
+    const okSmall = await collectLib.collect('https://example.com/small.gif');
+    check('1MB 上限内的 gif 能收（status=new）', okSmall.status === 'new', JSON.stringify(okSmall));
+
+    // 超限：响应被截断 → 必须 skip，不能落残缺文件
+    nextBody = gifBytes(1024 * 1024 + 1);
+    nextTruncated = true;
+    const overLimit = await collectLib.collect('https://example.com/big.gif');
+    check('超上限的图按 truncated 判定为 skip（不是静默截断入库）',
+      overLimit.status === 'skip' && String(overLimit.reason).includes('超过大小上限'), JSON.stringify(overLimit));
+
+    // 同一张图第二次：dup，不重复落盘
+    nextBody = gifBytes(900 * 1024);
+    nextTruncated = false;
+    const dup = await collectLib.collect('https://example.com/small.gif');
+    check('同图再收一次返回 dup（sha1 命中已有条目）', dup.status === 'dup' && dup.id === okSmall.id, JSON.stringify(dup));
+
+    // GIF 首帧兜底：raw image/gif 打标拿到空文本时，应自动解首帧 PNG 重试
+    {
+      const gifRoot = join(tmpRoot, 'gif-fallback');
+      mkdirSync(join(gifRoot, '系列'), { recursive: true });
+      // 造一个能被 gif.js 解出来的最小 GIF（用库里已有的写图助手不行，直接拷一张真实测试图）
+      const { gifFirstFrameToPng } = await import('../lib/tools/sticker.js');
+      const tinyGif = Buffer.from('R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7', 'base64');
+      check('测试用最小 GIF 能解出首帧', gifFirstFrameToPng(tinyGif) !== null, String(gifFirstFrameToPng(tinyGif) === null));
+      writeFileSync(join(gifRoot, '系列/1.gif'), tinyGif);
+      const fb = makeLibrary(gifRoot, {
+        // 打标空返回会自动重试一次：所以 raw 那条给连两次空（第 1、2 次），
+        // 触发 GIF→首帧 PNG 兜底后才给正常标签（第 3 次）。
+        reply: (n) => (n <= 2 ? '' : '【标签】兜底,测试' + '\n' + '【描述】首帧兜底成功'),
+      });
+      // gifCompat 关：走 raw 失败 → 首帧兜底的路径
+      fb.config.sticker.gifCompat = false;
+      const report = await fb.library.sync({ tag: true });
+      check('GIF 打标失败后自动用首帧重试成功', report.tagged === 1 && report.failed === 0,
+        JSON.stringify({ tagged: report.tagged, failed: report.failed, errors: report.errors }));
+      check('兜底成功时记下了 GIF→PNG 的 tagNote',
+        JSON.stringify(loadIndexAt(gifRoot).index.items[0] || {}).includes('PNG'), '');
+    }
+
+    // 太小不收：90KB 以下一律丢弃（实测 8KB 小图打标稳定空返回）
+    {
+      nextTruncated = false;
+      nextBody = gifBytes(8 * 1024);
+      const tooSmall = await collectLib.collect('https://example.com/tiny.gif');
+      check('小于 90KB 的图一律丢弃（打标模型对这类图稳定空返回）',
+        tooSmall.status === 'skip' && String(tooSmall.reason).includes('太小'), JSON.stringify(tooSmall));
+      nextBody = gifBytes(95 * 1024);
+      const justAbove = await collectLib.collect('https://example.com/edge.gif');
+      check('刚好过 90KB 的图能收', justAbove.status === 'new', JSON.stringify(justAbove));
+    }
+
+    // 数量上限是硬限制：关掉「自动删最早」时，到顶就不再收（而不是形同虚设）
+    {
+      const cap = makeLibrary(join(tmpRoot, 'cap'), { sticker: { collect: true, collectChance: 1, collectMaxMb: 1, collectMaxCount: 2, collectAutoTrim: false, autoTag: false } });
+      nextTruncated = false;
+      const r = [];
+      for (let i = 0; i < 4; i += 1) {
+        nextBody = gifBytes(900 * 1024 + i);   // 每张内容不同，避免被 dup 掉
+        r.push(await cap.library.collect('https://example.com/cap' + i + '.gif'));
+      }
+      check('关自动删时到上限就不再收（前 2 张收下，后 2 张 skip）',
+        r[0].status === 'new' && r[1].status === 'new' && r[2].status === 'skip' && r[3].status === 'skip'
+        && String(r[2].reason).includes('已到数量上限'),
+        JSON.stringify(r.map((x) => x.status + (x.reason ? ':' + String(x.reason).slice(0, 18) : ''))));
+    }
+
+    // 概率闸：chance=0 恒不收；chance=1 恒收（跳过随机，便于断言）
+    {
+      // makeLibrary 返回 { library, calls, config, ctx }，不是库本身
+      const gate = makeLibrary(join(tmpRoot, 'chance'), { sticker: { collect: true, collectMaxMb: 1, collectMaxCount: 0, autoTag: false, collectChance: 0 } });
+      const gateLib = gate.library;
+      nextBody = gifBytes(900 * 1024);
+      nextTruncated = false;
+      const blocked = await gateLib.collect('https://example.com/chance-blocked.gif');
+      check('collectChance=0 时一张都不收', blocked.status === 'skip' && String(blocked.reason).includes('概率闸'), JSON.stringify(blocked));
+
+      gate.config.sticker.collectChance = 1;
+      const passed = await gateLib.collect('https://example.com/chance-pass.gif');
+      check('collectChance=1 时必收（不受随机影响）', passed.status === 'new', JSON.stringify(passed));
+    }
+
+    // 元数据判定：普通照片不收、收藏表情/GIF 收
+    const { isStickerLike } = await import('../lib/message/segments.mjs');
+    check('普通照片（sub=0 + 空 summary + .jpg）不算表情包',
+      isStickerLike({ subType: 0, summary: '', ext: '.jpg' }) === false);
+    check('收藏表情（sub=1）算表情包', isStickerLike({ subType: 1, summary: '', ext: '.jpg' }) === true);
+    check('自制 GIF（.gif）算表情包', isStickerLike({ subType: 0, summary: '', ext: '.gif' }) === true);
+    check('「动画表情」summary 也算表情包', isStickerLike({ subType: 0, summary: '[动画表情]', ext: '.jpg' }) === true);
+    policy.__setNetworkHooks(null);
+  }
+
   console.log('\n17. 配置契约（默认值与设置字段）');
   const config = await import('../lib/config.js');
   check('schema 里有 sticker 组且默认开启', config.DEFAULTS.sticker.enabled === true && config.DEFAULTS.sticker.autoTag === true);
   const stickerFields = config.SETTINGS_FIELDS.filter((field) => field.group === 'sticker');
-  check('设置页有 11 个表情包字段（含闸门三项）', stickerFields.length === 11, String(stickerFields.length));
+  check('设置页有 16 个表情包字段（含收图五项）', stickerFields.length === 16, String(stickerFields.length));
   check('卡片字段挂在 能力 → 表情包', stickerFields.every((field) => field.tab === 'capability' && field.subtab === 'sticker'));
   check('开关是 kind=sticker 的卡片，其余是卡片内字段',
     stickerFields.find((field) => field.path.join('.') === 'sticker.enabled').kind === 'sticker'
-    && stickerFields.filter((field) => field.in === 'sticker-card').length === 10,
+    && stickerFields.filter((field) => field.in === 'sticker-card').length === 15,
     JSON.stringify(stickerFields.map((field) => [field.path.join('.'), field.kind, field.in || ''])));
   console.log('\n18. 设置页路由：状态 / 重建 / 参数校验');
   const { registerStickerRoutes } = await import('../lib/gateway/routes-sticker.js');

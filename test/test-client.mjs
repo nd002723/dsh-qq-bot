@@ -1032,6 +1032,10 @@ try {
     check('provider 路径推导钩子可用', false, '缺少 __providerPathForTest');
   }
 
+  // 孤儿 model 收口：provider 留空时，保存必须把该阶段的 model 一起清空。
+  // 「有 model、没 provider」运行时 resolveModel() 成不了对，等于配了个寂寞。
+  check('源码里有 provider 为空 → 清空 orphan model 的收口', /orphanModelPaths/.test(bundleSource), '');
+
   if (typeof plugin.__providerOptionsForTest === 'function') {
     const opts = plugin.__providerOptionsForTest([{ id: 'uymu-free', name: '鸡蛋', models: [] }], 'uymu-image', '（留空）');
     const values = opts.map((pair) => pair[0]);

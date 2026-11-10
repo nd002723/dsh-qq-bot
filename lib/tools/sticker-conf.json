@@ -11,6 +11,11 @@
     "timeoutMs": 60000,
     "chance": 0.3,
     "maxPerHour": 6,
-    "dupTTLHours": 24
+    "dupTTLHours": 24,
+    "collect": false,
+    "collectMaxMb": 2,
+    "collectMaxCount": 100,
+    "collectAutoTrim": false,
+    "collectChance": 0.3
   }
 }

@@ -37,6 +37,66 @@
     {
       "path": [
         "sticker",
+        "collect"
+      ],
+      "label": "偷表情包（群里收到的图自动入库）",
+      "kind": "bool",
+      "in": "sticker-card",
+      "hint": "默认关闭。开启后群里/私聊收到的图片按消息元数据判定：收藏表情（sub_type=1）、带「动画表情」标记的、以及 .gif 才会收进图库的 get_stickers 系列；普通实拍照片、截图一律不收"
+    },
+    {
+      "path": [
+        "sticker",
+        "collectMaxMb"
+      ],
+      "label": "收图大小上限（MB）",
+      "kind": "number",
+      "in": "sticker-card",
+      "hint": "超过这个大小的图不收（避免把大照片/原图塞进图库）；最大 10MB",
+      "min": 0.1,
+      "max": 10,
+      "step": 0.1,
+      "slider": true,
+      "unit": "MB"
+    },
+    {
+      "path": [
+        "sticker",
+        "collectChance"
+      ],
+      "label": "收图概率",
+      "kind": "number",
+      "in": "sticker-card",
+      "hint": "0–1：群里每张表情包按这个概率才收进图库。0 = 一张都不收，1 = 全收，默认 0.3（大概每三张收一张）。群里斗图时不会把图库塞爆",
+      "min": 0,
+      "max": 1,
+      "step": 0.01,
+      "slider": true
+    },
+    {
+      "path": [
+        "sticker",
+        "collectMaxCount"
+      ],
+      "label": "收图数量上限",
+      "kind": "number",
+      "in": "sticker-card",
+      "hint": "直接填纯数字：get_stickers 系列最多留几张（0 = 不限）。到上限后**不再收新图**；想继续收就调大它，或打开下面「超上限自动删最早的」腾位置",
+      "digitsOnly": true
+    },
+    {
+      "path": [
+        "sticker",
+        "collectAutoTrim"
+      ],
+      "label": "超上限自动删最早的",
+      "kind": "bool",
+      "in": "sticker-card",
+      "hint": "默认关闭。关闭时：到上面的数量上限就不收新图了。打开时：每收一张就删掉最早的一张，图库数量恒定在上限、内容会滚动更新（删掉的不可恢复）"
+    },
+    {
+      "path": [
+        "sticker",
         "gifCompat"
       ],
       "label": "GIF 兼容模式",
