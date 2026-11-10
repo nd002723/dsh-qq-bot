@@ -8,16 +8,20 @@
   },
   "type": "module",
   "main": "lib/index.js",
+  "icon": "icon.webp",
   "exports": {
     ".": "./lib/index.js",
     "./adapter": "./lib/transport/onebot-adapter.mjs",
     "./client": {
       "default": "./lib/client/settings.js"
     },
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./locale/*.json": "./locale/*.json"
   },
   "files": [
     "lib",
+    "locale",
+    "icon.webp",
     "cordis.patch.yml",
     "README.md",
     "docs",

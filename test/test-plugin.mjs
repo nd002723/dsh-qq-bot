@@ -1131,7 +1131,7 @@ try {
   const unsupportedSent = await waitFor(() => (mock.sent.length > sentBeforeUnsupported ? mock.sent[mock.sent.length - 1] : null), 15000, '不支持报错到达假 OneBot');
   check('模型不支持时仍回复（可读报错）', Boolean(unsupportedSent), 'sent=' + mock.sent.length);
   const unsupportedReply = textOf(unsupportedSent);
-  // 引导路径统一成「插件 → 已安装 → @sputnikzaychik/dsh-qq-bot」后，这里断言新的分区名
+  // 引导路径统一成「插件 → 已安装 → QQ 机器人」后，这里断言新的分区名
   check('报错提示了切换模型', unsupportedReply.includes('不支持图片识别') && unsupportedReply.includes('识图与绘图'),
     JSON.stringify(unsupportedReply.slice(0, 200)));
   check('未进入 Agent（没有识别流）', visionCalls.filter((c) => c.kind === 'stream').length === streamsBefore4c,
