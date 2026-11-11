@@ -1,4 +1,4 @@
-# 架构（0.13.0）
+# 架构（0.14.0）
 
 把 QQ 消息桥给 DSH Agent：五种聊天协议各有一个**独立子进程适配器**，插件内核只认一套 stdio 帧和一套统一消息段（OneBot 11 风格）。帧的权威定义只有一处：[lib/transport/bridge/CONTRACT.md](../lib/transport/bridge/CONTRACT.md)。
 
