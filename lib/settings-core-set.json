@@ -626,6 +626,30 @@
     },
     {
       "path": [
+        "reply",
+        "imageHint"
+      ],
+      "label": "图片提示（QQ 会话专用的系统提示）",
+      "kind": "multiline",
+      "hint": "说明图片清单怎么读（[图片<文件名>] / [被回复消息的图片] / [图片文件]）、什么时候该反搜、别凭空猜。挂成 agent 级 system prompt 每轮生效；留空 = 不注入，此时会退回把同一段话塞进带图片的那条消息里。",
+      "placeholder": "（留空 = 不注入，改用消息内的提示）",
+      "tab": "advanced",
+      "subtab": "session"
+    },
+    {
+      "path": [
+        "reply",
+        "stylePrompt"
+      ],
+      "label": "输出风格提示（QQ 会话专用的系统提示）",
+      "kind": "multiline",
+      "hint": "这段文字会挂在本插件建的每个 QQ 会话的 agent 上，作为系统提示每轮都生效（不影响 DSH 里其它会话）。默认那版压住 Markdown、把回复压成一到两句好拆成多个气泡，并包含「主动调 qq_history」这类固定引导。填了它就不再往首轮消息里塞旧的提示词；把它清空才会回退到那条旧的首轮提示。",
+      "placeholder": "（留空 = 不注入输出风格提示）",
+      "tab": "advanced",
+      "subtab": "session"
+    },
+    {
+      "path": [
         "logAdapterFrames"
       ],
       "label": "日志打印每一帧（排错）",
@@ -1121,7 +1145,7 @@
       "subtab": "govern",
       "slider": true,
       "min": 0,
-      "max": 5000,
+      "max": 10000,
       "step": 100,
       "unit": "毫秒"
     },
@@ -1137,7 +1161,7 @@
       "subtab": "govern",
       "slider": true,
       "min": 0,
-      "max": 5000,
+      "max": 10000,
       "step": 100,
       "unit": "毫秒"
     },

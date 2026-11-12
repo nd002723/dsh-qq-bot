@@ -150,9 +150,14 @@ function fakeAgent(sessionId) {
     restricts: [],
     registers: [],
     ctx: {
+      // 输出风格提示挂在这个 agent 作用域的 systemPrompt 上（只有 QQ 会话看得到）。
+      styleSections: [],
+      systemPrompt: {
+        section(spec) { agent.ctx.styleSections.push(spec); return () => {}; },
+      },
       tools: {
         guard(fn) { agent.guards.push(fn); return () => { const i = agent.guards.indexOf(fn); if (i >= 0) agent.guards.splice(i, 1); }; },
-        get() { return undefined; },
+        get(name) { return name === 'systemPrompt' ? agent.ctx.systemPrompt : undefined; },
         restrict(filter) { agent.restricts.push(filter); return () => {}; },
         register(definition) { agent.registers.push(definition); return () => {}; },
       },
@@ -525,7 +530,23 @@ try {
   const replyText = textOf(sent[0]);
   check('回复带上了 QQ 上下文头', replyText.startsWith('REPLY:[QQ群 33333 · 小明(22222)'), JSON.stringify(replyText.slice(0, 60)));
   check('上下文头带上了说话人身份（交给 Agent 判断）', replyText.includes('身份:'), JSON.stringify(replyText.slice(0, 60)));
-  check('首轮追加了人格提示', replyText.includes('这是一次 QQ 聊天'), JSON.stringify(replyText.slice(0, 40)));
+  // 输出风格改成 agent 级 system prompt 后，首轮提示词不再塞进 user 消息（两者内容重叠）。
+  const firstAgent = agents.get('qqbot-group-33333') || agents.values().next().value;
+  const styleSections = (firstAgent !== undefined && firstAgent.ctx !== undefined && Array.isArray(firstAgent.ctx.styleSections))
+    ? firstAgent.ctx.styleSections : [];
+  const styleNames = styleSections.map((s) => s.name);
+  check('输出风格与图片提示都挂成了 agent 级 system prompt',
+    styleNames.includes('qq:output-style') && styleNames.includes('qq:image-hint'),
+    JSON.stringify(styleNames));
+  check('输出风格排在图片提示之前（order 100 < 200）',
+    styleSections.every((s) => (s.name === 'qq:output-style' ? s.order === 100 : s.order === 200)),
+    JSON.stringify(styleSections.map((s) => s.name + '@' + s.order)));
+  check('首轮上下文不再塞风格提示（改由系统提示承担）',
+    !replyText.includes('这是一次 QQ 聊天'),
+    JSON.stringify(replyText.slice(0, 40)));
+  check('系统提示挂上后，消息里不再重复塞图片提示',
+    !replyText.includes('别凭空猜') && !replyText.includes('kind=comic'),
+    JSON.stringify(replyText.slice(0, 60)));
   check('会话通过 sessionController 创建', createdSessions.length === 1 && createdSessions[0].sessionId === 'qqbot-group-33333',
     JSON.stringify(createdSessions.map((s) => s.sessionId)));
   check('会话传了 workspaceId（自动归入 QQ_msg 分组）', typeof createdSessions[0].workspaceId === 'string' && createdSessions[0].workspaceId.startsWith('ws-'), JSON.stringify(createdSessions[0]));
@@ -1131,6 +1152,7 @@ try {
   const unsupportedSent = await waitFor(() => (mock.sent.length > sentBeforeUnsupported ? mock.sent[mock.sent.length - 1] : null), 15000, '不支持报错到达假 OneBot');
   check('模型不支持时仍回复（可读报错）', Boolean(unsupportedSent), 'sent=' + mock.sent.length);
   const unsupportedReply = textOf(unsupportedSent);
+
   // 引导路径统一成「插件 → 已安装 → QQ 机器人」后，这里断言新的分区名
   check('报错提示了切换模型', unsupportedReply.includes('不支持图片识别') && unsupportedReply.includes('识图与绘图'),
     JSON.stringify(unsupportedReply.slice(0, 200)));
