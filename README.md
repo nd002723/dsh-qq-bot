@@ -10,7 +10,7 @@
 
 [![release](https://img.shields.io/npm/v/@sputnikzaychik/dsh-qq-bot?style=flat-square&label=release&color=6f83ff)](https://www.npmjs.com/package/@sputnikzaychik/dsh-qq-bot)
 [![DSH](https://img.shields.io/badge/DSH-%E2%89%A50.2.0--rc.2-8b5cf6?style=flat-square)](#版本支持政策)
-[![tests](https://img.shields.io/badge/tests-1869%20passing-brightgreen?style=flat-square)](docs/DEVELOPMENT.md)
+[![tests](https://img.shields.io/badge/tests-1864%20passing-brightgreen?style=flat-square)](docs/DEVELOPMENT.md)
 [![node](https://img.shields.io/badge/node-%E2%89%A522.6-339933?style=flat-square)](https://nodejs.org/)
 [![license](https://img.shields.io/badge/license-MIT-536990?style=flat-square)](LICENSE)
 
@@ -226,7 +226,7 @@ npx tsc --noEmit        # 类型检查（JSDoc + checkJs，不引入构建产物
 
 | 文档 | 内容 |
 | --- | --- |
-| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 本地开发与测试（49 套件 / 1869 项）、完整配置参考、工具细节、文件清单、设计取舍、发布流程 |
+| [DEVELOPMENT.md](docs/DEVELOPMENT.md) | 本地开发与测试（49 套件 / 1864 项）、完整配置参考、工具细节、文件清单、设计取舍、发布流程 |
 | [ARCHITECTURE.md](docs/ARCHITECTURE.md) | 分层图、模块职责、关键数据流、身份契约、已知边界 |
 | [USAGE.md](docs/USAGE.md) | 连接模式细节、权限与指令表、表情包图库、排错手册 |
 | [CHANGELOG.md](CHANGELOG.md) | 0.1.0 → 0.14.0 的完整演进 |

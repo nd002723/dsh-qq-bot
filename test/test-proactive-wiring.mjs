@@ -74,6 +74,7 @@ console.log('\n4. 依赖齐了就不再报缺');
       callAdapterAction: async () => ({ ok: true }),
       getSessionApi: () => ({ getEntry: async () => null }),
       writeToAdapter: () => true,
+      runProactiveTurn: async () => ({ ok: true, text: '回合产出', reason: '' }),
     });
     if (typeof surface.stopProactive === 'function') surface.stopProactive();
   } finally {
@@ -130,11 +131,11 @@ console.log('\n7. 主动发言发表情包：接线 + 隐式引导');
   check('plugin 传了 sendStickerWithText', /sendStickerWithText\s*:/.test(callBlock), callBlock.slice(0, 260));
   check('plugin 传了 stickerAvailable', /stickerAvailable\s*:/.test(callBlock), callBlock.slice(0, 260));
 
-  check('表面层只在图库可用时向模型要关键词', /sticker:\s*wantsSticker/.test(surfaceSrc), '');
-  check('表面层把文字交给 sendStickerWithText', /sendStickerWithText\(\{ groupId, query: stickerQuery, text: verdict\.text \}\)/.test(surfaceSrc), '');
-  check('挑不到图时退回纯文字（带上插件侧给出的原因）', /没挑到合适表情包/.test(surfaceSrc) && /stickerWhy/.test(surfaceSrc), '');
+  // A1 之后正文由 agent 回合生成，本模块不再调 sendStickerWithText 拼图文——
+  // 表情包的「挑不到 / 闸门拒绝」两条原因仍由插件侧提供，这里只验那条接线还在。
+  check('表面层仍会问图库是否可用（决定是否要模型给关键词）', /sticker:\s*wantsSticker/.test(surfaceSrc), '');
   check('插件侧把「挑不到」与「闸门拒绝」分成两种原因', /没挑到合适表情包（关键词：/.test(pluginSrc) && /表情包闸门未通过：/.test(pluginSrc), '');
-  check('演练模式不发表情包', /本想配表情包关键词/.test(surfaceSrc), '');
+  check('演练模式只记话题、不触发回合', /演练，不触发回合/.test(surfaceSrc), '');
 
   // 隐式引导只落在工具描述里，不进会话提示词
   check('qq_sticker 描述里写明可以主动用', /就主动挑一张发出去，不用等用户开口要/.test(toolsSrc), '');

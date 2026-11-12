@@ -815,7 +815,7 @@ try {
   check('纯回复 bot（无正文）：引用回复', sent5a[0].message[0] && sent5a[0].message[0].type === 'reply', JSON.stringify(sent5a[0].message));
   const text5a = textOf(sent5a[0]);
   check('纯回复 bot（无正文）：Agent 收到占位正文（不再自动塞上下文）',
-    text5a.includes('仅点名了 bot') && !text5a.includes('用户说过的话'), JSON.stringify(text5a.slice(0, 140)));
+    text5a.includes('只有 @') && !text5a.includes('用户说过的话'), JSON.stringify(text5a.slice(0, 140)));
 
   // (2) 只 @bot（只有 at 段，无文字）
   mock.history.length = 0;
@@ -830,7 +830,7 @@ try {
   check('只 @bot（无正文）：引用回复', sent5b[0].message[0] && sent5b[0].message[0].type === 'reply', JSON.stringify(sent5b[0].message));
   const text5b = textOf(sent5b[0]);
   check('只 @bot（无正文）：Agent 收到占位正文（不拉上下文）',
-    text5b.includes('仅点名了 bot') && !text5b.includes('最近相关发言'), JSON.stringify(text5b.slice(0, 140)));
+    text5b.includes('只有 @') && !text5b.includes('最近相关发言'), JSON.stringify(text5b.slice(0, 140)));
 
   // (3) 回复别人 + @bot + 无正文
   mock.history.length = 0;
@@ -848,7 +848,7 @@ try {
   check('回复别人 + @bot（无正文）：引用回复', sent5c[0].message[0] && sent5c[0].message[0].type === 'reply', JSON.stringify(sent5c[0].message));
   const text5c = textOf(sent5c[0]);
   check('回复别人 + @bot（无正文）：占位正文（不再自动塞被回复者发言）',
-    text5c.includes('仅点名了 bot') && !text5c.includes('别人消息'), JSON.stringify(text5c.slice(0, 140)));
+    text5c.includes('只有 @') && !text5c.includes('别人消息'), JSON.stringify(text5c.slice(0, 140)));
 
   console.log('\n4a6. 被回复消息不在最近历史（窗口外）-> 不再并入上下文（AI 自取走 qq_history）');
   mock.history.length = 0;
@@ -892,7 +892,7 @@ try {
   const sent7 = await waitFor(() => (mock.sent.length > before7 ? mock.sent.slice(before7) : null), 15000, '最低2条兜底');
   const text7 = textOf(sent7[0]);
   check('相关发言为空：不再并入被回复消息（bot 很久前的消息不塞上下文）', !text7.includes('bot 很久前的消息'), JSON.stringify(text7.slice(0, 160)));
-  check('相关发言为空时上下文含发言人本条（最低 2 条兜底）', text7.includes('仅点名了 bot'), JSON.stringify(text7.slice(0, 160)));
+  check('相关发言为空时上下文含发言人本条（最低 2 条兜底）', text7.includes('只有 @'), JSON.stringify(text7.slice(0, 160)));
   check('最低 2 条兜底：不硬补其它群友', !text7.includes('别的群友插话'), JSON.stringify(text7.slice(0, 160)));
 
   console.log('\n4b. 图片视觉：模型支持时识别并入 Agent 输入');

@@ -94,6 +94,9 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
   const ownDir = imageCacheDir(sessionId);
   const outside = join(qqMsgRootSync(), 'outside-secret.txt');
   const link = join(ownDir, 'steal.png');
+  // finally 里要清理的文件路径（try 块里赋值）
+  let sendRoot = '';
+  let sendOk = '';
   let cleaned = false;
   try {
     mkdirSync(ownDir, { recursive: true });
@@ -108,8 +111,9 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
 
     // qqbot send 走的是另一条判定（lib/tools/index.js 的 resolveSendImagePath）：
     // 2026-10-29 注释审查发现它当时只做字符串前缀比较，同一个洞还开着。
-    const sendRoot = join(qqMsgRootSync(), 'qq-images');
-    const sendOk = join(sendRoot, 'ok-send.png');
+    // 提到外层：finally 里要清它，块级 const 在 finally 里取不到（会静默 ReferenceError 被 catch 吞掉）。
+    sendRoot = join(qqMsgRootSync(), 'qq-images');
+    sendOk = join(sendRoot, 'ok-send.png');
     writeFileSync(sendOk, 'IMG', 'utf8');
     check('qqbot send：白名单内的普通图片 → 放行',
       resolveSendImagePath(sendOk, sendRoot) === realpathSync(sendOk));
@@ -128,6 +132,8 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
     try { rmSync(join(ownDir, 'steal.png'), { force: true }); } catch { /* ignore */ }
     try { rmSync(join(ownDir, 'escape.png'), { force: true }); } catch { /* ignore */ }
     try { rmSync(join(ownDir, 'ok.png'), { force: true }); } catch { /* ignore */ }
+    // ok-send.png 直接写在 qq-images 根下（不在 ownDir 内），下面那个 rmSync(ownDir, recursive) 清不到它。
+    try { rmSync(sendOk, { force: true }); } catch { /* ignore */ }
     try { rmSync(outside, { force: true }); } catch { /* ignore */ }
     try { rmSync(ownDir, { recursive: true, force: true }); cleaned = true; } catch { /* ignore */ }
   }
