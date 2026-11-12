@@ -15,6 +15,7 @@
 import { readFileSync } from 'node:fs';
 import { createTurnRuntime } from '../lib/gateway/turn-runtime.js';
 import { createAuthFlow } from '../lib/gateway/auth-flow.js';
+import { buildPersonaHint } from '../lib/gateway/turn-text.js';
 
 let pass = 0;
 let fail = 0;
@@ -103,6 +104,113 @@ console.log('3. 续跑链端到端（真实 auth-flow + 真实工厂产物）');
   console.error = savedError;
   check('runTurn 缺失时回合不会续上（静默失败）', state.stats.errors === 1);
   check('只打一行日志、不惊动用户', logged.length === 1 && logged[0].includes('授权后续跑失败'), logged.join(' | '));
+}
+
+
+console.log('6. 输出风格系统提示：挂成 agent 级 section，只作用于本插件的 QQ 会话');
+{
+  const makeAgent = () => ({ ctx: { sections: [], sp: { section(spec) { this.calls = (this.calls || 0) + 1; this.last = spec; }, } } });
+  const makeSp = (agent) => {
+    agent.ctx.sp.section = (spec) => { agent.ctx.sections.push(spec); };
+    return agent.ctx.sp;
+  };
+  const runtime = createTurnRuntime({
+    TAG: '[test]', getConfig: () => ({ verbose: false, reply: { stylePrompt: '输出纯文本，不要 Markdown' } }),
+    ctx: { get: () => undefined }, getState: () => ({}), describeError: (e) => String(e && e.message ? e.message : e),
+  });
+  const agent = makeAgent();
+  agent.ctx.get = (name) => (name === 'systemPrompt' ? makeSp(agent) : undefined);
+  runtime.ensureStyleSection(agent);
+  runtime.ensureStyleSection(agent);
+  check('只注册一次（重复调用不重复挂段）', agent.ctx.sections.length === 1, String(agent.ctx.sections.length));
+  const spec = agent.ctx.sections[0] || {};
+  check('段落名固定 qq:output-style', spec.name === 'qq:output-style', String(spec.name));
+  check('不开模板插值（避免 {{}} 被解析）', spec.interpolate === false, String(spec.interpolate));
+  check('段落序在人格之后、工具说明之前', spec.order === 100, String(spec.order));
+  check('文本来自 reply.stylePrompt', spec.text === '输出纯文本，不要 Markdown', String(spec.text).slice(0, 24));
+
+  const emptyRuntime = createTurnRuntime({
+    TAG: '[test]', getConfig: () => ({ verbose: false, reply: { stylePrompt: '' } }),
+    ctx: { get: () => undefined }, getState: () => ({}), describeError: String,
+  });
+  const agent2 = makeAgent();
+  agent2.ctx.get = (name) => (name === 'systemPrompt' ? makeSp(agent2) : undefined);
+  emptyRuntime.ensureStyleSection(agent2);
+  check('stylePrompt 留空就不注入（complete 人格 preset 下的退路）', agent2.ctx.sections.length === 0, String(agent2.ctx.sections.length));
+
+  const agent3 = makeAgent();
+  agent3.ctx.get = () => undefined;
+  runtime.ensureStyleSection(agent3);
+  check('没有 systemPrompt 服务时静默跳过', agent3.ctx.sections.length === 0);
+
+  const agent4 = { ctx: { get() { throw new Error('boom'); } } };
+  let threw = false;
+  try { runtime.ensureStyleSection(agent4); } catch (error) { threw = true; }
+  check('注册失败不把异常抛给回合', threw === false);
+}
+
+console.log('6b. 图片提示：同样的 agent 级 section，可与风格段共存');
+{
+  const makeAgent = () => ({ ctx: { sections: [] } });
+  const wire = (agent) => {
+    agent.ctx.systemPrompt = { section(spec) { agent.ctx.sections.push(spec); } };
+    agent.ctx.get = (name) => (name === 'systemPrompt' ? agent.ctx.systemPrompt : undefined);
+    return agent;
+  };
+  const runtime = createTurnRuntime({
+    TAG: '[test]',
+    getConfig: () => ({ verbose: false, reply: { stylePrompt: '风格', imageHint: '图片提示' } }),
+    ctx: { get: () => undefined }, getState: () => ({}), describeError: String,
+  });
+  const agent = wire(makeAgent());
+  check('图片提示挂上（返回 true）', runtime.ensureImageHintSection(agent) === true);
+  check('段名固定 qq:image-hint', agent.ctx.sections[0].name === 'qq:image-hint', String(agent.ctx.sections[0].name));
+  check('图片提示排在风格之后（order 200）', agent.ctx.sections[0].order === 200, String(agent.ctx.sections[0].order));
+  check('两段可共存、互不影响', runtime.ensureStyleSection(agent) === true && agent.ctx.sections.length === 2,
+    JSON.stringify(agent.ctx.sections.map((s) => s.name)));
+  check('同一段重复调用不重复挂', runtime.ensureImageHintSection(agent) === true && agent.ctx.sections.length === 2);
+
+  const runtime2 = createTurnRuntime({
+    TAG: '[test]', getConfig: () => ({ verbose: false, reply: { stylePrompt: '风格', imageHint: '' } }),
+    ctx: { get: () => undefined }, getState: () => ({}), describeError: String,
+  });
+  const agent2 = wire(makeAgent());
+  check('imageHint 留空就不挂（消息内文本兜底）', runtime2.ensureImageHintSection(agent2) === false, String(agent2.ctx.sections.length));
+
+  const agent3 = { ctx: { get: () => undefined } };
+  check('没有 systemPrompt 服务时返回 false，由消息内文本兜底', runtime.ensureImageHintSection(agent3) === false);
+}
+
+console.log('6c. 人格段：同一套 attachAgentSection，排在风格之前');
+{
+  const makeAgent = () => ({ ctx: { sections: [] } });
+  const wire = (agent) => {
+    agent.ctx.systemPrompt = { section(spec) { agent.ctx.sections.push(spec); } };
+    agent.ctx.get = (name) => (name === 'systemPrompt' ? agent.ctx.systemPrompt : undefined);
+    return agent;
+  };
+  const makeRuntime = (persona) => createTurnRuntime({
+    TAG: '[test]',
+    getConfig: () => ({ verbose: false, persona, reply: { stylePrompt: '', imageHint: '' } }),
+    ctx: { get: () => undefined }, getState: () => ({}), describeError: String, buildPersonaHint,
+  });
+  const runtime = makeRuntime({ enabled: true, name: '小助手', text: '说话简短' });
+  const agent = wire(makeAgent());
+  check('人格段挂上（返回 true）', runtime.ensurePersonaSection(agent) === true);
+  check('段名固定 qq:persona', agent.ctx.sections[0].name === 'qq:persona', String(agent.ctx.sections[0].name));
+  check('人格排在风格之前（order 90）', agent.ctx.sections[0].order === 90, String(agent.ctx.sections[0].order));
+  check('文本沿用 buildPersonaHint 的渲染', agent.ctx.sections[0].text.includes('你是小助手'), String(agent.ctx.sections[0].text).slice(0, 40));
+
+  const offRuntime = makeRuntime({ enabled: false, name: '小助手', text: '说话简短' });
+  const agent2 = wire(makeAgent());
+  check('persona.enabled=false 就不挂', offRuntime.ensurePersonaSection(agent2) === false, String(agent2.ctx.sections.length));
+
+  const emptyRuntime = makeRuntime({ enabled: true, name: '', text: '' });
+  const agent3 = wire(makeAgent());
+  check('名字与设定都空就不挂', emptyRuntime.ensurePersonaSection(agent3) === false);
+
+  const noService = { ctx: { get: () => undefined } };
+  check('没有 systemPrompt 服务时返回 false，由首轮消息兜底', runtime.ensurePersonaSection(noService) === false);
 }
 
 console.log('\n' + pass + ' 通过 / ' + fail + ' 失败');

@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（49 个套件 / 1853 项）
+## 2. 测试（49 个套件 / 1869 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -65,7 +65,7 @@ npm test                   # 同上
 | `test-adapter-satori.mjs` | 70 | Satori 适配器 |
 | `test-adapter-milky.mjs` | 83 | Milky 适配器（含 WebHook 默认准入与读体上限） |
 | `test-adapter-qq-official.mjs` | 109 | QQ 官方适配器（含回调重放防护） |
-| `test-plugin.mjs` | 169 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、10 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（169 项含工具注册段落；解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 122 项 + 6 项 `[SKIP]`） |
+| `test-plugin.mjs` | 172 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、10 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（170 项含工具注册段落；解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 122 项 + 6 项 `[SKIP]`） |
 | `test-client.mjs` | 161 | 客户端设置页：模拟模块加载器 + 最小 React 渲染 + 四档标签（字段来自服务端模板）+ 只写密钥护栏 + 纯数字名单校验 + 一键还原默认 + 两段式 provider/model 配对与未知值保留 |
 | `test-admin.mjs` | 40 | 权限 · 群管理 · 访客工具闸 |
 | `test-http.mjs` | 30 | HTTP / 代理隧道 / IP 归一与公网判定 |
@@ -89,7 +89,7 @@ npm test                   # 同上
 | `test-flow-commands.mjs` | 49 | `/auth` 与 `/flow` 解析（含不可见字符与控制符） |
 | `test-flow-gate.mjs` | 16 | 流程授权闸门 |
 | `test-flow-wiring.mjs` | 23 | 闸门接线：一次调用只吃一个授权 / 关着原样放行 / moli_fetch 进 gatedTools 后「没码被拦、拿码放行」 |
-| `test-flow-resume.mjs` | 17 | 授权后续跑：`/auth` 通过后重跑被拦回合；失败只打一行日志、不惊动用户 |
+| `test-flow-resume.mjs` | 39 | 授权后续跑：`/auth` 通过后重跑被拦回合；失败只打一行日志、不惊动用户；agent 级系统提示的注册契约（人格 / 风格 / 图片三段各自的段名与 order、只注册一次、留空不注入、无服务静默跳过、失败不外抛） |
 | `test-session-archive.mjs` | 47 | 会话归档召回 / 删除后重建：两种删除器的终态、派生 id 确定性、连续消息只重建一次 |
 | `test-tool-output.mjs` | 8 | 工具返回值清理：递归删除 undefined，避免宿主 lossless JSON 判 invalid |
 | `test-interim.mjs` | 14 | 中间发言：最后一条留给结论、锚点丢了不重播 |
