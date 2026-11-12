@@ -74,6 +74,7 @@ console.log('\n4. 依赖齐了就不再报缺');
       callAdapterAction: async () => ({ ok: true }),
       getSessionApi: () => ({ getEntry: async () => null }),
       writeToAdapter: () => true,
+      runProactiveTurn: async () => ({ ok: true, text: '回合产出', reason: '' }),
     });
     if (typeof surface.stopProactive === 'function') surface.stopProactive();
   } finally {
@@ -123,23 +124,22 @@ console.log('\n6. 读取器：缺服务 / 求值抛错 都降级成空串');
   check('把 agent 交给宿主求值', seenAgent === agent && text === '鲸鱼娘', String(text));
 }
 
-console.log('\n7. 主动发言发表情包：接线 + 隐式引导');
+console.log('\n7. 主动发言不再拼表情包：正文与配图都归 agent 回合');
 {
   const callStart = pluginSrc.indexOf('createProactiveSurface({');
   const callBlock = callStart < 0 ? '' : pluginSrc.slice(callStart, pluginSrc.indexOf('});', callStart));
-  check('plugin 传了 sendStickerWithText', /sendStickerWithText\s*:/.test(callBlock), callBlock.slice(0, 260));
-  check('plugin 传了 stickerAvailable', /stickerAvailable\s*:/.test(callBlock), callBlock.slice(0, 260));
-
-  check('表面层只在图库可用时向模型要关键词', /sticker:\s*wantsSticker/.test(surfaceSrc), '');
-  check('表面层把文字交给 sendStickerWithText', /sendStickerWithText\(\{ groupId, query: stickerQuery, text: verdict\.text \}\)/.test(surfaceSrc), '');
-  check('挑不到图时退回纯文字（带上插件侧给出的原因）', /没挑到合适表情包/.test(surfaceSrc) && /stickerWhy/.test(surfaceSrc), '');
-  check('插件侧把「挑不到」与「闸门拒绝」分成两种原因', /没挑到合适表情包（关键词：/.test(pluginSrc) && /表情包闸门未通过：/.test(pluginSrc), '');
-  check('演练模式不发表情包', /本想配表情包关键词/.test(surfaceSrc), '');
-
-  // 隐式引导只落在工具描述里，不进会话提示词
-  check('qq_sticker 描述里写明可以主动用', /就主动挑一张发出去，不用等用户开口要/.test(toolsSrc), '');
+  // 主动发言现在跑的是真回合：正文由模型写，表情包由模型自己在回合里调 qq_sticker。
+  // 表面层不再需要「挑一张图 + 发图文」的依赖，传了反而是死代码。
+  check('plugin 不再给表面层传 sendStickerWithText', !/sendStickerWithText\s*:/.test(callBlock), callBlock.slice(0, 260));
+  check('plugin 不再给表面层传 stickerAvailable', !/stickerAvailable\s*:/.test(callBlock), callBlock.slice(0, 260));
+  check('表面层不再自己挑表情包', !/stickerApi\s*\.\s*pick/.test(surfaceSrc) && !/wantsSticker/.test(surfaceSrc), '');
+  // 判断阶段也不再向模型要 sticker 关键词。
+  check('判断提示词不再要表情包关键词', !/表情包关键词或空字符串/.test(readFileSync(new URL('../lib/session/proactive.js', import.meta.url), 'utf8')), '');
+  // 隐式引导仍在工具描述里：模型看到 qq_sticker 就知道什么时候该用。
+  // 「必须调一次、发不发由闸门定」是新的约定：模型只判断该不该配，概率交给闸门。
+  check('qq_sticker 描述里要求主动调一次', /先调一次 action="send"/.test(toolsSrc), '');
+  check('描述里说明发不发由闸门决定', /发不发由闸门/.test(toolsSrc), '');
   check('描述里限制一次一张', /一次最多一张，别刷屏/.test(toolsSrc), '');
-  check('主动发言提示词没有硬塞表情包引导（走决策字段）', /表情包关键词或空字符串/.test(readFileSync(new URL('../lib/session/proactive.js', import.meta.url), 'utf8')), '');
 }
 
 console.log('\n' + pass + ' 通过 / ' + fail + ' 失败');

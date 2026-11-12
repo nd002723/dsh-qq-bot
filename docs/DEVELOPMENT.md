@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（49 个套件 / 1869 项）
+## 2. 测试（49 个套件 / 1864 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -77,9 +77,9 @@ npm test                   # 同上
 | `test-compat.mjs` | 14 | 运行时兼容自检 |
 | `test-update-check.mjs` | 19 | 上游新版本提示：range 判断、同版本/更旧不提示、不兼容标记、失败静默、缓存与开关、registry 回退、失败只缓存 5 分钟 |
 | `test-history.mjs` | 20 | 聊天记录鉴权与定向 |
-| `test-proactive-wiring.mjs` | 26 | 主动发言接线与人格：依赖键名对账、缺依赖启动即告警、`soul:persona` 只取人格段、求值降级、agent 传给宿主、表情包接线与隐式引导 |
+| `test-proactive-wiring.mjs` | 24 | 主动发言接线与人格：依赖键名对账、缺依赖启动即告警、`soul:persona` 只取人格段、求值降级、agent 传给宿主、表情包接线与隐式引导 |
 | `test-proactive.mjs` | 103 | 主动发言纯逻辑（时间窗、判据、去重、两段式、人格优先级、表情包关键词与发送方式） |
-| `test-proactive-round.mjs` | 43 | 主动发言回合端到端（不动定时器） |
+| `test-proactive-round.mjs` | 40 | 主动发言回合端到端：触发真回合、切发言模型并切回、空回复静默丢弃（不动定时器） |
 | `test-owner-settings.mjs` | 60 | 拥有者设置通道（白名单 / 确认码 / 限流 / 审计） |
 | `test-totp.mjs` | 43 | TOTP / HOTP（RFC 4226 + 6238 官方向量） |
 | `test-totp-cli.mjs` | 14 | 终端绑定（secret / otpauth URI / 二维码） |

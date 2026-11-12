@@ -81,7 +81,8 @@ async function runScenario(options) {
   const fakeWorkspaces = new Map();
   // 抓 proactive 的定时器：首次检查 = intervalMinutes*60000/2，远大于阈值。
   const proactiveTimers = [];
-  const stats = { speakCalls: 0, prompts: [] };
+  // modelSelects：记录 agent.model.select() 的调用，用来验证「两段式切了发言模型、跑完切回去」。
+  const stats = { speakCalls: 0, prompts: [], modelSelects: [] };
   // 模拟插件 fiber 已经卸载：此时 ctx.timeout 会抛 INACTIVE（真 cordis 的 assertActive）。
   let timerBroken = false;
   // 只看本场景这段日志：上一个场景的「OneBot 已连接」「no-cjk」不能算数。
@@ -104,7 +105,31 @@ async function runScenario(options) {
     async create(p, title) { const ws = { id: 'ws-' + (fakeWorkspaces.size + 1), path: p, title }; fakeWorkspaces.set(p, ws); return ws; },
     async list() { return [...fakeWorkspaces.values()]; },
   };
-  const fakeAgent = (sessionId) => ({ sessionId, options: { provider: '', model: '' }, async followup() {}, async whenIdle() {} });
+  // 主动发言现在走「触发回合」：followup 推一条触发消息，回合跑完后 extractReply 从
+  // 读到的 assistant 文本就是「模型说的话」；这里用一个固定句子模拟发言阶段模型。
+  const proactiveReply = '本鱼觉得这事儿能接一句。';
+  // 主动发言现在走「触发回合」：followup 推一条触发消息，回合跑完后 extractReply 从
+  // deriveMessages 里读 assistant 文本。桩必须真的把这两段都演出来，否则永远取不到回复。
+  const fakeAgent = (sessionId) => {
+    const messages = [];
+    const agent = {
+      sessionId,
+      options: { provider: '', model: '' },
+      session: { deriveMessages: () => messages.slice() },
+      // 两段式的「发言阶段模型」现在是切给 agent 的，桩要能记录 select 调用。
+      model: {
+        current: () => ({ provider: 'conv-p', model: 'conv-m' }),
+        select(selection) { stats.modelSelects.push({ provider: selection.provider, model: selection.model }); },
+      },
+      async followup(message) {
+        messages.push({ id: message.id, role: 'user', content: message.content });
+        const reply = String(sessionId).includes('silent') ? '' : proactiveReply;
+        if (reply !== '') messages.push({ id: 'a-' + messages.length, role: 'assistant', content: [{ type: 'text', text: reply }], source: { kind: 'model' } });
+      },
+      async whenIdle() {},
+    };
+    return agent;
+  };
 
   const ctx = {
     fiber: { marker: 'plugin-fiber' },
@@ -246,14 +271,16 @@ async function runScenario(options) {
 // 顺序跑：上一个场景的清理（disposers → 适配器退出 → mock.close）做完，下一个才开新的 mock。
 for (const scenario of [
   {
-    label: '两段式：发言模型两次回英文拒绝语 → 拦截 → 回退判断正文 → 发出',
+    label: '两段式：发言模型切给 agent 回合，回合产出即发送',
     judgeMessage: JUDGE_TEXT,
     // 两段式要求 provider + model 成对（provider 留空 = 跟随判断阶段，不启用）；兜底开关控制发言阶段的校验。
     proactive: { speakProvider: 'speak-p', speakModel: 'speak-m', speakFallback: true, requireCjk: true },
     async verify({ mock, stats, logs, waitFor }) {
       const sentGroup = await waitFor(() => mock.sent.find((s) => Number(s.group_id) === 33333 || Number(s.target_id) === 33333), 20000, '主动发言发送');
       const text = textOf({ message: sentGroup.message });
-      check('发言阶段正好试了 2 次（attempts 改了这里会挂）', stats.speakCalls === 2, 'speakCalls=' + stats.speakCalls);
+      // 发言阶段现在由 agent 回合承担：断言点从「调了几次 llm」改成「模型切没切、切回没有」。
+      check('两段式把发言模型切给了 agent', stats.modelSelects.some((x) => x.provider === 'speak-p' && x.model === 'speak-m'), JSON.stringify(stats.modelSelects));
+      check('回合结束后切回了原模型', stats.modelSelects.length >= 2 && stats.modelSelects[stats.modelSelects.length - 1].model === 'conv-m', JSON.stringify(stats.modelSelects));
       // 摘要方向：旧→新。排序被删掉时这条会挂（此前只有纯函数测试，端到端漏了）。
       const judgePrompt = stats.prompts.find((item) => item.model === 'judge-m');
       const promptText = judgePrompt === undefined ? '' : judgePrompt.text;
@@ -261,39 +288,37 @@ for (const scenario of [
       const newAt = promptText.indexOf('那我来订');
       check('判断提示词里的摘要按旧→新排列', oldAt >= 0 && newAt > oldAt, 'old@' + oldAt + ' new@' + newAt);
       check('英文拒绝语没有被发出去', !/^Sorry,/i.test(text), JSON.stringify(text.slice(0, 40)));
-      check('回退到了判断阶段的正文', text.includes('老地方'), JSON.stringify(text));
-      check('verbose 日志记录了 no-cjk 拦截', logs().some((l) => l.includes('no-cjk')), 'logLines=' + logs().length);
+      check('正文来自回合产出', text.length > 0, JSON.stringify(text));
     },
   },
   {
-    label: '两段式 + 推理型发言模型：正文为空 → 从 reasoning 兜底 → 正常发出',
+    label: '两段式 + 推理型发言模型：旧的两段式兜底已退役，只验回合正常产出',
     judgeMessage: JUDGE_TEXT,
     speakReasoningOnly: true,
     proactive: { speakProvider: 'speak-p', speakModel: 'speak-m', speakFallback: true, requireCjk: true },
     async verify({ mock, stats, logs, waitFor }) {
       const sentGroup = await waitFor(() => mock.sent.find((s) => Number(s.group_id) === 33333 || Number(s.target_id) === 33333), 20000, 'reasoning 兜底后的主动发言');
       const text = textOf({ message: sentGroup.message });
-      check('推理型发言模型：只调用了 1 次（没被当空返回重试）', stats.speakCalls === 1, 'speakCalls=' + stats.speakCalls);
-      check('推理型发言模型：思考里的内容被发出来了', text.includes('老地方'), JSON.stringify(text));
-      check('推理型发言模型：内容没有被重复两遍', text.split('老地方').length === 2, JSON.stringify(text));
-      check('推理型发言模型：日志说明了从 reasoning 兜底', logs().some((line) => line.includes('reasoning')), 'logLines=' + logs().length);
+      check('推理型发言模型：模型切换照旧发生', stats.modelSelects.length > 0, JSON.stringify(stats.modelSelects));
+      check('推理型发言模型：正文来自回合产出', text.length > 0, JSON.stringify(text));
     },
   },
   {
-    label: '单段式：判断正文就是整句英文拒绝语 → 拦截 → 一条都不发',
+    label: '单段式：judge 只决定接不接，正文由回合产出（不再校验 judge 的 message）',
     judgeMessage: ENGLISH_REJECT,
     // 不设 speakProvider/speakModel = 单段模式；requireCjk 必须把判断阶段那句英文拦在发送之前。
     proactive: { requireCjk: true },
     async verify({ mock, stats, logs }) {
       // tick 已经把整轮检查 await 完了，再留一点余量给适配器的 HTTP 往返，避免「刚好还没写进去」。
       await sleep(300);
-      check('单段兜底：英文拒绝语一条都没发出去', mock.sent.length === 0, 'sent=' + mock.sent.length);
-      check('单段兜底：发言模型一次也没有调用（没配 speakModel）', stats.speakCalls === 0, 'speakCalls=' + stats.speakCalls);
-      check('日志记录了「内容被拦（no-cjk）」', logs().some((l) => l.includes('内容被拦（no-cjk）')), 'logLines=' + logs().length);
+      // 判定阶段不再产出正文（A1），因此 judge 给的 message 不参与校验；
+      // 单段模式 = 不切发言模型，正文完全由 agent 回合生成。
+      check('单段式：没有切换发言模型', stats.modelSelects.length === 0, JSON.stringify(stats.modelSelects));
+      check('单段式：正文来自回合产出（不是 judge 那句）', mock.sent.length > 0 && !/^Sorry,/i.test(textOf({ message: mock.sent[0].message })), 'sent=' + mock.sent.length);
     },
   },
   {
-    label: '反向对照：同一句英文在 requireCjk 关掉时会被发出去',
+    label: '反向对照：judge 给的英文 message 不再参与发送（正文一律来自回合）',
     judgeMessage: ENGLISH_REJECT,
     // 关掉兜底 → 同一句英文直接发：证明上面那条拦截确实是 requireCjk 干的，而不是别的校验碰巧拦住。
     proactive: { requireCjk: false },
@@ -301,19 +326,21 @@ for (const scenario of [
       const sentGroup = await waitFor(() => mock.sent.find((s) => Number(s.group_id) === 33333 || Number(s.target_id) === 33333), 20000, '主动发言发送');
       const text = textOf({ message: sentGroup.message });
       check('反向对照：requireCjk 关掉后英文被发出去了（且只发一条）', mock.sent.length === 1, 'sent=' + mock.sent.length);
-      check('反向对照：发出去的正是判断阶段那句英文', /^Sorry,/.test(text), JSON.stringify(text.slice(0, 40)));
+      // A1 之后 judge 只出「接不接 + 话题」，message 字段即使写了也不会被当成正文。
+      check('反向对照：发出去的不是 judge 那句英文', !/^Sorry,/i.test(text), JSON.stringify(text.slice(0, 40)));
     },
   },
   {
-    label: '两段式关掉兜底：发言模型两次回英文 → 一条都不发（不回退）',
+    label: '两段式关掉兜底：兜底开关已不影响回合路径',
     judgeMessage: JUDGE_TEXT,
-    // speakFallback:false 时发言阶段全军覆没就该闭嘴；此前没有用例，把它改成恒 true 也不会挂。
+    // speakFallback 曾经控制「发言阶段全挂时回不回退到 judge 正文」；A1 之后 judge 不再产出正文，
+    // 这个开关对发送路径没有影响了——留着它只为兼容旧配置，不该再决定发不发。
     proactive: { speakProvider: 'speak-p', speakModel: 'speak-m', speakFallback: false, requireCjk: true },
     async verify({ mock, stats, logs }) {
       await sleep(300);
-      check('关掉兜底：发言阶段仍旧试了 2 次', stats.speakCalls === 2, 'speakCalls=' + stats.speakCalls);
-      check('关掉兜底：一条都没有发出去', mock.sent.length === 0, 'sent=' + mock.sent.length);
-      check('关掉兜底：没有走回退分支', !logs().some((line) => line.includes('回退用判断模型给的正文')));
+      check('关掉兜底：仍然切了发言模型给回合', stats.modelSelects.length > 0, JSON.stringify(stats.modelSelects));
+      check('关掉兜底：回合产出照常发出', mock.sent.length > 0, 'sent=' + mock.sent.length);
+      check('关掉兜底：没有走已退役的回退分支', !logs().some((line) => line.includes('回退用判断模型给的正文')));
     },
   },
   {

@@ -250,8 +250,10 @@ check('发送方式：random>=0.5 先图后字', pickStickerSendStyle(() => 0.8)
 // 判断阶段提示词：只有图库可用时才要 sticker 字段
 const promptNoSticker = buildPrompt({ digest: 'a：在吗', maxChars: 60 });
 check('不带 sticker 时提示词里没有表情包字段', promptNoSticker.includes('sticker') === false, promptNoSticker.slice(-120));
+// 主动发言不再向判断模型要表情包关键词：正文由 agent 回合生成，表情包由模型自己在回合里调 qq_sticker。
+// 传 sticker:true 也不该让提示词多出任何表情包字段（旧参数不报错，但也不生效）。
 const promptSticker = buildPrompt({ digest: 'a：在吗', maxChars: 60, sticker: true });
-check('带 sticker 时要求给关键词且 JSON 里有该字段', promptSticker.includes('sticker') && promptSticker.includes('表情包关键词或空字符串'), promptSticker.slice(-160));
+check('传 sticker:true 也不再要关键词（表情包改由回合内工具调用）', promptSticker.includes('sticker') === false, promptSticker.slice(-160));
 const decSticker = parseDecision('{"speak": true, "topic": "游戏", "message": "这也太难了", "sticker": "无语"}');
 check('决策解析出表情包关键词', decSticker !== null && decSticker.sticker === '无语', JSON.stringify(decSticker));
 const decNoSticker = parseDecision('{"speak": true, "topic": "游戏", "message": "这也太难了"}');
