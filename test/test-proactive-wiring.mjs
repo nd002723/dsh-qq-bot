@@ -136,7 +136,9 @@ console.log('\n7. 主动发言不再拼表情包：正文与配图都归 agent �
   // 判断阶段也不再向模型要 sticker 关键词。
   check('判断提示词不再要表情包关键词', !/表情包关键词或空字符串/.test(readFileSync(new URL('../lib/session/proactive.js', import.meta.url), 'utf8')), '');
   // 隐式引导仍在工具描述里：模型看到 qq_sticker 就知道什么时候该用。
-  check('qq_sticker 描述里写明可以主动用', /就主动挑一张发出去，不用等用户开口要/.test(toolsSrc), '');
+  // 「必须调一次、发不发由闸门定」是新的约定：模型只判断该不该配，概率交给闸门。
+  check('qq_sticker 描述里要求主动调一次', /先调一次 action="send"/.test(toolsSrc), '');
+  check('描述里说明发不发由闸门决定', /发不发由闸门/.test(toolsSrc), '');
   check('描述里限制一次一张', /一次最多一张，别刷屏/.test(toolsSrc), '');
 }
 
