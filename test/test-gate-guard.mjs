@@ -147,5 +147,21 @@ console.log('\n10. 闸门码连错要锁定（以前可以无限试）');
   check('锁定到期后恢复', unlocked.accept === true, JSON.stringify(unlocked));
 }
 
+console.log('\n11. 锁定参数取「上一次被接受」的保护面，不能被本次提交的新配置放大');
+{
+  // 攻击面：改配置的人把 maxAttempts 抬到 1e9、lockout 设成 1 分钟，然后连错——
+  // 若锁定读 nextSecurity 就永远不锁；读 previousSecurity 才守得住。
+  const baseSec = { totpSecret: secret, recoveryHashes: [], recoverySalt: '', maxAttempts: 5, lockoutMinutes: 5, grantTtlSeconds: 30 };
+  const huge = Object.assign({}, baseSec, { maxAttempts: 1000000000, lockoutMinutes: 1 });
+  const gateState = { lastCounter: undefined, fails: 0, lockedUntil: 0 };
+  const wrong = '000000' === totp(secret, { timeMs: now }) ? '111111' : '000000';
+  let lockedAt = -1;
+  for (let index = 0; index < 200; index += 1) {
+    decideGateEdit({ previousEnabled: true, nextEnabled: true, previous: prev, next: [], previousSecurity: baseSec, nextSecurity: huge, code: wrong, gateState, nowMs: now });
+    if ((Number(gateState.lockedUntil) || 0) > now) { lockedAt = index + 1; break; }
+  }
+  check('把 maxAttempts 抬到 1e9 也照样在第 5 次锁定（按旧配置算）', lockedAt === 5, 'lockedAt=' + lockedAt);
+  check('锁定用的是旧 lockoutMinutes(5 分钟)', (Number(gateState.lockedUntil) || 0) === now + 5 * 60000, 'until=' + ((Number(gateState.lockedUntil) || 0) - now));
+}
 console.log('\n' + pass + ' 通过 / ' + fail + ' 失败');
 if (fail > 0) process.exitCode = 1;
