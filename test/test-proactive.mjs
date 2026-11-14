@@ -1,8 +1,8 @@
 // 主动发言：时间窗 / 消息清洗 / 摘要 / 提示词 / 决策解析 / 发言校验 / 频率闸。
 import {
   parseClock, parseQuietRanges, isQuiet, summarizeSegments,
-  normalizeMessages, newerThan, buildDigest, buildPrompt, parseDecision, runSpeakStage,
-  validateMessage, allowSend, analyzeEvent, topicKey, topicRepeated, resolveStageModels, buildSpeakPrompt, resolveModel,
+  normalizeMessages, newerThan, buildDigest, buildPrompt, parseDecision,
+  allowSend, analyzeEvent, topicKey, topicRepeated, resolveStageModels, resolveModel,
   resolvePersonaText, sanitizeStickerQuery, pickStickerSendStyle,
 } from '../lib/session/proactive.js';
 
@@ -72,38 +72,8 @@ check('同秒消息按 message_id 升序（id 小的先发）',
   JSON.stringify(sameSecond.map((m) => m.id)));
 check('同秒两条时认最后一条为最新（短应答 → 不接）',
   analyzeEvent(sameSecond, { nowSec: nowSec2, staleMinutes: 15 }).ok === false);
-check('validateMessage 正常', validateMessage('这游戏我也在玩', { maxChars: 50 }).ok === true);
-check('validateMessage 超长', validateMessage('很长'.repeat(60), { maxChars: 50 }).ok === false);
-check('validateMessage 链接', validateMessage('看这个 https://x.com', { maxChars: 50 }).ok === false);
-check('validateMessage @人', validateMessage('@123456 你说的对', { maxChars: 50 }).ok === false);
-check('validateMessage 自称 AI', validateMessage('作为一个AI我觉得', { maxChars: 50 }).ok === false);
-check('validateMessage 重复上一条', validateMessage('这游戏我也在玩', { maxChars: 50, recentTexts: ['这游戏我也在玩。'] }).ok === false);
 
-// requireCjk：默认关（既有行为不变）；开启后「无 CJK 且长度 > 12」判不可用
-// 注意：除了专门测边界的两条，其余正例都必须 > 12 字符——长度门槛在 CJK 判据里最前面，
-// 短串会被短路掉、根本走不到字符集检测，写出来是「看着绿但什么都没验」。
-const refusal = "Sorry, it looks like I can't chat about this.";
-check('requireCjk 默认关：英文正文照旧放行', validateMessage(refusal, { maxChars: 200 }).ok === true);
-check('requireCjk 开启：整句英文被判不可用', (() => { const r = validateMessage(refusal, { maxChars: 200, requireCjk: true }); return r.ok === false && r.reason === 'no-cjk'; })());
-check('requireCjk 开启：中文放行（14 字，过长度门槛）', validateMessage('明天记得带伞，别又忘了带钥匙', { maxChars: 50, requireCjk: true }).ok === true);
-check('requireCjk 开启：日文放行（14 字）', validateMessage('いいよ、またね、気をつけてね', { maxChars: 50, requireCjk: true }).ok === true);
-check('requireCjk 开启：中英混排放行（13 字）', validateMessage('那就用 OK 呗，我先撤啦', { maxChars: 50, requireCjk: true }).ok === true);
-check('requireCjk 开启：纯 々 串放行（真验到 U+3005）', validateMessage('々'.repeat(13), { maxChars: 50, requireCjk: true }).ok === true);
-check('requireCjk 开启：扩展 B 区生僻字放行（真验到 u 标志）', validateMessage('𠀀'.repeat(13), { maxChars: 50, requireCjk: true }).ok === true);
-check('requireCjk 开启：emoji 短回应按码点算长度，不误拦', validateMessage('ok 👍👍👍👍👍', { maxChars: 50, requireCjk: true }).ok === true);
-// 判据顺序：no-cjk 必须排在最后，否则纯符号串会被报成 "no-cjk" 而不是 "无实质内容"。
-check('requireCjk 开启：纯符号串仍报「无实质内容」（no-cjk 不吞具体原因）',
-  validateMessage('！'.repeat(15), { maxChars: 50, requireCjk: true }).reason === '无实质内容');
-check('requireCjk 开启：超长英文报长度而不是 no-cjk',
-  validateMessage('a'.repeat(80), { maxChars: 50, requireCjk: true }).reason === '超过长度上限 50');
-check('requireCjk 边界：12 字符整句英文放行（门槛左）', validateMessage('abcdefghijkl', { maxChars: 50, requireCjk: true }).ok === true);
-check('requireCjk 边界：13 字符整句英文拦住（门槛右）', (() => { const r = validateMessage('abcdefghijklm', { maxChars: 50, requireCjk: true }); return r.ok === false && r.reason === 'no-cjk'; })());
-// maxChars 也按码点：「ok + 58 个 👍」是 60 码点 / 118 码元，按码元算会被误判超长。
-check('长度上限按码点：60 码点 / 118 码元在 maxChars=60 下放行',
-  validateMessage('ok' + '👍'.repeat(58), { maxChars: 60 }).ok === true);
-check('长度上限按码点：61 码点仍然拦住',
-  validateMessage('ok' + '👍'.repeat(59), { maxChars: 60 }).reason === '超过长度上限 60');
-
+// ---- 频率闸：生产路径仍在用（主动发言每次发送前都过它） ----
 const now = Date.now();
 check('allowSend 正常放行', allowSend({ now, sentTimes: [], lastSentAt: 0, maxPerHour: 2, maxPerDay: 4, minGapMinutes: 10 }).ok === true);
 check('allowSend 间隔不足', allowSend({ now, sentTimes: [now - 60000], lastSentAt: now - 60000, maxPerHour: 2, maxPerDay: 4, minGapMinutes: 10 }).ok === false);
@@ -191,44 +161,6 @@ const sessionStage = resolveStageModels({}, { provider: 'sp0', model: 'sm0' });
 check('两段式：留空跟随群会话模型', sessionStage.judge.provider === 'sp0' && sessionStage.judge.model === 'sm0');
 const missing = resolveStageModels({ speakModel: 'm2' }, null);
 check('两段式：缺 provider 会报缺项', missing.judge.missing.length > 0 && missing.speak.missing.length > 0);
-const speakPromptText = buildSpeakPrompt({ persona: '一只猫娘', digest: '[10:00] 甲：今天开黑吗', topic: '开黑', maxChars: 60 });
-check('发言提示词：带人设/话题/字数', speakPromptText.includes('一只猫娘') && speakPromptText.includes('开黑') && speakPromptText.includes('60'));
-check('发言提示词：要求只输出正文', speakPromptText.includes('只输出这句话本身') && speakPromptText.includes('不要输出 JSON'));
-check('发言提示词：禁止编造具体事实', speakPromptText.includes('不要编造具体事实') && speakPromptText.includes('只使用上面聊天记录里的信息'));
-
-// ---- 发言阶段胶水：重试 → 全被拦 → 回退 → 放弃 ----
-const ok = (text) => ({ ok: true, reason: '', text });
-const bad = (reason) => ({ ok: false, reason: reason || 'blocked', text: '' });
-const seqStage = await runSpeakStage({
-  call: async (i) => (i === 0 ? 'first' : 'second'),
-  validate: (raw) => (raw === 'second' ? ok('第二次通过') : bad('too-long')),
-  attempts: 2,
-  fallback: { enabled: true, ok: true, text: '判断正文' },
-});
-check('发言阶段：第一次被拦、第二次通过就用第二次', seqStage.used === 'speak' && seqStage.text === '第二次通过' && seqStage.attempts === 2);
-const allBlocked = await runSpeakStage({
-  call: async () => 'x',
-  validate: () => bad('too-long'),
-  attempts: 2,
-  fallback: { enabled: true, ok: true, text: '判断正文' },
-});
-check('发言阶段：两次都被拦则回退判断正文', allBlocked.used === 'fallback' && allBlocked.text === '判断正文' && allBlocked.attempts === 2);
-const noFallback = await runSpeakStage({
-  call: async () => 'x',
-  validate: () => bad('too-long'),
-  attempts: 2,
-  fallback: { enabled: false, ok: true, text: '判断正文' },
-});
-check('发言阶段：关闭回退时不出声', noFallback.used === 'none' && noFallback.text === '');
-let blockedCount = 0;
-const badJudge = await runSpeakStage({
-  call: async () => 'x',
-  validate: () => bad('too-long'),
-  attempts: 2,
-  fallback: { enabled: true, ok: false, text: '' },
-  onBlocked: () => { blockedCount += 1; },
-});
-check('发言阶段：判断正文不可用时不回退、且逐次记录被拦', badJudge.used === 'none' && badJudge.text === '' && blockedCount === 2);
 
 // 人格来源优先级：手填 > 宿主求值的 soul 人格 > 插件自身 persona（垫底回退）
 check('人格：手填优先于一切', resolvePersonaText({ explicit: '手填', host: '宿主人格', fallback: '老配置' }) === '手填');
