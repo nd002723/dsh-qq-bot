@@ -263,6 +263,9 @@ await check('net.fetchText：配了代理走代理，没配代理走直连', asy
       const got = await valve.traffic.fetchText('https://probe.example/x', { useProxy: false, timeoutMs: 4000 });
       assert.equal(got.status, 200, 'useProxy:false 必须直连');
       assert.equal(directHits, 1);
+      // 返回契约：两条分支都得给 text。直连走 publicFetch 时它只给 body，
+      // 不映射的话 qq_webfetch 永远读到 undefined（页面「成功」但正文为空）。
+      assert.equal(got.text, 'hello', '直连分支必须把 body 映射成 text');
     });
   } finally { __setNetworkHooks(null); }
 });
