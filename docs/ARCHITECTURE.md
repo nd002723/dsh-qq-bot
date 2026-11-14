@@ -107,7 +107,7 @@ DSH Agent（默认每个 QQ 会话一个）
 | --- | --- | --- |
 | `lib/tools/*-conf.json` | 工具自己的参数 | `websearch.js` ↔ `websearch-conf.json`（管 `webSearch`） |
 | `lib/valve/<阀门>/*-conf.json` | 阀门自己的参数 | `valve/security/auth-conf.json`（管 `auth`） |
-| `lib/config.js` 里的 `CORE_DEFAULTS` | 不属于任何工具/阀门的 | 传输、消息、网关、会话、产物投递 |
+| `lib/core-conf.json` | 不属于任何工具/阀门的（`"group": "core"`） | 传输、消息、网关、会话、产物投递 |
 
 `config.js` 在加载时**遍历**这两个目录，逐个读取，每个 JSON 自己声明管哪个配置组：
 
@@ -176,7 +176,7 @@ moli 卡片就卡在「能力 → 检索」分区中间，而它本该收尾—�
 （`{ "protocol": "onebot12", "protocols.onebot12.mode": { "$ne": "reverse" } }`），
 不是函数——JSON 里放不了函数，这也是它必须可声明的原因。
 
-不属于任何工具/阀门的字段放在 `lib/settings-core-set.json`（与 `CORE_DEFAULTS` 对称，
+不属于任何工具/阀门的字段放在 `lib/settings-core-set.json`（与 `lib/core-conf.json` 对称，
 这份不写 `group`，每条靠 `path[0]` 归组）；标签页骨架单独在 `lib/settings-page-set.json`。
 
 组装链：

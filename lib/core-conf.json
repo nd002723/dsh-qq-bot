@@ -1,0 +1,131 @@
+{
+  "group": "core",
+  "defaults": {
+    "adapterPath": "",
+    "nodePath": "",
+    "protocol": "onebot11",
+    "mode": "forward",
+    "onebot": {
+      "wsUrl": "ws://127.0.0.1:3001",
+      "listen": "0.0.0.0:6199",
+      "httpUrl": "http://127.0.0.1:3000"
+    },
+    "protocols": {
+      "onebot12": {
+        "wsUrl": "ws://127.0.0.1:3001",
+        "httpUrl": "http://127.0.0.1:3000",
+        "listen": "0.0.0.0:6199",
+        "mode": "forward"
+      },
+      "satori": {
+        "wsUrl": "ws://127.0.0.1:5140",
+        "httpUrl": "http://127.0.0.1:5140",
+        "platform": "qq",
+        "selfId": ""
+      },
+      "milky": {
+        "wsUrl": "ws://127.0.0.1:3010/event",
+        "httpUrl": "http://127.0.0.1:3010"
+      },
+      "qqOfficial": {
+        "mode": "webhook",
+        "appId": "",
+        "selfId": "",
+        "listen": "0.0.0.0:8443",
+        "path": "/qqbot",
+        "streaming": false
+      }
+    },
+    "group": {
+      "enabled": true,
+      "allow": [],
+      "requireAt": true
+    },
+    "private": {
+      "enabled": true,
+      "allow": []
+    },
+    "commandPrefix": "",
+    "reply": {
+      "maxChars": 1200,
+      "ackAfterMs": 8000,
+      "ackText": "正在处理，请稍候…",
+      "firstTurnHint": "（提示：这是一次 QQ 聊天。请用简体中文、简洁自然的口语作答；不要输出 Markdown 表格，代码块保持简短。群聊里被 @ 或需要结合群内近期消息/图片作答时，主动调 qq_history 工具拉取聊天记录与图片。）",
+      "stylePrompt": "这是一次 QQ 聊天，回复会原样显示在手机聊天界面，不经过 Markdown 渲染。一律纯文本：不加粗、不列表、不标题、不表格、不代码围栏，分步就分段（段间空一行）。闲聊压到一两句、能一口气读完，句间空一行，这样会拆成多个气泡；解题/分析/给方案时不必为气泡拆分压字数，按需要分多段讲清楚。被 @ 或要结合群内近况作答时，主动调 qq_history 拉记录与图片；收到「只有 @、没文字也没图片」这类消息，多半是对方紧接着又发了内容，先看记录再说，别猜。每次回复前都先调一次 qq_sticker（action=\"send\"），别自己判断这轮算不算轻松场合；发不发由闸门决定，被挡了就正常回文字，不要换词重试、也不要刷屏。",
+      "imageHint": "有图时：正文 [图片<文件名>] 指本条消息的图，[被回复消息的图片] 是对方那条的，[图片文件] 是原图路径。要确认身份（这是谁、出自哪部作品）就自行提炼关键词调 qq_websearch / qq_imgsearch，漫画/本子类局部截图用 qq_imgsearch 的 kind=comic；别凭空猜。",
+      "contextHeader": true,
+      "botReply": true,
+      "interim": true,
+      "interimMaxPerTurn": 4,
+      "interimMinGapMs": 2500,
+      "bubbleSplit": true,
+      "bubbleGapMinMs": 500,
+      "bubbleGapMaxMs": 10000
+    },
+    "limits": {
+      "perMinute": 20,
+      "queueMax": 5,
+      "maxChars": 4000
+    },
+    "admin": {
+      "enabled": true,
+      "manageGroups": [],
+      "requireGroupAdmin": true,
+      "prefix": "/",
+      "dryRun": false,
+      "allowConsole": false
+    },
+    "flow": {
+      "deliver": "private",
+      "maxBytes": 20971520,
+      "maxFiles": 40,
+      "skipHidden": true
+    },
+    "session": {
+      "fixedName": true,
+      "recallArchived": true
+    },
+    "perChatSession": true,
+    "agentPreset": "standard",
+    "restart": {
+      "baseMs": 1000,
+      "maxMs": 30000
+    },
+    "updateCheck": {
+      "enabled": true
+    },
+    "logAdapterFrames": false,
+    "proactive": {
+      "enabled": false,
+      "groups": [],
+      "intervalMinutes": 60,
+      "windowMessages": 30,
+      "minNewMessages": 6,
+      "quietHours": [
+        "23:00-08:00"
+      ],
+      "maxPerHour": 2,
+      "maxPerDay": 8,
+      "minGapMinutes": 15,
+      "eventGuard": true,
+      "staleMinutes": 15,
+      "topicCooldownMinutes": 120,
+      "provider": "",
+      "model": "",
+      "speakProvider": "",
+      "speakModel": "",
+      "timeoutMs": 60000,
+      "maxChars": 120,
+      "interests": "",
+      "persona": "",
+      "dryRun": false,
+      "verbose": false
+    },
+    "persona": {
+      "enabled": false,
+      "name": "",
+      "text": ""
+    },
+    "agentPresetCustom": ""
+  }
+}

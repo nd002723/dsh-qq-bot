@@ -1,5 +1,5 @@
 /** 单元测试：lib/config.js —— DEFAULTS / plainConfig（volatile 还原）/ mergeConfig / describeError */
-import { DEFAULTS, DEFAULTS_SOURCES, Config, plainConfig, mergeConfig, staleConfigPaths, describeError, SETTINGS_FIELDS, SETTINGS_SOURCES } from '../lib/config.js';
+import { DEFAULTS, DEFAULTS_SOURCES, CORE_DEFAULT_FIELDS, Config, plainConfig, mergeConfig, staleConfigPaths, describeError, SETTINGS_FIELDS, SETTINGS_SOURCES } from '../lib/config.js';
 import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -78,14 +78,28 @@ console.log('\n10. 默认值 JSON：自动发现 / 与 schema 一致 / 邪门输
   check('工具目录与阀门目录都有', DEFAULTS_SOURCES.some((s2) => s2.file.startsWith('tools/'))
     && DEFAULTS_SOURCES.some((s2) => s2.file.startsWith('valve/')), JSON.stringify(DEFAULTS_SOURCES.map((s2) => s2.file)));
 
-  const missingDefaults = DEFAULTS_SOURCES.filter((s2) => DEFAULTS[s2.group] === undefined);
+  // 核心组（core-conf.json）的字段是摊在配置树顶层的，DEFAULTS 里没有名为 core 的键——
+  // 它的字段逐个并进了顶层，所以这条只对「有自己 group 键」的模板成立。
+  const missingDefaults = DEFAULTS_SOURCES
+    .filter((s2) => s2.group !== 'core')
+    .filter((s2) => DEFAULTS[s2.group] === undefined);
   check('每个 group 都进了 DEFAULTS', missingDefaults.length === 0, JSON.stringify(missingDefaults));
+  const coreSource = DEFAULTS_SOURCES.find((s2) => s2.group === 'core');
+  check('核心组来自 core-conf.json 且已摊平到顶层',
+    coreSource !== undefined && DEFAULTS.reply !== undefined && DEFAULTS.core === undefined,
+    JSON.stringify({ file: coreSource === undefined ? '' : coreSource.file, hasReply: DEFAULTS.reply !== undefined, hasCoreKey: DEFAULTS.core !== undefined }));
 
   // 关键护栏：group 写错一个字母，这组默认值就成了 schema 不认识的键，而
   // staleConfigPaths 正是拿 schema 判废弃字段——启动清理会把用户配置当垃圾删掉。
   const dict = Config.dict || {};
-  const unknown = DEFAULTS_SOURCES.filter((s2) => dict[s2.group] === undefined);
+  // 同理：核心组的字段在 schema 顶层，不在 dict.core 里。逐个叶子核对。
+  const coreDefaults = (CORE_DEFAULT_FIELDS || {});
+  const unknownCore = Object.keys(coreDefaults).filter((key) => dict[key] === undefined);
+  const unknown = DEFAULTS_SOURCES
+    .filter((s2) => s2.group !== 'core')
+    .filter((s2) => dict[s2.group] === undefined);
   check('每个 group 都在 Config schema 里', unknown.length === 0, JSON.stringify(unknown));
+  check('核心组的每个顶层字段都在 Config schema 里', unknownCore.length === 0, JSON.stringify(unknownCore));
 
   // 默认值只有一个来源：JSON 改了，schema 求值结果必须跟着变（这里是反向核对）。
   // 比对下沉到**叶子级**：以前只比 group 下的一层键，嵌套对象靠 JSON.stringify
@@ -101,7 +115,7 @@ console.log('\n10. 默认值 JSON：自动发现 / 与 schema 一致 / 邪门输
   };
   const jsonLeaves = new Map();
   const schemaLeaves = new Map();
-  // 全量比对（含 CORE_DEFAULTS 的核心分组）：只比 8 份 -conf.json 覆盖的分组会漏掉
+  // 全量比对（含核心组）：只比 -conf.json 覆盖的分组会漏掉
   // config.js 里手写的核心默认值——那正是「同一份知识写两遍」的另一半。
   flattenLeaves(DEFAULTS, '', jsonLeaves);
   flattenLeaves(evaluated, '', schemaLeaves);
@@ -308,6 +322,26 @@ console.log('\n10. 默认值 JSON：自动发现 / 与 schema 一致 / 邪门输
   }
 }
 
+console.log('\n9. 默认值单源：core-conf.json（摊平后的 DEFAULTS）与 schema 默认值必须完全一致');
+{
+  // 值现在只写在 lib/core-conf.json；schema 用 defaultsOf('core') 引用它。
+  // 这条断言防的是「有人又往 schema 里写了一份字面量」——那会让改 JSON 失效。
+  const schemaValues = plainConfig(new Config({}));
+  const drift = [];
+  const walk = (base, cand, text) => {
+    for (const key of Object.keys(cand)) {
+      const a = base === undefined || base === null ? undefined : base[key];
+      const b = cand[key];
+      if (b !== null && typeof b === 'object' && !Array.isArray(b)) { walk(a, b, text + '.' + key); continue; }
+      const same = Array.isArray(a) && Array.isArray(b) ? JSON.stringify(a) === JSON.stringify(b) : a === b;
+      if (same !== true) drift.push(text + '.' + key);
+    }
+  };
+  for (const group of Object.keys(DEFAULTS)) if (schemaValues[group] !== undefined) walk(DEFAULTS[group], schemaValues[group], group);
+  check('核心组默认值与 schema 求值无漂移', drift.length === 0, drift.slice(0, 5).join(', '));
+}
+
+// passed 必须在所有 check 之后才算：放在测试中间会少算后面 push 进去的那几条。
 const passed = results.filter(Boolean).length;
 console.log('\n' + passed + '/' + results.length + ' 项通过');
 if (failures > 0) { console.log('配置自测失败'); process.exit(1); }
