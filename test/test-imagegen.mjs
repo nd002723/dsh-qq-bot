@@ -2,7 +2,7 @@
  * 生图引擎自测（不联网）：URL 拼接 / 响应解析 / 失败重试 / 任务轮询。
  * 用法：node test/test-imagegen.mjs
  */
-import { generationsUrl, trimBaseUrl, parseImagePayload, generateImage } from '../lib/tools/imagegen.js';
+import { generationsUrl, trimBaseUrl, parseImagePayload, generateImage, referenceToDataUrl } from '../lib/tools/imagegen.js';
 import { mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { qqMsgRootSync, imageCacheDir } from '../lib/session/workspace.js';
@@ -128,6 +128,24 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
 
     check('不存在的路径 → 拒绝（realpath 失败不认）', meIsAllowedImageFile(join(ownDir, 'nope.png'), sessionId) === false);
     check('别的会话目录 → 拒绝', meIsAllowedImageFile(realFile, 'another-session') === false);
+
+    // 第三条路径：qq_draw 的 reference 也走本地图片白名单（lib/tools/imagegen.js）。
+    // 它以前只做 pathResolve + 前缀比，同一个软链洞还开着，读到的内容会被 base64
+    // 塞进外部生图请求体（外带通道）。现在必须 realpath 解完再比一次。
+    let refOutside = '';
+    {
+      const refRoot = join(qqMsgRootSync(), 'qq-images');
+      const refLink = join(ownDir, 'ref-steal.png');
+      try { rmSync(refLink, { force: true }); } catch { /* ignore */ }
+      try {
+        symlinkSync(outside, refLink);
+        const dataUrl = await referenceToDataUrl(refLink, refRoot);
+        refOutside = String(dataUrl).includes('SECRET') ? 'leaked' : 'no-secret';
+        check('qq_draw reference：指向白名单外的软链 → 拒绝（不读内容、不外带）', refOutside !== 'leaked', refOutside);
+      } catch (error) {
+        check('qq_draw reference：指向白名单外的软链 → 拒绝（抛错即拒绝）', true, error.message.slice(0, 60));
+      } finally { try { rmSync(refLink, { force: true }); } catch { /* ignore */ } }
+    }
   } finally {
     try { rmSync(join(ownDir, 'steal.png'), { force: true }); } catch { /* ignore */ }
     try { rmSync(join(ownDir, 'escape.png'), { force: true }); } catch { /* ignore */ }

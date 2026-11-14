@@ -115,6 +115,10 @@ async function runScenario(options) {
     const agent = {
       sessionId,
       options: { provider: '', model: '' },
+      // 真宿主里 agent.ctx 能拿到 tools 服务（访客工具闸靠它安装）。桩缺了它，
+      // manager 会把 guardUnavailable 置 true，主动回合就按 fail-closed 拒绝发起——
+      // 那是生产环境的正确行为，测试桩得跟上，不能反过来放松红线。
+      ctx: { get: (name) => (name === 'tools' ? { guard: () => () => {} } : undefined), tools: { guard: () => () => {} } },
       session: { deriveMessages: () => messages.slice() },
       // 两段式的「发言阶段模型」现在是切给 agent 的，桩要能记录 select 调用。
       model: {

@@ -250,6 +250,10 @@ function makeWorld(opts) {
       async create(request) {
         createCalls.push(request);
         world.createSawArchived = archived.includes(String(request.sessionId));
+        // 模拟宿主拒绝跨工作区复用同一个 id（DSH 的真实行为）。
+        if (typeof o.rejectFirstCreateOf === "function" && o.rejectFirstCreateOf(String(request.sessionId)) === true) {
+          throw new Error("session belongs to another workspace");
+        }
       },
       async resolveAgent(sessionId) {
         return { agent: { id: sessionId, session: {}, ctx: { get: () => toolsService } } };
@@ -407,6 +411,24 @@ function makeWorld(opts) {
   check('普通归档仍会召回', w.unarchiveCalls.length === 1);
 }
 
+// ───────────────── 跨工作区冲突：派生 id 必须被认回来，不能每条消息重建 ─────────────────
+{
+  // DSH 拒绝「同一 id 跨工作区复用」，插件会派生 scoped id 重开；但下一次调用传进来的仍是
+  // 原始 id。以前这条走到「绑的是别的 id」分支 → cancel + 重建，每条消息都重来一遍。
+  const firstOnly = () => {
+    let rejected = false;
+    return (id) => { if (rejected === true) return false; rejected = true; return true; };
+  };
+  const world = makeWorld({ archived: [], ledger: [], rejectFirstCreateOf: firstOnly() });
+  await quiet(() => world.session.getEntry("group-99", "qqbot-group-99", "standard", null));
+  const firstId = world.createCalls[0] === undefined ? "" : String(world.createCalls[0].sessionId);
+  const secondId = world.createCalls[1] === undefined ? "" : String(world.createCalls[1].sessionId);
+  check("冲突后派生出一个 scoped id", secondId.startsWith("qqbot-group-99-ws"), secondId);
+  const before = world.createCalls.length;
+  await quiet(() => world.session.getEntry("group-99", "qqbot-group-99", "standard", null));
+  check("下一条消息复用派生 id，不再重建会话", world.createCalls.length === before, "calls=" + world.createCalls.length);
+  check("首次仍用原始 id 建", firstId === "qqbot-group-99", firstId);
+}
 console.log('\n' + pass + '/' + (pass + fail) + ' 项通过');
 if (fail > 0) { console.log('会话归档召回自测失败'); process.exit(1); }
 console.log('会话归档召回自测通过');
