@@ -565,8 +565,34 @@ console.log('\nGIF 首帧转码');
   const truth = visionPayload(Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32, 0)]), 'c.png');
   check('PNG 原样发（不重编码）', truth.mediaType === 'image/png' && truth.converted === false);
   check('坏数据不抛错', gifFirstFrameToPng(Buffer.from('not a gif at all')) === null);
+  // 声明式炸弹：34 字节的 GIF 头声明 20000×20000。不设像素闸时 Buffer.alloc(width*height*4)
+  // 会分配 ~1.6GB 并阻塞事件循环数十秒——而收图自动打标默认开，群里谁都能发一张。
+  const bomb = Buffer.alloc(34);
+  bomb.write('GIF89a', 0, 'ascii');
+  bomb.writeUInt16LE(20000, 6);
+  bomb.writeUInt16LE(20000, 8);
+  bomb[10] = 0xF0;
+  const bombStart = Date.now();
+  const bombOut = gifFirstFrameToPng(bomb);
+  const bombMs = Date.now() - bombStart;
+  check('超大尺寸 GIF 头直接拒绝（不分配、不卡住）', bombOut === null && bombMs < 1000, 'ms=' + bombMs);
 }
 
+// ─────────────── 发送目标解析：@tier 后缀要剥、群号取回合快照（不能串群） ───────────────
+{
+  const base = { key: "private-88888@guest", turnSpeaker: { userId: "88888", groupId: null } };
+  const target = resolveStickerTarget(base);
+  check("private 目标剥掉 @tier 后缀", target !== null && target.targetId === "88888", JSON.stringify(target));
+
+  // entry.groupId 会被后到的消息改写：必须优先用 turnSpeaker 里的快照。
+  const stale = {
+    key: "group-111",
+    groupId: "222",
+    turnSpeaker: { userId: "u", groupId: "111" },
+  };
+  const staleTarget = resolveStickerTarget(stale);
+  check("群目标用回合快照而不是被改写的 entry.groupId", staleTarget !== null && staleTarget.targetId === "111", JSON.stringify(staleTarget));
+}
 const passed = results.filter(Boolean).length;
 console.log('\n' + passed + '/' + results.length + ' 项通过');
 if (failures > 0) { console.log('表情包自测失败'); process.exit(1); }

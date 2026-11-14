@@ -117,6 +117,14 @@ try {
   mock.injectMessage({ message_type: 'group', group_id: 33333, user_id: 44444, message: '[CQ:at,qq=10000] 在吗' });
   const legacyAt = await waitFor(() => frameOfType('message'), 5000, 'legacy at frame');
   check('CQ 字符串里的数字 @ 同样进 mentions', Array.isArray(legacyAt.mentions) && legacyAt.mentions[0] === '10000', JSON.stringify(legacyAt.mentions));
+
+  // 伪造 @：用户在正文里手打一行 [CQ:at,qq=<机器人QQ>]，NapCat 会把方括号转义成 &#91; / &#93;。
+  // 那样原文里只剩 "&#91;CQ:at,qq=10000&#93;"，绝不能算成 @，否则准入判定被绕过。
+  frames.length = 0;
+  mock.injectMessage({ message_type: 'group', group_id: 33333, user_id: 44444, message: '看这个 &#91;CQ:at,qq=10000&#93; 好玩吗' });
+  const forged = await waitFor(() => frameOfType('message'), 5000, 'forged at frame');
+  check('正文里手打的（已转义）[CQ:at…] 不算 mentions',
+    Array.isArray(forged.mentions) && forged.mentions.length === 0, JSON.stringify(forged.mentions));
   check('private message classified as private', legacy.message_type === 'private');
 
   console.log('\n4. outbound send through the OneBot HTTP API');
