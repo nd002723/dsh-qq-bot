@@ -377,7 +377,13 @@ try {
   const webhookPort = listening.port;
   check('listening 帧给出随机端口', Number.isInteger(webhookPort) && webhookPort > 0, String(webhookPort));
   check('listening 帧保留配置的 path', listening.path === '/qq/webhook', String(listening.path));
-  check('启动后上报 status connected', webhookAdapter.frames.some((f) => f.type === 'status' && f.connected === true));
+  // status 帧与 listening 帧的先后**不保证**（两个通道各自异步写 stdout，全量并发时更明显）。
+  // 以前这里立刻扫一眼 frames，于是偶发「listening 已到、status 还没到」→ 单跑五次全绿、
+  // 全量跑偶发一红（run-all 靠重试兜住，但那掩盖了真正的竞态）。改成等它出现。
+  // 注意：status 帧是**多次**上报的（先 starting，连接成功后才是 connected），
+  // 所以必须带上 predicate 找「connected===true」那一条，不能只等第一条 status。
+  const connectedFrame = await waitFrame(webhookAdapter, 'status', 0, (f) => f.connected === true);
+  check('启动后上报 status connected', connectedFrame.connected === true, JSON.stringify(connectedFrame));
 
   console.log('\n2. op13 回调地址验证（Ed25519）');
   const challenge = await postWebhook(webhookPort, { op: 13, d: { plain_token: 'pt-123', event_ts: '1725442341' } });
