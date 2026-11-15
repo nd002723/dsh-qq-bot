@@ -65,7 +65,12 @@ adapter.stdout.on('data', (chunk) => {
     const line = stdoutBuffer.slice(0, index).trim();
     stdoutBuffer = stdoutBuffer.slice(index + 1);
     if (line === '') continue;
-    try { frames.push(JSON.parse(line)); } catch { /* ignore non-JSON noise */ }
+    try {
+      const frame = JSON.parse(line);
+      frames.push(frame);
+      // log 帧单独累积：frames 在每段用例前会被清空，而「只提示一次」这类断言要看全程。
+      if (frame.type === 'log' && frame.level === 'warn') warnLog.push(frame);
+    } catch { /* ignore non-JSON noise */ }
   }
 });
 adapter.stderr.setEncoding('utf8');
@@ -74,6 +79,8 @@ adapter.stderr.on('data', (chunk) => { stderrText += chunk; });
 
 const send = (command) => adapter.stdin.write(JSON.stringify(command) + '\n');
 const frameOfType = (type) => frames.find((f) => f.type === type);
+/** 全程累积的 warn 级 log 帧（frames 会被逐段清空，这个不会）。 */
+const warnLog = [];
 
 try {
   console.log('\n1. connection handshake');
@@ -125,6 +132,13 @@ try {
   const forged = await waitFor(() => frameOfType('message'), 5000, 'forged at frame');
   check('正文里手打的（已转义）[CQ:at…] 不算 mentions',
     Array.isArray(forged.mentions) && forged.mentions.length === 0, JSON.stringify(forged.mentions));
+
+  // 决策 1-B：收到 CQ 字符串本身就是「实现端没配 post_format=array」的确证，应提示一次。
+  // 只提示一次是刻意的——每条消息都刷一遍会把真告警淹掉。
+  // 注意断言对象是 warnLog（全程累积的 log 帧），不是 frames：frames 在每段用例前会被清空。
+  const cqWarn = warnLog.filter((f) => String(f.text).indexOf('post_format') >= 0);
+  check('首次收到 CQ 字符串时提示 post_format 建议（且只提示一次）',
+    cqWarn.length === 1, String(cqWarn.length));
 
   // 关于「未转义」的那种情形，这里**故意不做断言**，因为它在字符串层面无法判定：
   //   CQ 字符串里，协议层真给的 [CQ:at,qq=…] 与用户手打的 [CQ:at,qq=…] 字节完全一致。
