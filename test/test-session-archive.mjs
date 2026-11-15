@@ -456,6 +456,47 @@ function makeWorld(opts) {
   check('派生会话被删后要重建，不能继续喂死 agent', world.createCalls.length > before, 'calls=' + world.createCalls.length);
   check('重建时没有沿用已删的派生 id', String(world.createCalls[world.createCalls.length - 1].sessionId) !== scopedId);
 }
+// ──────────── scopeKey 语义：会话身份只看工作区，不随 flowAuth 开关变化 ────────────
+{
+  // T-02 的回归点：expectedScopeKey 曾把 flowAuth 开关算进会话身份，
+  // 于是设置页拨一下开关就会 delete 条目 + cancel 在跑的回合 + 换一个新会话 id，
+  // 而且回拨也重建（key 在两个值间来回永不相等）。旧代码同场景不重建 → 这是回归。
+  //
+  // 为什么这条测试有判别力：把 flowAuth 算回 scopeKey（旧写法）会让下面两条断言双双转红，
+  // 因为它只改 cfg() 的返回值就能让 key 变化，不需要真的重建会话。
+  const baseCfg = {
+    auth: { ownerPreset: '', guestPreset: '', guestToolAllow: [] },
+    agentPreset: 'standard',
+    session: { fixedName: true, recallArchived: true },
+    flowAuth: { enabled: false },
+    perChatSession: true,
+  };
+  let flowOn = false;
+  const world = makeWorld({ archived: [], ledger: [] });
+  const toggled = createSession({
+    getConfig: () => Object.assign({}, baseCfg, { flowAuth: { enabled: flowOn } }),
+    ctx: world.ctx,
+    state: { convos: new Map(), stats: {} },
+    ensureQqMsgWorkspace: async () => ({ id: 'ws-root', path: '/tmp/qqmsg' }),
+    ensureSessionWorkspace: async () => ({ id: 'ws-sess', path: '/tmp/qqmsg/s1' }),
+    sessionWorkdir: () => '/tmp/qqmsg/s1',
+    callAdapterAction: async () => ({ ok: false }),
+    describeError: (e) => String((e && e.message) || e),
+    isOwner: () => true,
+    flowGate: null,
+    archiveApi: world.archiveApi,
+  });
+  flowOn = false;
+  const keyOff = await toggled.expectedScopeKey();
+  flowOn = true;
+  const keyOn = await toggled.expectedScopeKey();
+  check('flowAuth 关闭与开启时 scopeKey 完全相同（开关不属于会话身份）',
+    keyOff === keyOn, keyOff + ' vs ' + keyOn);
+  flowOn = false;
+  const keyBack = await toggled.expectedScopeKey();
+  check('再拨回来仍是同一个 key（不会在值之间来回跳）',
+    keyBack === keyOff, keyBack);
+}
 console.log('\n' + pass + '/' + (pass + fail) + ' 项通过');
 if (fail > 0) { console.log('会话归档召回自测失败'); process.exit(1); }
 console.log('会话归档召回自测通过');
