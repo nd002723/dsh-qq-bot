@@ -787,6 +787,43 @@ try {
   };
   await renderSettled();
   await clickTabN('基本');
+
+  // update 透传回归：服务端 routes-settings 一直在下发 update，但客户端 loadTemplate 曾只挑
+  // tabs/fields 把它丢掉 → applyTemplate 读到的 template.update 恒 undefined → UPDATE_INFO 恒 null
+  // → 「发现新版本」横幅永远不显示。
+  //
+  // 关键在于**必须走真实的 faces.loadTemplate**（它内部 fetch 并做映射），
+  // 而不是在测试里直接构造 { ok:true, value:{...update} } —— 后者绕过了被修的那行，
+  // 把映射改回去也照样绿（我第一版就写成那样，变异验证抓出来了）。
+  {
+    const realFetchForTemplate = globalThis.fetch;
+    globalThis.fetch = async (url) => ({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        tabs: settingsModule.SETTINGS_TABS,
+        fields: settingsModule.SETTINGS_FIELDS,
+        update: { hasUpdate: true, current: '0.14.0', latest: '0.15.0', compatible: true },
+        gateSecurityFields: ['totpSecret', 'recoveryHashes', 'recoverySalt', 'maxAttempts', 'lockoutMinutes', 'grantTtlSeconds'],
+      }),
+    });
+    let templateResult = null;
+    try { templateResult = await faces.loadTemplate(); } finally { globalThis.fetch = realFetchForTemplate; }
+    const value = (templateResult !== null && templateResult.ok === true) ? templateResult.value : null;
+    check('loadTemplate 把服务端的 update 一起带出来',
+      value !== null && value.update !== undefined && value.update !== null
+      && value.update.hasUpdate === true,
+      JSON.stringify(value === null ? templateResult : Object.keys(value)));
+    // SEC-12：保护面字段名也必须下发——客户端要靠它判断「这次是不是动了保护面、要不要码」。
+    // 硬编码第二份清单是病根，所以这里只要求「服务端给了、客户端原样收下」。
+    check('loadTemplate 把服务端的保护面字段清单一起带出来',
+      value !== null && Array.isArray(value.gateSecurityFields)
+      && value.gateSecurityFields.indexOf('maxAttempts') >= 0,
+      JSON.stringify(value === null ? templateResult : value.gateSecurityFields));
+  }
+
+  await renderSettled();
+  await clickTabN('基本');
   const numericInputs = () => collectInputs(treeN, []).filter((el) => el.props.inputMode === 'numeric');
   // 原来是 >= 3（group.allow / private.allow / admin.manageGroups / auth.superAdmins 里数三个以上）。
   // auth.superAdmins 的 numeric 已按 SEC-13 删掉（它必须能填 OpenID，与同文件的 auth.owners 对齐），
