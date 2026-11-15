@@ -47,6 +47,12 @@ await check('普通响应解析出状态码与正文', (() => { const r = extrac
 await check('chunked 按 RFC 7230 解码', (() => { const r = extractHttpBody('HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n5\r\nHello\r\n6\r\n World\r\n0\r\n\r\n'); return r.status === 200 && r.body === 'Hello World'; })());
 await check('chunked 数据被截断时保留已解析部分（带越界保护）', (() => { const r = extractHttpBody('HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n5\r\nHello\r\nA\r\n12345'); return r.status === 200 && r.body.startsWith('Hello'); })());
 await check('无头部分隔符返回空', (() => { const r = extractHttpBody('no-header-here'); return r.status === 0 && r.body === ''; })());
+await check('负数 chunk-size 不死循环（RFC 里非法，攻击者可控）', (() => {
+  // parseInt('-5', 16) === -5：Number.isFinite 为 true、!== 0，旧代码会让 pos 倒退，
+  // 于是 while 永不结束、parts 无限增长（实测 256MB 堆下 6.8 秒 FATAL OOM）。
+  const r = extractHttpBody('HTTP/1.1 200 OK\r\ntransfer-encoding: chunked\r\n\r\n-5\r\nXXXX\r\n0\r\n\r\n');
+  return r.status === 200 && r.body === '';
+})(), 500);
 
 console.log('3. meHeadersFromRaw：set-cookie 合并');
 await check('同名 set-cookie 合并为一条', (() => { const h = meHeadersFromRaw('Set-Cookie: a=1; Path=/\nSet-Cookie: b=2\nContent-Type: text/plain'); return h['set-cookie'] === 'a=1; b=2'; })());
