@@ -31,6 +31,16 @@ const SUITE_TIMEOUT_MS = 180000;
  * 自报总数变小、没有 FAIL、退出码 0 —— CI 完全无声。b77809d 删掉 27 条断言就是这么溜过去的。
  *
  * 维护方式：**有意**增删断言时同步改这里的数字；数字变小而你没改过，说明测试被悄悄删了。
+ *
+ * 三个已知边界（别把它当万能网）：
+ *   1. **只防「变少」，不防「从没写」**。某个修复没带回归测试时，这里永远是绿的。
+ *      补法是流程：改 lib/ 的 PR 要求同时有 test/ 改动（CI 比对 diff 文件集）。
+ *   2. **只比总数，不比身份**。删 3 条真断言 + 加 3 条 `check(x, true)` 净变化为 0，照样通过。
+ *   3. **数字取环境下限**。test-plugin / test-admin 在裸克隆里会因缺 @deepseek-ai/dsh-tools
+ *      标 [SKIP]、总数变少；基线取裸克隆值，否则开发机永远绿而 CI 永远红。
+ *
+ * 另外：初版基线采自 b77809d（那批「删掉正文校验链」提交）**之后**，没有逐条复核那 27 条
+ * 被删断言里是否混着真断言。如果将来发现某个套件的基线偏低了，从这条备注追查。
  */
 const SUITE_BASELINE = Object.freeze({
   'test-action-priority.mjs': 10,
@@ -41,12 +51,14 @@ const SUITE_BASELINE = Object.freeze({
   'test-adapter-reverse.mjs': 19,
   'test-adapter-satori.mjs': 70,
   'test-adapter.mjs': 23,
-  'test-admin.mjs': 40,
+  // 裸克隆（CI）只有 35 —— 缺 @deepseek-ai/dsh-tools 时那 5 条会标 [SKIP]，不记成通过。
+  // 基线必须取**任何环境的下限**，否则开发机（软链在）永远绿、CI 永远红。
+  'test-admin.mjs': 35,
   'test-bubbles.mjs': 16,
   'test-chunk.mjs': 15,
   'test-client.mjs': 161,
   'test-compat.mjs': 14,
-  'test-config.mjs': 53,
+  'test-config.mjs': 56,
   'test-flow-auth.mjs': 43,
   'test-flow-commands.mjs': 49,
   'test-flow-gate.mjs': 16,
@@ -63,15 +75,16 @@ const SUITE_BASELINE = Object.freeze({
   'test-model-router.mjs': 23,
   'test-msgid-cache.mjs': 13,
   'test-owner-settings.mjs': 60,
-  'test-plugin.mjs': 172,
-  'test-proactive-round.mjs': 40,
+  // 裸克隆只有 146（26 条工具断言标 [SKIP]）。同上：取下限，不是本机读数。
+  'test-plugin.mjs': 146,
+  'test-proactive-round.mjs': 49,
   'test-proactive-wiring.mjs': 23,
   'test-proactive.mjs': 76,
   'test-qq-bind.mjs': 20,
   'test-qr-consistency.mjs': 7,
   'test-qr.mjs': 18,
   'test-security.mjs': 55,
-  'test-session-archive.mjs': 53,
+  'test-session-archive.mjs': 55,
   'test-session-id.mjs': 5,
   'test-sticker-gate.mjs': 25,
   'test-sticker.mjs': 96,
