@@ -250,6 +250,8 @@ function makeWorld(opts) {
       async create(request) {
         createCalls.push(request);
         world.createSawArchived = archived.includes(String(request.sessionId));
+        // 真实 DSH 建完会话会把它登记进所属工作区账本；不模拟这步，isDetached 会对刚建的会话恒 true。
+        if (ledger.map(String).includes(String(request.sessionId)) !== true) ledger.push(String(request.sessionId));
         // 模拟宿主拒绝跨工作区复用同一个 id（DSH 的真实行为）。
         if (typeof o.rejectFirstCreateOf === "function" && o.rejectFirstCreateOf(String(request.sessionId)) === true) {
           throw new Error("session belongs to another workspace");
@@ -428,6 +430,31 @@ function makeWorld(opts) {
   await quiet(() => world.session.getEntry("group-99", "qqbot-group-99", "standard", null));
   check("下一条消息复用派生 id，不再重建会话", world.createCalls.length === before, "calls=" + world.createCalls.length);
   check("首次仍用原始 id 建", firstId === "qqbot-group-99", firstId);
+}
+// ──────────────── scoped 条目的被删探测与工作区变化（N-01/N-02 回归） ────────────────
+{
+  // 回归点：认亲分支以前抢在 isDetached 探测之前 return，派生会话被删后仍喂给死 agent。
+  //
+  // 关键构造：原始 id **必须留在账本里**（现实中它属于另一个工作区，所以一直在那个账本里），
+  // 只摘掉派生 id。这样两种写法才有区分度——查原始 id 会得到「还在」（误判安全），
+  // 查派生 id 才得到「被删」。先前版本把账本整个清空，两种写法都判被删，测试抓不住 bug。
+  const firstOnly = () => {
+    let rejected = false;
+    return (id) => { if (rejected === true) return false; rejected = true; return true; };
+  };
+  const world = makeWorld({ archived: [], ledger: ['qqbot-group-95'], rejectFirstCreateOf: firstOnly() });
+  await quiet(() => world.session.getEntry('group-95', 'qqbot-group-95', 'standard', null));
+  const scopedId = String(world.createCalls[1].sessionId);
+  // 模拟「派生会话被删」：只摘掉它，原始 id 仍留在（别人的）账本里
+  const at = world.ledger.indexOf(scopedId);
+  if (at >= 0) world.ledger.splice(at, 1);
+  check('构造前提：原始 id 仍在账本里、派生 id 已被摘掉',
+    world.ledger.includes('qqbot-group-95') && world.ledger.includes(scopedId) !== true,
+    world.ledger.join(','));
+  const before = world.createCalls.length;
+  await quiet(() => world.session.getEntry('group-95', 'qqbot-group-95', 'standard', null));
+  check('派生会话被删后要重建，不能继续喂死 agent', world.createCalls.length > before, 'calls=' + world.createCalls.length);
+  check('重建时没有沿用已删的派生 id', String(world.createCalls[world.createCalls.length - 1].sessionId) !== scopedId);
 }
 console.log('\n' + pass + '/' + (pass + fail) + ' 项通过');
 if (fail > 0) { console.log('会话归档召回自测失败'); process.exit(1); }
