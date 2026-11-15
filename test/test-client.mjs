@@ -788,7 +788,10 @@ try {
   await renderSettled();
   await clickTabN('基本');
   const numericInputs = () => collectInputs(treeN, []).filter((el) => el.props.inputMode === 'numeric');
-  check('数字名单输入框标了 inputMode=numeric', numericInputs().length >= 3, String(numericInputs().length));
+  // 原来是 >= 3（group.allow / private.allow / admin.manageGroups / auth.superAdmins 里数三个以上）。
+  // auth.superAdmins 的 numeric 已按 SEC-13 删掉（它必须能填 OpenID，与同文件的 auth.owners 对齐），
+  // 所以下限改 2 —— 剩下的仍是「纯 QQ 号」语义的名单。
+  check('数字名单输入框标了 inputMode=numeric', numericInputs().length >= 2, String(numericInputs().length));
 
   const emptyList = numericInputs().find((el) => el.props.value === '');
   check('找到空的群号白名单输入框', Boolean(emptyList));
