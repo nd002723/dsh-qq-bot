@@ -125,6 +125,14 @@ try {
   const forged = await waitFor(() => frameOfType('message'), 5000, 'forged at frame');
   check('正文里手打的（已转义）[CQ:at…] 不算 mentions',
     Array.isArray(forged.mentions) && forged.mentions.length === 0, JSON.stringify(forged.mentions));
+
+  // 关于「未转义」的那种情形，这里**故意不做断言**，因为它在字符串层面无法判定：
+  //   CQ 字符串里，协议层真给的 [CQ:at,qq=…] 与用户手打的 [CQ:at,qq=…] 字节完全一致。
+  //   任何正则都区分不了这两者——想「挡住手打」就等于「挡住协议给的」，会把正常 @ 也吃掉。
+  // 所以安全的做法只有两条，都不在这里：
+  //   · 优先用段数组（post_format=array）：那条路径没有这个问题，也是默认配置；
+  //   · 拿到 CQ 串时，其可信度取决于实现端是否遵守转义约定 —— 这是外部前提，不是插件能保证的。
+  // 这条边界如实写在 onebot11.mjs 的注释里，测试只锁「已转义的手打不算 @」这半边。
   check('private message classified as private', legacy.message_type === 'private');
 
   console.log('\n4. outbound send through the OneBot HTTP API');
