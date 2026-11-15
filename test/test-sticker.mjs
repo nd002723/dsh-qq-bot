@@ -22,6 +22,8 @@ import {
   sniffImage,
   visionPayload,
 } from '../lib/tools/sticker.js';
+// 像素闸在 shared/gif.js：直接引它才能验「帧描述符也要过闸」。
+import { decodeGifFrame } from '../lib/shared/gif.js';
 
 const results = [];
 let failures = 0;
@@ -592,6 +594,29 @@ console.log('\nGIF 首帧转码');
   };
   const staleTarget = resolveStickerTarget(stale);
   check("群目标用回合快照而不是被改写的 entry.groupId", staleTarget !== null && staleTarget.targetId === "111", JSON.stringify(staleTarget));
+}
+// ───────── GIF 像素闸必须逐帧查（N-05 回归）─────────
+{
+  // 逻辑屏幕 1×1 + 帧描述符 20000×20000：38 字节就能构造。
+ // 旧实现只查逻辑屏幕，于是 lzwDecode / deinterlace 按帧尺寸分配 → 实测 815MB / 2087ms。
+  const bytes = [
+    0x47, 0x49, 0x46, 0x38, 0x39, 0x61,             // GIF89a
+    0x01, 0x00, 0x01, 0x00,                         // 逻辑屏幕 1×1
+    0x00, 0x00, 0x00,                               // 无全局色表
+    0x2c,                                           // 图像描述符
+    0x00, 0x00, 0x00, 0x00,                         // left/top
+    0x20, 0x4e, 0x20, 0x4e,                         // 帧宽高 = 20000 × 20000
+    0x40,                                           // 隔行标志
+    0x02,                                           // LZW 最小码长
+    0x02, 0x44, 0x01,                               // 一个数据块（2 字节数据）
+    0x00,                                           // 块结束
+    0x3b,                                           // trailer
+  ];
+  const started = Date.now();
+  const out = decodeGifFrame(Buffer.from(bytes));
+  const cost = Date.now() - started;
+  check('帧尺寸超闸时直接返回 null', out === null, JSON.stringify(out) === null ? 'null' : 'non-null');
+  check('帧尺寸超闸时不做分配（< 100ms）', cost < 100, String(cost) + 'ms');
 }
 const passed = results.filter(Boolean).length;
 console.log('\n' + passed + '/' + results.length + ' 项通过');
