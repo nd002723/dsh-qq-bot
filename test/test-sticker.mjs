@@ -567,7 +567,7 @@ console.log('\nGIF 首帧转码');
   const truth = visionPayload(Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(32, 0)]), 'c.png');
   check('PNG 原样发（不重编码）', truth.mediaType === 'image/png' && truth.converted === false);
   check('坏数据不抛错', gifFirstFrameToPng(Buffer.from('not a gif at all')) === null);
-  // 声明式炸弹：34 字节的 GIF 头声明 20000×20000。不设像素闸时 Buffer.alloc(width*height*4)
+  // 声明式炸弹：GIF 头声明 20000×20000。不设像素闸时 Buffer.alloc(width*height*4)
   // 会分配 ~1.6GB 并阻塞事件循环数十秒——而收图自动打标默认开，群里谁都能发一张。
   const bomb = Buffer.alloc(34);
   bomb.write('GIF89a', 0, 'ascii');
@@ -597,8 +597,11 @@ console.log('\nGIF 首帧转码');
 }
 // ───────── GIF 像素闸必须逐帧查（N-05 回归）─────────
 {
-  // 逻辑屏幕 1×1 + 帧描述符 20000×20000：38 字节就能构造。
- // 旧实现只查逻辑屏幕，于是 lzwDecode / deinterlace 按帧尺寸分配 → 实测 815MB / 2087ms。
+  // 逻辑屏幕 1×1 + 帧描述符 20000×20000。
+  //
+  // **必须带局部色表**（packed=0xC0 而不是 0x40）：没有色表时 gif.js 会在
+  // `table === null` 处提前返回，根本走不到 lzwDecode 的分配，撤掉帧闸也不转红 ——
+  // 用例就变成同义反复。这里补 2 项色表（6 字节），确保真的会分配 4 亿字节的 Uint8Array。
   const bytes = [
     0x47, 0x49, 0x46, 0x38, 0x39, 0x61,             // GIF89a
     0x01, 0x00, 0x01, 0x00,                         // 逻辑屏幕 1×1
@@ -606,7 +609,8 @@ console.log('\nGIF 首帧转码');
     0x2c,                                           // 图像描述符
     0x00, 0x00, 0x00, 0x00,                         // left/top
     0x20, 0x4e, 0x20, 0x4e,                         // 帧宽高 = 20000 × 20000
-    0x40,                                           // 隔行标志
+    0xc0,                                           // 局部色表 | 隔行 | size=2
+    0x00, 0x00, 0x00, 0xff, 0xff, 0xff,             // 2 项色表（黑 / 白）
     0x02,                                           // LZW 最小码长
     0x02, 0x44, 0x01,                               // 一个数据块（2 字节数据）
     0x00,                                           // 块结束
