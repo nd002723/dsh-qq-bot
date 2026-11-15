@@ -233,6 +233,7 @@ npx tsc --noEmit        # 类型检查（JSDoc + checkJs，不引入构建产物
 | [AI-DISCLOSURE.md](docs/AI-DISCLOSURE.md) | AI 生成方式、验证到什么程度、**尚未验证清单**（用前务必读） |
 | [MEMORY.md](docs/MEMORY.md) | 「人设 + 长期记忆 + 语义检索 + 压缩不遗忘」的实践笔记（实验田，无安装脚本） |
 | [SECURITY.md](docs/SECURITY.md) | 安全模型与漏洞报告方式（别在公开 issue 里贴细节） |
+| [DECISIONS.md](docs/DECISIONS.md) | 取舍记录：哪些边界**故意不修**、为什么（改动前先看这里） |
 | [CONTRIBUTING.md](docs/CONTRIBUTING.md) | 贡献流程与代码约定 |
 
 ## 许可与致谢

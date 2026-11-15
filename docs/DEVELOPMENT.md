@@ -546,6 +546,7 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 | `lib/shared/imagemeta.js` | 图像元信息：扩展名 ↔ mediaType、按真实内容嗅探格式（不信扩展名） |
 | `lib/shared/gif.js` | GIF 解码（纯 JS）：调色板 / 透明索引 / 隔行 / 局部帧合成，第 N 帧 → RGBA，首帧 → PNG |
 | `lib/shared/png.js` | 手写 PNG 编码器（RGBA / 8bit / 无滤波，只用 `zlib.deflateRawSync`） |
+| `lib/shared/whitelist.js` | **白名单目录判定**（`resolveInsideDir` / `Async` / `AnyDir`）：realpath 后按路径分隔符比边界，返回 real 路径供读盘用。四处共用，别再写第二份 |
 | **浏览器侧** | |
 | `lib/client/settings.js` | 客户端半边（手写 bundle）：插件面板里的设置区，**纯渲染器**——字段与标签页由 `GET /dsh-qq-bot/settings` 下发。**模块 id 与插槽 key 必须等于 npm 包名**，设置命名空间仍是条目 id |
 | **其他** | |
