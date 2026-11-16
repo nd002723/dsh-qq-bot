@@ -50,13 +50,12 @@ const SUITE_BASELINE = Object.freeze({
   'test-adapter-reconnect.mjs': 11,
   'test-adapter-reverse.mjs': 19,
   'test-adapter-satori.mjs': 70,
-  'test-adapter.mjs': 23,
-  // 裸克隆（CI）只有 35 —— 缺 @deepseek-ai/dsh-tools 时那 5 条会标 [SKIP]，不记成通过。
-  // 基线必须取**任何环境的下限**，否则开发机（软链在）永远绿、CI 永远红。
-  'test-admin.mjs': 35,
+  'test-adapter.mjs': 24,
+  // 本机实测 40；裸克隆会把 5 条标 [SKIP]，那部分由『自报总数 + 跳过数』的判据抵掉。
+  'test-admin.mjs': 40,
   'test-bubbles.mjs': 16,
   'test-chunk.mjs': 15,
-  'test-client.mjs': 161,
+  'test-client.mjs': 163,
   'test-compat.mjs': 14,
   'test-config.mjs': 56,
   'test-flow-auth.mjs': 43,
@@ -75,19 +74,19 @@ const SUITE_BASELINE = Object.freeze({
   'test-model-router.mjs': 23,
   'test-msgid-cache.mjs': 13,
   'test-owner-settings.mjs': 60,
-  // 裸克隆只有 146（26 条工具断言标 [SKIP]）。同上：取下限，不是本机读数。
-  'test-plugin.mjs': 146,
-  'test-proactive-round.mjs': 49,
+  // 本机实测 172；裸克隆 26 条 SKIP 由上面的跳过数抵掉。
+  'test-plugin.mjs': 172,
+  'test-proactive-round.mjs': 52,
   'test-proactive-wiring.mjs': 23,
   'test-proactive.mjs': 76,
   'test-qq-bind.mjs': 20,
   'test-qr-consistency.mjs': 7,
   'test-qr.mjs': 18,
   'test-security.mjs': 55,
-  'test-session-archive.mjs': 55,
+  'test-session-archive.mjs': 57,
   'test-session-id.mjs': 5,
   'test-sticker-gate.mjs': 25,
-  'test-sticker.mjs': 96,
+  'test-sticker.mjs': 100,
   'test-stream-bridge.mjs': 18,
   'test-tool-output.mjs': 8,
   'test-totp-cli.mjs': 14,
@@ -151,9 +150,20 @@ function runSuite(file) {
       const silent = selfTotal === null;
       // 项数基线：套件自报的总数低于历史值，说明有断言被删/被注释掉了。
       // 以前 run-all 只查「有没有失败」，b77809d 删了 27 条断言在 CI 里完全无声。
+      //
+      // **跳过数要算进来**：test-plugin / test-admin 在裸克隆里会把依赖宿主的断言标 [SKIP]，
+      // 自报总数因此变小。以前我把基线取成「裸克隆下限」，结果本机（跳过数为 0）的额度被放大——
+      // 实测在 test-proactive-round 上真删 3 条断言仍判 PASS（基线 49、自报 49），机制等于失效。
+      // 现在基线统一取**本机实测总数**，判据是「自报总数 + 跳过数 >= 基线」：
+      // 本机跳过=0 → 少一条就红；裸克隆跳过=26 → 26 条 SKIP 把额度抵掉，两环境都对。
+      const selfSkip = (() => {
+        const m = /（另有\s*(\d+)\s*项跳过/.exec(captured);
+        return (m === null) ? 0 : Number(m[1]);
+      })();
       const baseline = SUITE_BASELINE[file];
-      const shrunk = (baseline !== undefined && selfTotal !== null && selfTotal < baseline)
-        ? (baseline - selfTotal) : 0;
+      const effectiveTotal = (selfTotal === null) ? null : (selfTotal + selfSkip);
+      const shrunk = (baseline !== undefined && effectiveTotal !== null && effectiveTotal < baseline)
+        ? (baseline - effectiveTotal) : 0;
       resolve({
         file,
         ok: code === 0 && timedOut !== true && selfReportedFailure !== true && silent !== true && shrunk === 0,
