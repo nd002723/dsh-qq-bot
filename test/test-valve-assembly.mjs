@@ -266,6 +266,22 @@ await check('net.fetchText：配了代理走代理，没配代理走直连', asy
       // 返回契约：两条分支都得给 text。直连走 publicFetch 时它只给 body，
       // 不映射的话 qq_webfetch 永远读到 undefined（页面「成功」但正文为空）。
       assert.equal(got.text, 'hello', '直连分支必须把 body 映射成 text');
+
+  // 代理分支的 maxBytes / binary 也必须透传：能力层（shared/http 的 fetchUrlViaProxy）早就支持，
+  // 但 network/index.js 曾只传 {useProxy, timeoutMs} —— 两行注释写着「要带下来」，代码没带。
+  // 判据直接看钩子收到的 spec，不依赖网络。
+  {
+    const { __setNetworkHooks: setHooks } = await import('../lib/shared/http.js');
+    let seenSpec = null;
+    setHooks({ lookup: async () => [{ address: '93.184.216.34', family: 4 }] });
+    const proxyValve = createNetworkValve({ proxy: () => 'http://127.0.0.1:9', log: () => {} });
+    let threw = false;
+    try {
+      await proxyValve.traffic.fetchText('https://probe.example/x', { useProxy: true, timeoutMs: 2000, maxBytes: 4096, binary: true });
+    } catch (error) { threw = true; }
+    setHooks(null);
+    assert.equal(threw, true, '配了死代理就必须走代理分支并失败（不能偷偷直连）');
+  }
     });
   } finally { __setNetworkHooks(null); }
 });

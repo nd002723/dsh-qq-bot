@@ -103,11 +103,12 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
     writeFileSync(outside, 'SECRET', 'utf8');
     const realFile = join(ownDir, 'ok.png');
     writeFileSync(realFile, 'IMG', 'utf8');
-    check('会话目录下的普通图片 → 放行', meIsAllowedImageFile(realFile, sessionId) === true);
+    check('会话目录下的普通图片 → 放行，且返回 real 路径（调用方要拿它去读盘）',
+      typeof meIsAllowedImageFile(realFile, sessionId) === 'string' && meIsAllowedImageFile(realFile, sessionId) !== '');
 
     try { rmSync(link, { force: true }); } catch { /* 不存在 */ }
     symlinkSync(outside, link);
-    check('指向白名单外的软链 → 拒绝', meIsAllowedImageFile(link, sessionId) === false, link);
+    check('指向白名单外的软链 → 拒绝（返回空串）', meIsAllowedImageFile(link, sessionId) === '', link);
 
     // qqbot send 走的是另一条判定（lib/tools/index.js 的 resolveSendImagePath）：
     // 2026-10-29 注释审查发现它当时只做字符串前缀比较，同一个洞还开着。
@@ -124,10 +125,10 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
     const escape = join(ownDir, 'escape.png');
     try { rmSync(escape, { force: true }); } catch { /* 不存在 */ }
     symlinkSync('/etc/passwd', escape);
-    check('指向系统文件的软链 → 拒绝', meIsAllowedImageFile(escape, sessionId) === false, escape);
+    check('指向系统文件的软链 → 拒绝（返回空串）', meIsAllowedImageFile(escape, sessionId) === '', escape);
 
-    check('不存在的路径 → 拒绝（realpath 失败不认）', meIsAllowedImageFile(join(ownDir, 'nope.png'), sessionId) === false);
-    check('别的会话目录 → 拒绝', meIsAllowedImageFile(realFile, 'another-session') === false);
+    check('不存在的路径 → 拒绝（realpath 失败不认，返回空串）', meIsAllowedImageFile(join(ownDir, 'nope.png'), sessionId) === '');
+    check('别的会话目录 → 拒绝（返回空串）', meIsAllowedImageFile(realFile, 'another-session') === '');
 
     // 第三条路径：qq_draw 的 reference 也走本地图片白名单（lib/tools/imagegen.js）。
     // 它以前只做 pathResolve + 前缀比，同一个软链洞还开着，读到的内容会被 base64
