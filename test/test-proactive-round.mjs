@@ -82,7 +82,7 @@ async function runScenario(options) {
   // 抓 proactive 的定时器：首次检查 = intervalMinutes*60000/2，远大于阈值。
   const proactiveTimers = [];
   // modelSelects：记录 agent.model.select() 的调用，用来验证「两段式切了发言模型、跑完切回去」。
-  const stats = { speakCalls: 0, prompts: [], modelSelects: [], cancelCauses: [], hangWhenIdle: false, guardFn: null };
+  const stats = { speakCalls: 0, prompts: [], modelSelects: [], cancelCauses: [], hangWhenIdle: false, guardFn: null, handle: null };
   // 模拟插件 fiber 已经卸载：此时 ctx.timeout 会抛 INACTIVE（真 cordis 的 assertActive）。
   let timerBroken = false;
   // 只看本场景这段日志：上一个场景的「OneBot 已连接」「no-cjk」不能算数。
@@ -244,7 +244,9 @@ async function runScenario(options) {
     });
     check('Config 校验通过', validated.issues === undefined, JSON.stringify(validated.issues));
     if (hangWhenIdle === true) stats.hangWhenIdle = true;
-    await mod.apply(ctx, validated.value);
+    // apply 的返回值是只读诊断出口（DSH 忽略它，测试靠它观察内部状态）。
+    const pluginHandle = await mod.apply(ctx, validated.value);
+    stats.handle = pluginHandle;
     await waitFor(() => mock.clientCount() === 1, 10000, '适配器连上假 OneBot');
     await waitFor(() => logs().some((l) => l.includes('OneBot 已连接')), 20000, 'OneBot 已连接');
     check('适配器已连接且 OneBot 就绪', mock.clientCount() === 1 && logs().some((l) => l.includes('OneBot 已连接')));
@@ -392,6 +394,20 @@ for (const scenario of [
       check('超时：真的取消了残留回合', stats.cancelCauses.length === 1, JSON.stringify(stats.cancelCauses));
       check('超时：取消时带了合法 cause（宿主签名要求闭合联合）',
         stats.cancelCauses[0] !== undefined && typeof stats.cancelCauses[0].kind === 'string', JSON.stringify(stats.cancelCauses));
+
+      // 决策 4-A 的回归点：超时后**两份身份都不能恢复**。
+      // 只看 dshAllowed 不够 —— qqgroup 的鉴权读的是 turnSpeaker（tools/index.js:483-492），
+      // 而 currentSpeaker 优先读 entry.turnSpeaker（:29-31），qqgroup 又在访客白名单里直接放行。
+      // 所以只把 dshAllowed 置 false 时，残留回合仍能拿恢复后的发言人快照驱动群管理动作。
+      const entry = ((stats.handle !== null && stats.handle !== undefined && stats.handle.state !== undefined)
+        ? stats.handle.state.convos.get('group-33333') : undefined);
+      check('超时：拿得到会话条目（诊断出口可用）', entry !== undefined && entry !== null);
+      if (entry !== undefined && entry !== null) {
+        check('超时：turnSpeaker 仍是访客快照（没被恢复成原发言人）',
+          entry.turnSpeaker !== null && entry.turnSpeaker !== undefined && entry.turnSpeaker.owner === false,
+          JSON.stringify(entry.turnSpeaker));
+        check('超时：dshAllowed 仍为 false（fail-closed）', entry.dshAllowed === false, String(entry.dshAllowed));
+      }
       // D2 的回归点：超时后 finally 已跑完，但被 cancel 的残留回合仍在 agent 里跑。
       // 若这时把 dshAllowed 恢复成回合开始前的值（拥有者 → true），残留回合就能以拥有者身份用 DSH 工具。
       // 探针直接调 guard 回调读判定结果，比看日志可靠。

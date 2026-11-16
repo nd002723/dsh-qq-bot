@@ -222,6 +222,8 @@ function makeWorld(opts) {
   const unarchiveCalls = [];
   const createCalls = [];
   const world = { createSawArchived: null };
+  // 会话条目表：测试要能读到 entry.scopeKey / sessionId 这些「创建侧记下了什么」。
+  const convos = new Map();
   const registry = {
     get archivedSessionIds() { return archived.slice(); },
     list() {
@@ -266,13 +268,13 @@ function makeWorld(opts) {
     auth: { ownerPreset: '', guestPreset: '', guestToolAllow: [] },
     agentPreset: 'standard',
     session: { fixedName: true, recallArchived: o.recallArchived !== false },
-    flowAuth: { enabled: false },
+    flowAuth: { enabled: o.flowEnabled === true },
     perChatSession: true,
   });
   const session = createSession({
     getConfig: cfg,
     ctx,
-    state: { convos: new Map(), stats: {} },
+    state: { convos, stats: {} },
     ensureQqMsgWorkspace: async () => ({ id: 'ws-1', path: '/tmp/qqmsg' }),
     ensureSessionWorkspace: async () => ({ id: null, path: '/tmp/qqmsg/s1' }),
     sessionWorkdir: () => '/tmp/qqmsg/s1',
@@ -282,7 +284,7 @@ function makeWorld(opts) {
     flowGate: null,
     archiveApi,
   });
-  return { session, archived, ledger, unarchiveCalls, createCalls, world };
+  return { session, archived, ledger, unarchiveCalls, createCalls, world, convos };
 }
 
 {
@@ -473,10 +475,12 @@ function makeWorld(opts) {
   };
   let flowOn = false;
   const world = makeWorld({ archived: [], ledger: [] });
+  // 这块要观察 entry.scopeKey，用自己的条目表（makeWorld 里那个是给 world 用的）。
+  const toggleConvos = new Map();
   const toggled = createSession({
     getConfig: () => Object.assign({}, baseCfg, { flowAuth: { enabled: flowOn } }),
     ctx: world.ctx,
-    state: { convos: new Map(), stats: {} },
+    state: { convos: toggleConvos, stats: {} },
     ensureQqMsgWorkspace: async () => ({ id: 'ws-root', path: '/tmp/qqmsg' }),
     ensureSessionWorkspace: async () => ({ id: 'ws-sess', path: '/tmp/qqmsg/s1' }),
     sessionWorkdir: () => '/tmp/qqmsg/s1',
@@ -492,6 +496,31 @@ function makeWorld(opts) {
   const keyOn = await toggled.expectedScopeKey();
   check('flowAuth 关闭与开启时 scopeKey 完全相同（开关不属于会话身份）',
     keyOff === keyOn, keyOff + ' vs ' + keyOn);
+  // 更强的判据：**创建侧记下的 scopeKey 必须与 expectedScopeKey() 算出来的一致**。
+  // 之前「只验两次调用相等」的断言判别力为零 —— 抓不到「创建侧没同步改」那种半修（D1 报过：
+  // 只改 expectedScopeKey、不改 :274 的派生来源，两边永远不等 → 每条消息都 cancel 重建）。
+  // 冲突派生要用**新构造**的世界：rejectFirstCreateOf 是构造参数，事后赋值不生效。
+  const cw = makeWorld({
+    archived: [],
+    ledger: [],
+    flowEnabled: true,
+    rejectFirstCreateOf: (function () {
+      let rejected = false;
+      return function () { if (rejected === true) return false; rejected = true; return true; };
+    })(),
+  });
+  await quiet(() => cw.session.getEntry('group-96', 'qqbot-group-96', 'standard', null));
+  const created = cw.convos.get('group-96');
+  check('冲突派生后条目记下了 scopeKey', created !== undefined && typeof created.scopeKey === 'string',
+    created === undefined ? '(无条目)' : String(created.scopeKey));
+  if (created !== undefined && typeof created.scopeKey === 'string') {
+    const nowKey = await cw.session.expectedScopeKey();
+    // 判据必须是**严格相等**：这条要抓的是「创建侧与 expectedScopeKey 用了不同来源」那种半修。
+    // 只判「不含 flow 字样」太弱 —— 变异验证时两种错误来源都能满足它。
+    check('创建侧记的 scopeKey 与 expectedScopeKey() 严格相等',
+      created.scopeKey === nowKey,
+      'recorded=' + created.scopeKey + ' now=' + nowKey);
+  }
   flowOn = false;
   const keyBack = await toggled.expectedScopeKey();
   check('再拨回来仍是同一个 key（不会在值之间来回跳）',

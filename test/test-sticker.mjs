@@ -4,7 +4,7 @@
  * 用临时目录 + 假 ctx（attachments.saveImage / llm.stream）跑完整流程，
  * 不碰网络、不碰真实模型，断言的是「哪些文件被重新打标」这种可观察行为。
  */
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, utimesSync, existsSync, renameSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, utimesSync, existsSync, renameSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import {
@@ -24,6 +24,8 @@ import {
 } from '../lib/tools/sticker.js';
 // 像素闸在 shared/gif.js：直接引它才能验「帧描述符也要过闸」。
 import { decodeGifFrame } from '../lib/shared/gif.js';
+// N4 的判据就在这个模块里：四处共用同一份白名单目录判定。
+import { resolveInsideDir } from '../lib/shared/whitelist.js';
 
 const results = [];
 let failures = 0;
@@ -621,6 +623,32 @@ console.log('\nGIF 首帧转码');
   const cost = Date.now() - started;
   check('帧尺寸超闸时直接返回 null', out === null, JSON.stringify(out) === null ? 'null' : 'non-null');
   check('帧尺寸超闸时不做分配（< 100ms）', cost < 100, String(cost) + 'ms');
+}
+// ─────── 图库读盘必须过白名单判定（N4 回归：目录内软链指到外部可读内容）───────
+{
+  const dirN4 = mkdtempSync(join(tmpdir(), 'sticker-n4-'));
+  try {
+    // 关键：秘密文件必须在**白名单根之外**（root = dirN4/lib，秘密在 dirN4/SECRET.txt）；
+    // 第一版把它放在 dirN4 里面，软链解析后仍在根内，用例自然不转红——构造错了不是代码错。
+    const root = join(dirN4, 'lib');
+    mkdirSync(join(root, 's1'), { recursive: true });
+    const secret = join(dirN4, 'SECRET.txt');
+    writeFileSync(secret, 'SECRET-CONTENT', 'utf8');
+    const link = join(root, 's1', 'cute.png');
+    const inside = join(root, 's1', 'ok.png');
+    writeFileSync(inside, 'OK', 'utf8');
+    try { symlinkSync(secret, link); } catch (error) { /* 平台不支持软链时这条用例没有意义 */ }
+    // 判据本身（与四处共用同一份实现）：解析到白名单目录外就必须返回空串。
+    const allowedLink = resolveInsideDir(link, root);
+    const allowedMissing = resolveInsideDir(join(root, 's1', 'not-exist.png'), root);
+    const allowedInside = resolveInsideDir(inside, root);
+    check('目录内软链指到外部 → 不在白名单', allowedLink === '', allowedLink);
+    check('不存在的文件 → 不在白名单（与「读不到」等价）', allowedMissing === '', allowedMissing);
+    check('目录内的普通文件 → 白名单内，且返回 realpath 后的路径',
+      allowedInside !== '' && allowedInside.indexOf('ok.png') >= 0, allowedInside);
+  } finally {
+    rmSync(dirN4, { recursive: true, force: true });
+  }
 }
 const passed = results.filter(Boolean).length;
 console.log('\n' + passed + '/' + results.length + ' 项通过');

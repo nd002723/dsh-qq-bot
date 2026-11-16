@@ -418,9 +418,14 @@ try {
   try { settingsBody = JSON.parse(settingsRes.body); } catch { settingsBody = null; }
   check('模板路由回 200 且是合法 JSON', settingsRes.status === 200 && settingsBody !== null, String(settingsRes.status));
   // update 只是「有没有新版本」的状态（版本号/兼容位），不含任何用户配置值。
-  check('模板路由不回用户配置（模板 + 来源 + 更新状态）',
-    settingsBody !== null && Object.keys(settingsBody).sort().join(',') === 'fields,ok,sources,tabs,update'
-      && (settingsBody.update === null || typeof settingsBody.update === 'object'),
+  // 白名单是「这个路由只回这几样、绝不夹带用户配置」的护栏。加字段必须同步这里——
+  // gateSecurityFields 只含字段名（不含值），与 sources 同级，可以放行。
+  check('模板路由不回用户配置（模板 + 来源 + 更新状态 + 保护面字段名）',
+    settingsBody !== null
+      && Object.keys(settingsBody).sort().join(',') === 'fields,gateSecurityFields,ok,sources,tabs,update'
+      && (settingsBody.update === null || typeof settingsBody.update === 'object')
+      && Array.isArray(settingsBody.gateSecurityFields)
+      && Object.keys(settingsBody.gateSecurityFields).length === settingsBody.gateSecurityFields.length,
     settingsBody === null ? '' : Object.keys(settingsBody).join(','));
   check('模板里有标签页与字段',
     settingsBody !== null && settingsBody.tabs.length === 4 && settingsBody.fields.length === configMod.SETTINGS_FIELDS.length,
