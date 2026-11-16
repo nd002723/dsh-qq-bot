@@ -913,10 +913,10 @@
         "proactive",
         "speakModel"
       ],
-      "label": "发言阶段模型（留空 = 单段模式）",
+      "label": "回合模型（留空 = 与判断相同）",
       "kind": "select",
-      "hint": "填了它才启用两段式：判断只出 JSON，正文由这个模型单独写，能用的文风模型和判断解耦；留空则维持现在的单段行为",
-      "placeholder": "（留空 = 单段模式：判断输出里直接带正文）",
+      "hint": "填了才单独指定回合用的模型：判断只出 JSON，正文由这个模型的回合写。留空则与判断同一个模型。",
+      "placeholder": "（留空 = 单段：判断只出 JSON，正文由回合生成）",
       "dynamic": "model",
       "tab": "capability",
       "subtab": "dialogue"
@@ -936,6 +936,19 @@
       "step": 1000,
       "slider": true,
       "unit": "毫秒"
+    },
+    {
+      "path": [
+        "proactive",
+        "idleTimeoutMs"
+      ],
+      "label": "主动回合最长等待（毫秒）",
+      "kind": "number",
+      "hint": "超过这个时间就放弃本次发言，并取消那个还在跑的回合（不取消会让下一条用户消息被静默丢弃）。0 = 不设上限，等于放弃这层保护。",
+      "min": 0,
+      "max": 1800000,
+      "tab": "capability",
+      "subtab": "dialogue"
     },
     {
       "path": [

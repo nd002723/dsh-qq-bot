@@ -322,6 +322,43 @@ console.log('\n10. 默认值 JSON：自动发现 / 与 schema 一致 / 邪门输
   }
 }
 
+console.log('\n8.5 反向护栏：删一个嵌套叶子必须在加载期炸（N-06 回归）');
+{
+  // 为什么这条重要：方向 1 只查「JSON 里写的键 schema 认不认识」，查不到「JSON 少写了字段」。
+  // 删掉 group.requireAt 时加载不报错、DEFAULTS 与 schema 求值都变 undefined，
+  // 而 turn-runtime 的判据是 requireAt === true → 群聊悄悄不再要求 @（权限被静默放宽）。
+  const scratch2 = mkdtempSync(path.join(repoRoot, 'test', '.tmp-leaf-'));
+  try {
+    cpSync(path.join(repoRoot, 'lib'), path.join(scratch2, 'lib'), { recursive: true });
+    const confFile = path.join(scratch2, 'lib', 'core-conf.json');
+    const target2 = pathToFileURL(path.join(scratch2, 'lib', 'config.js')).href;
+    const runImport2 = () => execFileSync(process.execPath, ['--input-type=module', '-e', 'await import(' + JSON.stringify(target2) + ')'],
+      { stdio: 'pipe', encoding: 'utf8' });
+    let cleanOk = true;
+    try { runImport2(); } catch (error) { cleanOk = false; }
+    check('干净副本可以正常装载（反向护栏基线）', cleanOk === true);
+
+    const original = readFileSync(confFile, 'utf8');
+    const parsed = JSON.parse(original);
+    delete parsed.defaults.group.requireAt;
+    writeFileSync(confFile, JSON.stringify(parsed, null, 2), 'utf8');
+    let leafError = '';
+    try { runImport2(); } catch (error) { leafError = String((error.stderr || '') + (error.message || '')); }
+    check('删掉嵌套叶子在加载时报错，并指名是哪一条',
+      leafError.indexOf('group.requireAt') >= 0, leafError.slice(0, 160));
+    writeFileSync(confFile, original, 'utf8');
+
+    const parsed2 = JSON.parse(original);
+    delete parsed2.defaults.group.allow;
+    writeFileSync(confFile, JSON.stringify(parsed2, null, 2), 'utf8');
+    let arrayLeafOk = true;
+    try { runImport2(); } catch (error) { arrayLeafOk = false; }
+    check('数组叶子缺失同样报错（判据覆盖所有叶子类型）', arrayLeafOk === false);
+  } finally {
+    rmSync(scratch2, { recursive: true, force: true });
+  }
+}
+
 console.log('\n9. 默认值单源：core-conf.json（摊平后的 DEFAULTS）与 schema 默认值必须完全一致');
 {
   // 值现在只写在 lib/core-conf.json；schema 用 defaultsOf('core') 引用它。

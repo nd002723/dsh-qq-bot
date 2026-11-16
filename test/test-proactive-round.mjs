@@ -4,15 +4,15 @@
  *
  *   node test/test-proactive-round.mjs
  *
- * 目的：把「轮到该说话 → 判断 → 发言 → 校验（requireCjk）→ 回退 → 发送」整条链在
+ * 目的：把「轮到该说话 → 判断 → 触发回合 → 发送」整条链在
  * 真插件代码上跑一遍。此前这条链只有生产实例上肉眼验证过，纯函数测试盖不到
- * index.js 里那段胶水——尤其「requireCjk 有没有真的透传进发言阶段」这种接线错误。
+ * index.js 里那段胶水——尤其「判断模型切没切、切回没有」这种接线错误。
  *
- * requireCjk 在 index.js 里有两处接线（单段一处、两段式的发言阶段一处），漏掉任何一处
+ * 发言阶段模型有两处接线（判断阶段与回合），漏掉任何一处
  * 纯函数测试都看不出来，所以按场景各跑一遍：
  *   1. 两段式（配了 speakModel）：发言模型两次回英文拒绝语 → 被拦 → 回退判断正文 → 发出；
  *   2. 单段式（不配 speakModel）：判断正文本身就是英文拒绝语 → 被拦 → 一条都不发；
- *   3. 反向对照：同一句话在 requireCjk 关掉时会被发出去。
+ *   3. 反向对照：判断阶段给的 message 不再参与发送（正文一律来自回合）。
  *
  * 做法：每个场景各自起假 OneBot、各自 apply、跑完各自清理；假 ctx + 真 lib/index.js，
  * 把插件注册的定时器回调抓出来手动触发，于是整轮检查是确定性的，不用 sleep 五分钟。
@@ -59,7 +59,7 @@ const logLines = [];
 const realLog = console.log;
 console.log = (...args) => { logLines.push(args.map(String).join(' ')); realLog(...args); };
 
-// 假模型的三句台词：判断模型的正常正文、以及「整句英文拒绝语」——后者是 requireCjk 要拦的东西。
+// 假模型的两句台词：判断模型的正常 JSON、以及「整句英文拒绝语」——用来证明正文不再取自 judge。
 // 一句 61 字符、一个 CJK 都没有，正好落在「> 12 字且无 CJK」这个判据里。
 const JUDGE_TEXT = '那就下午三点老地方见';
 const ENGLISH_REJECT = "Sorry, it looks like I can't chat about this topic right now.";
@@ -73,7 +73,7 @@ const ENGLISH_REJECT = "Sorry, it looks like I can't chat about this topic right
  * @param {{ label: string, judgeMessage: string, proactive?: object, verify: Function }} options
  */
 async function runScenario(options) {
-  const { label, judgeMessage, proactive: overrides, verify, speakReasoningOnly } = options;
+  const { label, judgeMessage, proactive: overrides, verify, speakReasoningOnly, hangWhenIdle } = options;
   console.log('\n场景：' + label);
   const mock = await startMockOneBot({ quiet: true });
   const disposers = [];
@@ -82,7 +82,7 @@ async function runScenario(options) {
   // 抓 proactive 的定时器：首次检查 = intervalMinutes*60000/2，远大于阈值。
   const proactiveTimers = [];
   // modelSelects：记录 agent.model.select() 的调用，用来验证「两段式切了发言模型、跑完切回去」。
-  const stats = { speakCalls: 0, prompts: [], modelSelects: [] };
+  const stats = { speakCalls: 0, prompts: [], modelSelects: [], cancelCauses: [], hangWhenIdle: false, guardFn: null };
   // 模拟插件 fiber 已经卸载：此时 ctx.timeout 会抛 INACTIVE（真 cordis 的 assertActive）。
   let timerBroken = false;
   // 只看本场景这段日志：上一个场景的「OneBot 已连接」「no-cjk」不能算数。
@@ -110,6 +110,13 @@ async function runScenario(options) {
   const proactiveReply = '本鱼觉得这事儿能接一句。';
   // 主动发言现在走「触发回合」：followup 推一条触发消息，回合跑完后 extractReply 从
   // deriveMessages 里读 assistant 文本。桩必须真的把这两段都演出来，否则永远取不到回复。
+  // tools 服务的桩：guard 收下回调并留在 stats 里，供「超时后是否 fail-closed」那类断言探针。
+  const toolsStub = {
+    guard(fn) { stats.guardFn = fn; return () => {}; },
+    get() { return undefined; },
+    register() {},
+  };
+
   const fakeAgent = (sessionId) => {
     const messages = [];
     const agent = {
@@ -118,7 +125,8 @@ async function runScenario(options) {
       // 真宿主里 agent.ctx 能拿到 tools 服务（访客工具闸靠它安装）。桩缺了它，
       // manager 会把 guardUnavailable 置 true，主动回合就按 fail-closed 拒绝发起——
       // 那是生产环境的正确行为，测试桩得跟上，不能反过来放松红线。
-      ctx: { get: (name) => (name === 'tools' ? { guard: () => () => {} } : undefined), tools: { guard: () => () => {} } },
+      // guard 回调存起来：D2 的回归点要能直接问「此刻这个回合放行哪些工具」。
+      ctx: { get: (name) => (name === 'tools' ? toolsStub : undefined), tools: toolsStub },
       session: { deriveMessages: () => messages.slice() },
       // 两段式的「发言阶段模型」现在是切给 agent 的，桩要能记录 select 调用。
       model: {
@@ -130,7 +138,13 @@ async function runScenario(options) {
         const reply = String(sessionId).includes('silent') ? '' : proactiveReply;
         if (reply !== '') messages.push({ id: 'a-' + messages.length, role: 'assistant', content: [{ type: 'text', text: reply }], source: { kind: 'model' } });
       },
-      async whenIdle() {},
+      // netbag：cancel 必须被记下来（N-04 的回归点就是「超时了但没取消」）。
+      cancelCalls: 0,
+      // sessionId 里带 hang 的：whenIdle 永远不 resolve，用来触发 180s 超时路径。
+      async whenIdle() {
+        if (stats.hangWhenIdle === true) return new Promise(function () {});
+      },
+      cancel(cause) { this.cancelCalls += 1; stats.cancelCauses.push(cause); },
     };
     return agent;
   };
@@ -196,7 +210,7 @@ async function runScenario(options) {
           yield { type: 'reasoning-delta', index: 0, text: '那就下午三点老地方见' };
           return;
         }
-        // 发言阶段故意返回整句英文拒绝语：requireCjk 开着时应当被拦，然后回退到判断正文。
+        // 发言阶段故意返回整句英文拒绝语：证明它不会被当成正文发出去（guide 只出 JSON）。
         // 顺带模拟真实上游：text-delta 之后还会给一个 block-end（整块文本），
         // 两者只能二选一——如果被相加，同一句拒绝语会变成两遍。
         yield { type: 'text-delta', index: 0, text: ENGLISH_REJECT };
@@ -229,6 +243,7 @@ async function runScenario(options) {
       },
     });
     check('Config 校验通过', validated.issues === undefined, JSON.stringify(validated.issues));
+    if (hangWhenIdle === true) stats.hangWhenIdle = true;
     await mod.apply(ctx, validated.value);
     await waitFor(() => mock.clientCount() === 1, 10000, '适配器连上假 OneBot');
     await waitFor(() => logs().some((l) => l.includes('OneBot 已连接')), 20000, 'OneBot 已连接');
@@ -278,7 +293,7 @@ for (const scenario of [
     label: '两段式：发言模型切给 agent 回合，回合产出即发送',
     judgeMessage: JUDGE_TEXT,
     // 两段式要求 provider + model 成对（provider 留空 = 跟随判断阶段，不启用）；兜底开关控制发言阶段的校验。
-    proactive: { speakProvider: 'speak-p', speakModel: 'speak-m', speakFallback: true, requireCjk: true },
+    proactive: { speakProvider: 'speak-p', speakModel: 'speak-m' },
     async verify({ mock, stats, logs, waitFor }) {
       const sentGroup = await waitFor(() => mock.sent.find((s) => Number(s.group_id) === 33333 || Number(s.target_id) === 33333), 20000, '主动发言发送');
       const text = textOf({ message: sentGroup.message });
@@ -299,7 +314,7 @@ for (const scenario of [
     label: '两段式 + 推理型发言模型：旧的两段式兜底已退役，只验回合正常产出',
     judgeMessage: JUDGE_TEXT,
     speakReasoningOnly: true,
-    proactive: { speakProvider: 'speak-p', speakModel: 'speak-m', speakFallback: true, requireCjk: true },
+    proactive: { speakProvider: 'speak-p', speakModel: 'speak-m' },
     async verify({ mock, stats, logs, waitFor }) {
       const sentGroup = await waitFor(() => mock.sent.find((s) => Number(s.group_id) === 33333 || Number(s.target_id) === 33333), 20000, 'reasoning 兜底后的主动发言');
       const text = textOf({ message: sentGroup.message });
@@ -310,8 +325,8 @@ for (const scenario of [
   {
     label: '单段式：judge 只决定接不接，正文由回合产出（不再校验 judge 的 message）',
     judgeMessage: ENGLISH_REJECT,
-    // 不设 speakProvider/speakModel = 单段模式；requireCjk 必须把判断阶段那句英文拦在发送之前。
-    proactive: { requireCjk: true },
+    // 不设 speakProvider/speakModel = 单段模式；judge 给的英文 message 不该被当成正文发出去。
+    proactive: {},
     async verify({ mock, stats, logs }) {
       // tick 已经把整轮检查 await 完了，再留一点余量给适配器的 HTTP 往返，避免「刚好还没写进去」。
       await sleep(300);
@@ -324,12 +339,12 @@ for (const scenario of [
   {
     label: '反向对照：judge 给的英文 message 不再参与发送（正文一律来自回合）',
     judgeMessage: ENGLISH_REJECT,
-    // 关掉兜底 → 同一句英文直接发：证明上面那条拦截确实是 requireCjk 干的，而不是别的校验碰巧拦住。
-    proactive: { requireCjk: false },
+    // 与上一条同配置、只换 judge 输出：证明「不发送 judge 正文」是回合路径本身决定的，不是某次拦截碰巧。
+    proactive: {},
     async verify({ mock, waitFor }) {
       const sentGroup = await waitFor(() => mock.sent.find((s) => Number(s.group_id) === 33333 || Number(s.target_id) === 33333), 20000, '主动发言发送');
       const text = textOf({ message: sentGroup.message });
-      check('反向对照：requireCjk 关掉后英文被发出去了（且只发一条）', mock.sent.length === 1, 'sent=' + mock.sent.length);
+      check('反向对照：无论 judge 给什么，发出的都是回合正文（且只发一条）', mock.sent.length === 1, 'sent=' + mock.sent.length);
       // A1 之后 judge 只出「接不接 + 话题」，message 字段即使写了也不会被当成正文。
       check('反向对照：发出去的不是 judge 那句英文', !/^Sorry,/i.test(text), JSON.stringify(text.slice(0, 40)));
     },
@@ -337,9 +352,9 @@ for (const scenario of [
   {
     label: '两段式关掉兜底：兜底开关已不影响回合路径',
     judgeMessage: JUDGE_TEXT,
-    // speakFallback 曾经控制「发言阶段全挂时回不回退到 judge 正文」；A1 之后 judge 不再产出正文，
+    // speakFallback 曾控制「发言阶段全挂时回不回退到 judge 正文」；现在 judge 不再产出正文，
     // 这个开关对发送路径没有影响了——留着它只为兼容旧配置，不该再决定发不发。
-    proactive: { speakProvider: 'speak-p', speakModel: 'speak-m', speakFallback: false, requireCjk: true },
+    proactive: { speakProvider: 'speak-p', speakModel: 'speak-m' },
     async verify({ mock, stats, logs }) {
       await sleep(300);
       check('关掉兜底：仍然切了发言模型给回合', stats.modelSelects.length > 0, JSON.stringify(stats.modelSelects));
@@ -358,6 +373,31 @@ for (const scenario of [
       await sleep(200);
       check('排不了下一轮时只记一行日志，不把异常抛进进程', logs().some((line) => line.includes('不再排下一轮')), 'logLines=' + logs().length);
       check('进程还活着（能跑到这一行就说明没有 unhandled rejection）', true);
+    },
+  },
+  {
+    label: '超时：whenIdle 不返回时放弃本次发言，并取消残留回合（N-04 回归）',
+    judgeMessage: JUDGE_TEXT,
+    // idleTimeoutMs 必须放进 proactive（场景 overrides 只合并 proactive 那一层）；
+    // 压到 300ms，否则这条用例要真等 180 秒。
+    proactive: { idleTimeoutMs: 300 },
+    // whenIdle 永不 resolve 的桩，用来触发超时路径。
+    hangWhenIdle: true,
+    async verify({ mock, stats, logs }) {
+      await sleep(400);
+      check('超时：判定为超时并放弃本次发言（没有发送）', mock.sent.length === 0, 'sent=' + mock.sent.length);
+      check('超时：日志点名超时', logs().some((l) => l.indexOf('内没有结束') >= 0), logs().slice(-3).join(' | '));
+      // N-04 的核心：只标记超时不够，必须把还在跑的回合取消掉，
+      // 否则它会一直占住 whenIdle()，下一条用户消息会被静默丢弃。
+      check('超时：真的取消了残留回合', stats.cancelCauses.length === 1, JSON.stringify(stats.cancelCauses));
+      check('超时：取消时带了合法 cause（宿主签名要求闭合联合）',
+        stats.cancelCauses[0] !== undefined && typeof stats.cancelCauses[0].kind === 'string', JSON.stringify(stats.cancelCauses));
+      // D2 的回归点：超时后 finally 已跑完，但被 cancel 的残留回合仍在 agent 里跑。
+      // 若这时把 dshAllowed 恢复成回合开始前的值（拥有者 → true），残留回合就能以拥有者身份用 DSH 工具。
+      // 探针直接调 guard 回调读判定结果，比看日志可靠。
+      const verdict = (stats.guardFn === null) ? null : stats.guardFn({ name: 'subagent' });
+      check('超时后残留回合不能以拥有者身份用高危工具（fail-closed）',
+        verdict === null || String(verdict).length > 0, 'verdict=' + String(verdict));
     },
   },
 ]) {

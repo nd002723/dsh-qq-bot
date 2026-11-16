@@ -250,6 +250,8 @@ function makeWorld(opts) {
       async create(request) {
         createCalls.push(request);
         world.createSawArchived = archived.includes(String(request.sessionId));
+        // 真实 DSH 建完会话会把它登记进所属工作区账本；不模拟这步，isDetached 会对刚建的会话恒 true。
+        if (ledger.map(String).includes(String(request.sessionId)) !== true) ledger.push(String(request.sessionId));
         // 模拟宿主拒绝跨工作区复用同一个 id（DSH 的真实行为）。
         if (typeof o.rejectFirstCreateOf === "function" && o.rejectFirstCreateOf(String(request.sessionId)) === true) {
           throw new Error("session belongs to another workspace");
@@ -428,6 +430,72 @@ function makeWorld(opts) {
   await quiet(() => world.session.getEntry("group-99", "qqbot-group-99", "standard", null));
   check("下一条消息复用派生 id，不再重建会话", world.createCalls.length === before, "calls=" + world.createCalls.length);
   check("首次仍用原始 id 建", firstId === "qqbot-group-99", firstId);
+}
+// ──────────────── scoped 条目的被删探测与工作区变化（N-01/N-02 回归） ────────────────
+{
+  // 回归点：认亲分支以前抢在 isDetached 探测之前 return，派生会话被删后仍喂给死 agent。
+  //
+  // 关键构造：原始 id **必须留在账本里**（现实中它属于另一个工作区，所以一直在那个账本里），
+  // 只摘掉派生 id。这样两种写法才有区分度——查原始 id 会得到「还在」（误判安全），
+  // 查派生 id 才得到「被删」。先前版本把账本整个清空，两种写法都判被删，测试抓不住 bug。
+  const firstOnly = () => {
+    let rejected = false;
+    return (id) => { if (rejected === true) return false; rejected = true; return true; };
+  };
+  const world = makeWorld({ archived: [], ledger: ['qqbot-group-95'], rejectFirstCreateOf: firstOnly() });
+  await quiet(() => world.session.getEntry('group-95', 'qqbot-group-95', 'standard', null));
+  const scopedId = String(world.createCalls[1].sessionId);
+  // 模拟「派生会话被删」：只摘掉它，原始 id 仍留在（别人的）账本里
+  const at = world.ledger.indexOf(scopedId);
+  if (at >= 0) world.ledger.splice(at, 1);
+  check('构造前提：原始 id 仍在账本里、派生 id 已被摘掉',
+    world.ledger.includes('qqbot-group-95') && world.ledger.includes(scopedId) !== true,
+    world.ledger.join(','));
+  const before = world.createCalls.length;
+  await quiet(() => world.session.getEntry('group-95', 'qqbot-group-95', 'standard', null));
+  check('派生会话被删后要重建，不能继续喂死 agent', world.createCalls.length > before, 'calls=' + world.createCalls.length);
+  check('重建时没有沿用已删的派生 id', String(world.createCalls[world.createCalls.length - 1].sessionId) !== scopedId);
+}
+// ──────────── scopeKey 语义：会话身份只看工作区，不随 flowAuth 开关变化 ────────────
+{
+  // T-02 的回归点：expectedScopeKey 曾把 flowAuth 开关算进会话身份，
+  // 于是设置页拨一下开关就会 delete 条目 + cancel 在跑的回合 + 换一个新会话 id，
+  // 而且回拨也重建（key 在两个值间来回永不相等）。旧代码同场景不重建 → 这是回归。
+  //
+  // 为什么这条测试有判别力：把 flowAuth 算回 scopeKey（旧写法）会让下面两条断言双双转红，
+  // 因为它只改 cfg() 的返回值就能让 key 变化，不需要真的重建会话。
+  const baseCfg = {
+    auth: { ownerPreset: '', guestPreset: '', guestToolAllow: [] },
+    agentPreset: 'standard',
+    session: { fixedName: true, recallArchived: true },
+    flowAuth: { enabled: false },
+    perChatSession: true,
+  };
+  let flowOn = false;
+  const world = makeWorld({ archived: [], ledger: [] });
+  const toggled = createSession({
+    getConfig: () => Object.assign({}, baseCfg, { flowAuth: { enabled: flowOn } }),
+    ctx: world.ctx,
+    state: { convos: new Map(), stats: {} },
+    ensureQqMsgWorkspace: async () => ({ id: 'ws-root', path: '/tmp/qqmsg' }),
+    ensureSessionWorkspace: async () => ({ id: 'ws-sess', path: '/tmp/qqmsg/s1' }),
+    sessionWorkdir: () => '/tmp/qqmsg/s1',
+    callAdapterAction: async () => ({ ok: false }),
+    describeError: (e) => String((e && e.message) || e),
+    isOwner: () => true,
+    flowGate: null,
+    archiveApi: world.archiveApi,
+  });
+  flowOn = false;
+  const keyOff = await toggled.expectedScopeKey();
+  flowOn = true;
+  const keyOn = await toggled.expectedScopeKey();
+  check('flowAuth 关闭与开启时 scopeKey 完全相同（开关不属于会话身份）',
+    keyOff === keyOn, keyOff + ' vs ' + keyOn);
+  flowOn = false;
+  const keyBack = await toggled.expectedScopeKey();
+  check('再拨回来仍是同一个 key（不会在值之间来回跳）',
+    keyBack === keyOff, keyBack);
 }
 console.log('\n' + pass + '/' + (pass + fail) + ' 项通过');
 if (fail > 0) { console.log('会话归档召回自测失败'); process.exit(1); }

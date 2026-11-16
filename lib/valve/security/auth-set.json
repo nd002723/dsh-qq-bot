@@ -20,8 +20,7 @@
       ],
       "label": "后台设定的高级管理员",
       "kind": "list",
-      "hint": "逗号分隔。有群管理权限，但不能永久授权",
-      "numeric": true,
+      "hint": "高级管理员（可授动态码、可改部分保护面）。OneBot 协议填 QQ 号；QQ 官方协议填 OpenID —— 与 owners 同一口径。",
       "tab": "basic",
       "subtab": "access"
     },

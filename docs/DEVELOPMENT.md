@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（49 个套件 / 1864 项）
+## 2. 测试（49 个套件 / 1878 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -55,7 +55,7 @@ npm test                   # 同上
 
 | 套件 | 项数 | 覆盖什么 |
 | --- | --- | --- |
-| `test-adapter.mjs` | 22 | OneBot 11 正向适配器 |
+| `test-adapter.mjs` | 23 | OneBot 11 正向适配器 |
 | `test-adapter-reverse.mjs` | 19 | OneBot 11 反向适配器（含半开连接回收） |
 | `test-adapter-reconnect.mjs` | 11 | 适配器重连：握手超时必重试、open 前不算链路、断线后重试、reconnect() 主动重连、背压不判失败 |
 | `test-sticker-gate.mjs` | 25 | 表情包闸门：概率抽样（注入 random）、每群每小时上限（force 也受限）、同图 TTL 去重（force 可绕过）、按群隔离、记录与 reset |
@@ -68,17 +68,17 @@ npm test                   # 同上
 | `test-plugin.mjs` | 172 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、10 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（170 项含工具注册段落；解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 122 项 + 6 项 `[SKIP]`） |
 | `test-client.mjs` | 161 | 客户端设置页：模拟模块加载器 + 最小 React 渲染 + 四档标签（字段来自服务端模板）+ 只写密钥护栏 + 纯数字名单校验 + 一键还原默认 + 两段式 provider/model 配对与未知值保留 |
 | `test-admin.mjs` | 40 | 权限 · 群管理 · 访客工具闸 |
-| `test-http.mjs` | 30 | HTTP / 代理隧道 / IP 归一与公网判定 |
-| `test-config.mjs` | 50 | 配置合并、volatile 还原、废弃键清理、`-conf.json` / `-set.json` 自动发现与护栏（组不存在 / 路径不存在 / 标签页不存在 / `priority` 非法 / 文件头 tab 也缺）、设置页分区顺序与字段继承 |
+| `test-http.mjs` | 31 | HTTP / 代理隧道 / IP 归一与公网判定 |
+| `test-config.mjs` | 56 | 配置合并、volatile 还原、废弃键清理、`-conf.json` / `-set.json` 自动发现与护栏（组不存在 / 路径不存在 / 标签页不存在 / `priority` 非法 / 文件头 tab 也缺）、设置页分区顺序与字段继承 |
 | `test-websearch.mjs` | 5 | 多引擎搜索结果解析 |
-| `test-sticker.mjs` | 91 | 表情包图库：目录扫描 / sha1 增量索引（touch 不重打标、改内容只重打一张、改名与换系列按 sha1 认领标签）/ 坏索引自愈 / 搜索与挑图 / 发送目标判定 / 状态与重建路由 / 配置契约 / GIF 首帧转码与兼容模式（含假 .gif 按真实内容发） |
-| `test-imagegen.mjs` | 25 | 生图重试 / 轮询 / 响应解析；本地图片白名单必须解符号链接（软链指向白名单外一律拒） |
+| `test-sticker.mjs` | 96 | 表情包图库：目录扫描 / sha1 增量索引（touch 不重打标、改内容只重打一张、改名与换系列按 sha1 认领标签）/ 坏索引自愈 / 搜索与挑图 / 发送目标判定 / 状态与重建路由 / 配置契约 / GIF 首帧转码与兼容模式（含假 .gif 按真实内容发） |
+| `test-imagegen.mjs` | 26 | 生图重试 / 轮询 / 响应解析；本地图片白名单必须解符号链接（软链指向白名单外一律拒） |
 | `test-session-id.mjs` | 5 | 会话 id 回退 |
 | `test-compat.mjs` | 14 | 运行时兼容自检 |
 | `test-update-check.mjs` | 19 | 上游新版本提示：range 判断、同版本/更旧不提示、不兼容标记、失败静默、缓存与开关、registry 回退、失败只缓存 5 分钟 |
 | `test-history.mjs` | 20 | 聊天记录鉴权与定向 |
-| `test-proactive-wiring.mjs` | 24 | 主动发言接线与人格：依赖键名对账、缺依赖启动即告警、`soul:persona` 只取人格段、求值降级、agent 传给宿主、表情包接线与隐式引导 |
-| `test-proactive.mjs` | 103 | 主动发言纯逻辑（时间窗、判据、去重、两段式、人格优先级、表情包关键词与发送方式） |
+| `test-proactive-wiring.mjs` | 23 | 主动发言接线与人格：依赖键名对账、缺依赖启动即告警、`soul:persona` 只取人格段、求值降级、agent 传给宿主、表情包接线与隐式引导 |
+| `test-proactive.mjs` | 76 | 主动发言纯逻辑（时间窗、判据、去重、两段式、人格优先级、表情包关键词与发送方式） |
 | `test-proactive-round.mjs` | 40 | 主动发言回合端到端：触发真回合、切发言模型并切回、空回复静默丢弃（不动定时器） |
 | `test-owner-settings.mjs` | 60 | 拥有者设置通道（白名单 / 确认码 / 限流 / 审计） |
 | `test-totp.mjs` | 43 | TOTP / HOTP（RFC 4226 + 6238 官方向量） |
@@ -90,7 +90,7 @@ npm test                   # 同上
 | `test-flow-gate.mjs` | 16 | 流程授权闸门 |
 | `test-flow-wiring.mjs` | 23 | 闸门接线：一次调用只吃一个授权 / 关着原样放行 / moli_fetch 进 gatedTools 后「没码被拦、拿码放行」 |
 | `test-flow-resume.mjs` | 39 | 授权后续跑：`/auth` 通过后重跑被拦回合；失败只打一行日志、不惊动用户；agent 级系统提示的注册契约（人格 / 风格 / 图片三段各自的段名与 order、只注册一次、留空不注入、无服务静默跳过、失败不外抛） |
-| `test-session-archive.mjs` | 47 | 会话归档召回 / 删除后重建：两种删除器的终态、派生 id 确定性、连续消息只重建一次 |
+| `test-session-archive.mjs` | 55 | 会话归档召回 / 删除后重建：两种删除器的终态、派生 id 确定性、连续消息只重建一次 |
 | `test-tool-output.mjs` | 8 | 工具返回值清理：递归删除 undefined，避免宿主 lossless JSON 判 invalid |
 | `test-interim.mjs` | 14 | 中间发言：最后一条留给结论、锚点丢了不重播 |
 | `test-security.mjs` | 55 | 安全回归：帧 id 净化 / 越界复核 / 跨群重算 / 撤回绑群 / 出站公网判定与 F1 / 识图下载源码断言 |
@@ -102,7 +102,7 @@ npm test                   # 同上
 | `test-valve-assembly.mjs` | 27 | 三道阀门的契约字段（含「已删的薄包装不该再出现」）、装配顺序与依赖、网络判定口径（编码变体 / 云元数据 / 本机保留名 / 域名不误判）、**代理归属**（阀门接管传输层、工具不持有代理串）、工具阀一次性消费、传输层注册表 |
 | `test-qq-bind.mjs` | 20 | 扫码绑定状态机：二维码等待 / 凭据只经回调一次 / 失败与刷新 / 异步工厂 / 路由不泄露 appSecret / 状态路由只认 GET |
 | `test-chunk.mjs` | 15 | 回复分条：短文本原样 / 长文本不超限且不丢行 / 代码块围栏成对 / 表格不切行 / 超长单行硬切 / 未闭合围栏兜底 |
-| `test-gate-guard.mjs` | 30 | 闸门区改动判定：关着不需要码 / 没码·错码·无 secret 拒绝 / 对码接受 / ±1 窗口 / 开关本身变更也要码 / 名单没变时清码 / **保护面（密钥·恢复码·试错上限·授权时长）变更也要码且必须用变更前的密钥验** / 码不能重放 / 连错锁定 |
+| `test-gate-guard.mjs` | 32 | 闸门区改动判定：关着不需要码 / 没码·错码·无 secret 拒绝 / 对码接受 / ±1 窗口 / 开关本身变更也要码 / 名单没变时清码 / **保护面（密钥·恢复码·试错上限·授权时长）变更也要码且必须用变更前的密钥验** / 码不能重放 / 连错锁定 |
 | `test-guard-proxy.mjs` | 53 | 内网校验代理：CONNECT 与明文请求拒绝回环 / 元数据 / 私网 / IPv6 / 6to4 / Teredo / localhost；用「本地监听器 accept 计数 = 0」证明真的没有连过去（把判定改成一律放行必然变红），另覆盖上游代理链路与 403/502 语义分离、CONNECT 目标归一（尾点 / userinfo / 多冒号）、并发 start 去重、socks5 上游告警、拒绝后不崩、stop 后端口关闭、**解析失败在直连模式下必须拒绝（不再退化成盲连主机名）** |
 
 **手动联调**（假 OneBot 端口正好是 NapCat 默认值，不用真 QQ 号）：
@@ -289,8 +289,7 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
       model: ''
       speakProvider: ''
       speakModel: ''   # 填了才启用两段式（判断 / 发言分用两个模型）
-      speakFallback: true
-      requireCjk: false   # 发送前兜底：没有中文且长于 12 字就丢掉
+      idleTimeoutMs: 180000   # 主动回合最长等多久；超时就放弃并取消残留回合（0 = 不限）
       timeoutMs: 60000
       maxChars: 120
       interests: ''
@@ -432,8 +431,8 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 
 默认关闭，只有 `enabled: true` **且** `groups` 显式列了群号才生效。流程：按 `intervalMinutes` 看一次群里最近 `windowMessages` 条 → 频率 / 时段 / 新消息量闸门 → 模型判断要不要接、接什么 → 文本校验（长度、链接、@、重复）→ 发送或安静待着。
 
-- **两段式（可选）**：`speakProvider` 与 `speakModel` **必须成对填**才启用（provider 留空 = 与判断阶段相同，此时发言模型自动跟随判断模型，设置页不给单独设）。判断阶段只出 `{speak, topic}`，正文交给发言模型写。判断阶段仍在写回退正文，精简 judge 提示词时别把它删了，否则 `speakFallback` 会静默失效。最坏 5 次模型调用（判断 3 + 发言 2）。
-- **`requireCjk`（默认关）**：正文没有 CJK 且长度 > 12 判为不可用。治的是「中文群里整句英文拒答模板」；长度按**码点**算（`Array.from(text).length`），阈值是代码常量 `CJK_MIN_LENGTH`。
+- **两段式（可选）**：`speakProvider` 与 `speakModel` **必须成对填**才启用（provider 留空 = 与判断阶段相同，此时发言模型自动跟随判断模型，设置页不给单独设）。判断阶段**只出 JSON**（`{speak, topic}`），正文由被触发的那个 agent 回合自己写——本插件不再「先校验正文再发送」，所以也没有回退正文、没有 `speakFallback`、没有多次重试。一次判断 + 一个回合，就是全部成本。
+- **超时保护**：`proactive.idleTimeoutMs`（默认 180000）限制主动回合最长占用时间。超时会放弃本次发言并 `agent.cancel({ kind: 'disposed' })` 取消残留回合——不取消的话那个回合会一直占住 `whenIdle()`，导致下一条用户消息被静默丢弃。设为 0 = 关闭上限（等于放弃这层保护）。
 - **`eventGuard`（默认开）**：最新消息超过 `staleMinutes` 视为过错窗口；最新一条只是应答不插话；两个人来回说时视为他们的对话；同话题 `topicCooldownMinutes` 内不重复。
 - 提示词有两道防编造约束（`topic` 只能来自聊天记录、发言阶段只用记录里的信息），但模型编造是概率性的，只能压低不能消除。
 - `dryRun: true` 只记日志，先观察再开。
