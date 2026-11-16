@@ -65,7 +65,7 @@ npm test                   # 同上
 | `test-adapter-satori.mjs` | 70 | Satori 适配器 |
 | `test-adapter-milky.mjs` | 83 | Milky 适配器（含 WebHook 默认准入与读体上限） |
 | `test-adapter-qq-official.mjs` | 109 | QQ 官方适配器（含回调重放防护） |
-| `test-plugin.mjs` | 172 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、10 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（170 项含工具注册段落；解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 122 项 + 6 项 `[SKIP]`） |
+| `test-plugin.mjs` | 172 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、10 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 146 项，另有 6 次 `[SKIP]`（那 6 次守着 26 条断言，所以 `run-all` 用单独一套基线 `SUITE_BASELINE_SKIPPED`）） |
 | `test-client.mjs` | 163 | 客户端设置页：模拟模块加载器 + 最小 React 渲染 + 四档标签（字段来自服务端模板）+ 只写密钥护栏 + 纯数字名单校验 + 一键还原默认 + 两段式 provider/model 配对与未知值保留 |
 | `test-admin.mjs` | 40 | 权限 · 群管理 · 访客工具闸 |
 | `test-http.mjs` | 31 | HTTP / 代理隧道 / IP 归一与公网判定 |

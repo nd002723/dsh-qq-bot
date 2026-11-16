@@ -9,7 +9,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const suites = [
@@ -198,6 +198,25 @@ const onDisk = readdirSync(join(root, 'test')).filter((f) => /^test-.*\.mjs$/.te
 const missingOnDisk = suites.filter((f) => onDisk.includes(f) !== true);
 const notRegistered = onDisk.filter((f) => suites.includes(f) !== true);
 const drift = missingOnDisk.length > 0 || notRegistered.length > 0;
+
+// ───── 机制自身的两条约定（F3 的 DC-1：以前无守护，改坏了全套仍绿）─────
+// ① 基线判据必须真的会判红 —— 把 shrunk 恒置 0 就等于把整个基线机制废掉，而没有任何测试会转红。
+// ② 诊断出口只能暴露 state —— 回加 getSessionApi 会给出 getEntry 这种**会建会话**的写入口。
+const selfSrc = readFileSync(join(root, 'test', 'run-all.mjs'), 'utf8');
+const pluginSrc = readFileSync(join(root, 'lib', 'gateway', 'plugin.js'), 'utf8');
+const conventionProblems = [];
+if (selfSrc.indexOf('shrunk === 0') < 0) conventionProblems.push('基线判据里没有 shrunk === 0（机制被废掉了）');
+if (selfSrc.indexOf('SUITE_BASELINE_SKIPPED') < 0) conventionProblems.push('缺少裸克隆专用基线 SUITE_BASELINE_SKIPPED');
+if (pluginSrc.indexOf('return { state };') < 0) conventionProblems.push('诊断出口不再是 return { state }');
+// 要点：plugin.js 里还有**另一处** getSessionApi（proactive-surface 的 deps），那不是诊断出口，
+// 所以要限定在 apply 末尾那个 return 块里判，不能全文 grep。
+// 用 indexOf 定位 apply 末尾的 `return { state };`，再看它后面 40 字符内有没有 getConfig/getSessionApi ——
+// 不用正则，避开转义麻烦，也不受 plugin.js 里其它 getSessionApi（proactive-surface 的 deps）干扰。
+const diagAt = pluginSrc.lastIndexOf('return { state ');
+const diagTail = diagAt < 0 ? '' : pluginSrc.slice(diagAt, diagAt + 120);
+const diagBlock = diagTail.indexOf('getConfig:') >= 0 || diagTail.indexOf('getSessionApi:') >= 0;
+if (diagBlock === true) conventionProblems.push('诊断出口里又出现了 getConfig / getSessionApi（不是只读）');
+const conventionsOk = conventionProblems.length === 0;
 if (drift === true) {
   console.log('清单与目录不一致：');
   if (missingOnDisk.length > 0) console.log('  清单里有但目录没有：' + missingOnDisk.join(', '));
@@ -231,4 +250,5 @@ for (const r of results) {
 }
 console.log(okCount + '/' + results.length + ' 套件通过');
 if (drift === true) console.log('⚠️ 套件清单与 test/ 目录不一致（见上），可能有套件没跑到');
-process.exit(okCount === results.length && drift !== true ? 0 : 1);
+if (conventionsOk !== true) for (const p of conventionProblems) console.log('⚠️ ' + p);
+process.exit(okCount === results.length && drift !== true && conventionsOk === true ? 0 : 1);
