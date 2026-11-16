@@ -36,8 +36,8 @@
 
 ### 验证情况
 
-- **自动化测试 49 个套件 / 1892 项全部通过**（`npm test` = `node test/run-all.mjs`；CI 在 Node 22 / 24 双版本上跑）：
-  下面按关注点分组列出，**只列有代表性的组**，不是逐套件清单 —— 所以分项相加**不等于** 1892。
+- **自动化测试 49 个套件 / 1896 项全部通过**（`npm test` = `node test/run-all.mjs`；CI 在 Node 22 / 24 双版本上跑）：
+  下面按关注点分组列出，**只列有代表性的组**，不是逐套件清单 —— 所以分项相加**不等于** 1896。
   要完整逐套件数字看 [DEVELOPMENT.md](DEVELOPMENT.md) 的套件表（那 49 行相加正好等于总数）。
   - 协议适配器 335 项：正向 WebSocket 24 ／ 反向 19（含半开回收）／ OneBot 12 30 ／ Satori 70 ／ Milky 83 ／ QQ 官方 109
   - Host 插件端到端 172 项（假 ctx + 真适配器 + Config 契约 + 配置热更新 + 废弃配置清理 + 默认准入 fail-closed + 入站限流 + 点名判定与白名单次序 + 路由鉴权闸门；能解析到 `@deepseek-ai/dsh-tools` 时会多跑 9 个工具注册断言）
@@ -167,7 +167,7 @@ No source code from third-party projects was copied into this repository.
 | Tools verified | `qqbot` / `qqconfig` / `qqgroup` / `qq_websearch` / `qq_webfetch` / `qq_imgsearch` / `qq_history` / `qq_draw` / `qqauth` — all nine registered |
 
 - **Verification:** the browser settings page was **manually confirmed on a real device**.
-  **49 suites / 1892 automated checks pass** (`npm test` = `node test/run-all.mjs`; CI runs on Node 22 and 24),
+  **49 suites / 1896 automated checks pass** (`npm test` = `node test/run-all.mjs`; CI runs on Node 22 and 24),
   covering the forward/reverse WebSocket adapter, the Host plugin (fake `ctx` + real adapter + Config contract
   + config hot reload), the settings page, the permission/group-management subsystem, HTTP/proxy, multi-engine
   search parsing, the image-gen engine (retry / poll / response parsing), the sticker library (hash-indexed incremental tagging, GIF first-frame transcode), the adapter write scheduler (small-frame priority, 64 KB chunking), the proactive-speak wiring (host persona reuse, dependency-key assertions) and the session-id workspace fallback.
