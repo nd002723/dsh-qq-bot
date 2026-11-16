@@ -228,7 +228,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 
 | 接口 | 成员 | 用途 |
 | --- | --- | --- |
-| **`traffic`**（流量管控） | `fetchText` `request` `post` `createGuardProxy` | 所有出网动作都从这里走。调用方只声明**意图**（`useProxy` / `timeoutMs` / `binary`），代理怎么取、超时多少、体积怎么截断由阀门决定；**调用方拿不到代理串**。 |
+| **`traffic`**（流量管控） | `fetchText`（在用的入口）、`request`/`post`（**当前零生产调用**）、`createGuardProxy` | 走 valve 的出网动作都从这里过：调用方只声明**意图**（`useProxy` / `timeoutMs` / `binary`），代理怎么取、超时多少、体积怎么截断由阀门决定；**调用方拿不到代理串**。<br>**但不是「所有出网动作」都走这里**：`lib/tools/` 的多数工具直接 import `lib/shared/http.js`（那层复用同一套上限与代理语义，但不经 `valve.traffic`）；`lib/transport/` 的适配器更是独立进程、完全不受阀门约束（见 `docs/SECURITY.md` 的说明）。`traffic.request`/`post` 现在没有任何生产调用点。 |
 | **`proxyStatus`**（代理状态，只读） | `hasProxy` | 只回答「有没有配 HTTP 代理」，不含任何判定或出网能力。插件/工具读它来决定自己的行为（例如某些搜索/反搜引擎只在走代理时可用），**而不是自己去嗅探配置或代理串**。 |
 
 其余成员（`isAllowedTarget` `assertHost` `resolve` `pin` 等策略判定，以及 `__setHooks` `uninstall` 测试注入）不属于这两个接口，是阀门内部与策略测试用的。
