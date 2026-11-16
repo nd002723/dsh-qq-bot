@@ -650,6 +650,37 @@ console.log('\nGIF 首帧转码');
     rmSync(dirN4, { recursive: true, force: true });
   }
 }
+// ────── 图库 pick() 的路径也必须过白名单（M4 回归：发送路径曾裸 join 直接读盘）──────
+{
+  const dirM4 = mkdtempSync(join(tmpdir(), 'sticker-m4-'));
+  try {
+    const root = join(dirM4, 'lib');
+    mkdirSync(join(root, 's1'), { recursive: true });
+    const secret = join(dirM4, 'SECRET.txt');
+    writeFileSync(secret, 'SECRET-CONTENT', 'utf8');
+    const link = join(root, 's1', 'cute.png');
+    try { symlinkSync(secret, link); } catch (error) { /* 平台不支持软链 */ }
+    writeFileSync(join(root, 'index.json'), JSON.stringify({
+      version: 1, updatedAt: 0, dir: root, series: ['s1'],
+      items: [{ file: 's1/cute.png', series: 's1', tags: [], desc: 'x' }],
+    }), 'utf8');
+    const lib = createStickerLibrary({
+      // conf() 读的是 cfg.sticker，不是扁平字段。
+      getConfig: () => ({ sticker: { enabled: true, dir: root, autoTag: false, gifCompat: false, maxPerRun: 40, timeoutMs: 60000 } }),
+      getRoot: () => root,
+      ctx: { get: () => undefined },
+      describeError: (error) => (error && error.message ? error.message : String(error)),
+    });
+    // 用 id 路径（不依赖 search 打分），它同样经过 resolveInsideDir。
+    const picked = lib.pick({ id: 's1/cute.png' });
+    // pick() 命中后 path 必须是「realpath 且在白名单内」；指向外部时应当是空串。
+    const pathOf = (picked === null || picked === undefined) ? undefined : picked.path;
+    check('pick() 对指向目录外的软链返回空 path（调用方据此拒读）',
+      picked !== null && picked !== undefined && String(pathOf) === '', JSON.stringify(pathOf));
+  } finally {
+    rmSync(dirM4, { recursive: true, force: true });
+  }
+}
 const passed = results.filter(Boolean).length;
 console.log('\n' + passed + '/' + results.length + ' 项通过');
 if (failures > 0) { console.log('表情包自测失败'); process.exit(1); }

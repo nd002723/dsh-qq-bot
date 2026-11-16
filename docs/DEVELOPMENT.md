@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（49 个套件 / 1878 项）
+## 2. 测试（49 个套件 / 1890 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -55,7 +55,7 @@ npm test                   # 同上
 
 | 套件 | 项数 | 覆盖什么 |
 | --- | --- | --- |
-| `test-adapter.mjs` | 23 | OneBot 11 正向适配器 |
+| `test-adapter.mjs` | 24 | OneBot 11 正向适配器 |
 | `test-adapter-reverse.mjs` | 19 | OneBot 11 反向适配器（含半开连接回收） |
 | `test-adapter-reconnect.mjs` | 11 | 适配器重连：握手超时必重试、open 前不算链路、断线后重试、reconnect() 主动重连、背压不判失败 |
 | `test-sticker-gate.mjs` | 25 | 表情包闸门：概率抽样（注入 random）、每群每小时上限（force 也受限）、同图 TTL 去重（force 可绕过）、按群隔离、记录与 reset |
@@ -65,13 +65,13 @@ npm test                   # 同上
 | `test-adapter-satori.mjs` | 70 | Satori 适配器 |
 | `test-adapter-milky.mjs` | 83 | Milky 适配器（含 WebHook 默认准入与读体上限） |
 | `test-adapter-qq-official.mjs` | 109 | QQ 官方适配器（含回调重放防护） |
-| `test-plugin.mjs` | 172 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、10 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（170 项含工具注册段落；解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 122 项 + 6 项 `[SKIP]`） |
-| `test-client.mjs` | 161 | 客户端设置页：模拟模块加载器 + 最小 React 渲染 + 四档标签（字段来自服务端模板）+ 只写密钥护栏 + 纯数字名单校验 + 一键还原默认 + 两段式 provider/model 配对与未知值保留 |
+| `test-plugin.mjs` | 172 | Host 半边：假 ctx + 真适配器 + 真 `lib/index.js`（入口薄壳 → `lib/gateway/plugin.js`），含 Config 契约、热更新、10 个工具、适配器重启、默认准入 fail-closed、入站限制、点名判定（按段而非字符串）、群白名单次序，以及设置页模板路由（200 / 405 / 只回模板不回配置 / 注销）与路由鉴权闸门（未登录 401 / 跨站 401 / 服务缺失降级放行）（解析不到 `@deepseek-ai/dsh-tools` 的裸克隆里为 146 项，另有 6 次 `[SKIP]`（那 6 次守着 26 条断言，所以 `run-all` 用单独一套基线 `SUITE_BASELINE_SKIPPED`）） |
+| `test-client.mjs` | 163 | 客户端设置页：模拟模块加载器 + 最小 React 渲染 + 四档标签（字段来自服务端模板）+ 只写密钥护栏 + 纯数字名单校验 + 一键还原默认 + 两段式 provider/model 配对与未知值保留 |
 | `test-admin.mjs` | 40 | 权限 · 群管理 · 访客工具闸 |
 | `test-http.mjs` | 31 | HTTP / 代理隧道 / IP 归一与公网判定 |
 | `test-config.mjs` | 56 | 配置合并、volatile 还原、废弃键清理、`-conf.json` / `-set.json` 自动发现与护栏（组不存在 / 路径不存在 / 标签页不存在 / `priority` 非法 / 文件头 tab 也缺）、设置页分区顺序与字段继承 |
 | `test-websearch.mjs` | 5 | 多引擎搜索结果解析 |
-| `test-sticker.mjs` | 96 | 表情包图库：目录扫描 / sha1 增量索引（touch 不重打标、改内容只重打一张、改名与换系列按 sha1 认领标签）/ 坏索引自愈 / 搜索与挑图 / 发送目标判定 / 状态与重建路由 / 配置契约 / GIF 首帧转码与兼容模式（含假 .gif 按真实内容发） |
+| `test-sticker.mjs` | 100 | 表情包图库：目录扫描 / sha1 增量索引（touch 不重打标、改内容只重打一张、改名与换系列按 sha1 认领标签）/ 坏索引自愈 / 搜索与挑图 / 发送目标判定 / 状态与重建路由 / 配置契约 / GIF 首帧转码与兼容模式（含假 .gif 按真实内容发） |
 | `test-imagegen.mjs` | 26 | 生图重试 / 轮询 / 响应解析；本地图片白名单必须解符号链接（软链指向白名单外一律拒） |
 | `test-session-id.mjs` | 5 | 会话 id 回退 |
 | `test-compat.mjs` | 14 | 运行时兼容自检 |
@@ -79,7 +79,7 @@ npm test                   # 同上
 | `test-history.mjs` | 20 | 聊天记录鉴权与定向 |
 | `test-proactive-wiring.mjs` | 23 | 主动发言接线与人格：依赖键名对账、缺依赖启动即告警、`soul:persona` 只取人格段、求值降级、agent 传给宿主、表情包接线与隐式引导 |
 | `test-proactive.mjs` | 76 | 主动发言纯逻辑（时间窗、判据、去重、两段式、人格优先级、表情包关键词与发送方式） |
-| `test-proactive-round.mjs` | 40 | 主动发言回合端到端：触发真回合、切发言模型并切回、空回复静默丢弃（不动定时器） |
+| `test-proactive-round.mjs` | 52 | 主动发言回合端到端：触发真回合、切发言模型并切回、空回复静默丢弃（不动定时器） |
 | `test-owner-settings.mjs` | 60 | 拥有者设置通道（白名单 / 确认码 / 限流 / 审计） |
 | `test-totp.mjs` | 43 | TOTP / HOTP（RFC 4226 + 6238 官方向量） |
 | `test-totp-cli.mjs` | 14 | 终端绑定（secret / otpauth URI / 二维码） |
@@ -90,7 +90,7 @@ npm test                   # 同上
 | `test-flow-gate.mjs` | 16 | 流程授权闸门 |
 | `test-flow-wiring.mjs` | 23 | 闸门接线：一次调用只吃一个授权 / 关着原样放行 / moli_fetch 进 gatedTools 后「没码被拦、拿码放行」 |
 | `test-flow-resume.mjs` | 39 | 授权后续跑：`/auth` 通过后重跑被拦回合；失败只打一行日志、不惊动用户；agent 级系统提示的注册契约（人格 / 风格 / 图片三段各自的段名与 order、只注册一次、留空不注入、无服务静默跳过、失败不外抛） |
-| `test-session-archive.mjs` | 55 | 会话归档召回 / 删除后重建：两种删除器的终态、派生 id 确定性、连续消息只重建一次 |
+| `test-session-archive.mjs` | 57 | 会话归档召回 / 删除后重建：两种删除器的终态、派生 id 确定性、连续消息只重建一次 |
 | `test-tool-output.mjs` | 8 | 工具返回值清理：递归删除 undefined，避免宿主 lossless JSON 判 invalid |
 | `test-interim.mjs` | 14 | 中间发言：最后一条留给结论、锚点丢了不重播 |
 | `test-security.mjs` | 55 | 安全回归：帧 id 净化 / 越界复核 / 跨群重算 / 撤回绑群 / 出站公网判定与 F1 / 识图下载源码断言 |
@@ -546,7 +546,7 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 | `lib/shared/imagemeta.js` | 图像元信息：扩展名 ↔ mediaType、按真实内容嗅探格式（不信扩展名） |
 | `lib/shared/gif.js` | GIF 解码（纯 JS）：调色板 / 透明索引 / 隔行 / 局部帧合成，第 N 帧 → RGBA，首帧 → PNG |
 | `lib/shared/png.js` | 手写 PNG 编码器（RGBA / 8bit / 无滤波，只用 `zlib.deflateRawSync`） |
-| `lib/shared/whitelist.js` | **白名单目录判定**（`resolveInsideDir` / `Async` / `AnyDir`）：realpath 后按路径分隔符比边界，返回 real 路径供读盘用。四处共用，别再写第二份 |
+| `lib/shared/whitelist.js` | **白名单目录判定**（`resolveInsideDir` 同步 / `resolveInsideDirAsync` 异步）：realpath 后按路径分隔符比边界，**返回 real 路径供调用方读盘**（判定与读取必须是同一个串）。四处历史实现现已全部改用它，别再写第二份 |
 | **浏览器侧** | |
 | `lib/client/settings.js` | 客户端半边（手写 bundle）：插件面板里的设置区，**纯渲染器**——字段与标签页由 `GET /dsh-qq-bot/settings` 下发。**模块 id 与插槽 key 必须等于 npm 包名**，设置命名空间仍是条目 id |
 | **其他** | |

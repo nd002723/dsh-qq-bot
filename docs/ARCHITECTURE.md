@@ -209,7 +209,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 | 文件 | 职责 | 关键导出 |
 | --- | --- | --- |
 | `valve/index.js` | 阀门注册表：有哪几道阀门、成型顺序、依赖关系（**调优先级只改这里**） | `STAGE` `VALVES` `orderedValves` |
-| `valve/network/index.js` | **网络阀门门面**，对外只有两个接口（见 2.2.1）：**流量管控** `traffic` 与**代理状态** `proxyStatus`。成型时用 `__setProxyResolver` 接管传输层的代理策略——**工具层拿不到代理串**，只能声明意图（`useProxy`） | `createNetworkValve` → `traffic` `proxyStatus`（另有策略判定与测试注入：`isAllowedTarget` `isLoopback` `assertHost` `resolve` `pin` `canonicalHost` `uninstall` `__setHooks`） |
+| `valve/network/index.js` | **网络阀门门面**，对外只有两个接口（见 2.2.1）：**流量管控** `traffic` 与**代理状态** `proxyStatus`。成型时用 `__setProxyResolver` 接管传输层的代理策略——**工具层拿不到代理串**，只能声明意图（`useProxy`） | `createNetworkValve` → `traffic` `proxyStatus`（另有策略判定与测试注入：`isAllowedTarget` `isLoopback` `assertHost` `resolve` `canonicalHost` `proxy` `uninstall`） |
 | `valve/network/policy.js` | 网络阀门**策略层**（纯判定，不发请求）：地址先过 WHATWG URL 归一，再按 8 组/4 段整数判段；`pinnedLookup` 钉死已校验地址（防 DNS rebinding） | `canonicalHost` `isNonPublicIp` `resolvePublicAddresses` `assertPublicHost` `pinnedLookup` `__setNetworkHooks` |
 | `valve/network/guard-proxy.js` | 本地校验代理：给无头浏览器兜底，逐条请求先过策略层，内网目标 403（重定向/子资源/DNS rebinding 都在这层拦） | `createGuardProxy` |
 | `valve/security/index.js` | **安全阀门面**：身份、动态码、授权与审计的集中判定处；红线集中写在文件头。注意生产代码目前直接用门面暴露的 `flowAuth`/`flowStore` 对象（见 5.5） | `createSecurityValve` → `flowAuth` `flowStore` `enabled` `gatedTools` |
@@ -228,10 +228,10 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 
 | 接口 | 成员 | 用途 |
 | --- | --- | --- |
-| **`traffic`**（流量管控） | `fetchText` `request` `post` `createGuardProxy` | 所有出网动作都从这里走。调用方只声明**意图**（`useProxy` / `timeoutMs` / `binary`），代理怎么取、超时多少、体积怎么截断由阀门决定；**调用方拿不到代理串**。 |
+| **`traffic`**（流量管控） | `fetchText`（在用的入口）、`request`/`post`（**当前零生产调用**）、`createGuardProxy` | 走 valve 的出网动作都从这里过：调用方只声明**意图**（`useProxy` / `timeoutMs` / `binary`），代理怎么取、超时多少、体积怎么截断由阀门决定；**调用方拿不到代理串**。<br>**但不是「所有出网动作」都走这里**：`lib/tools/` 的多数工具直接 import `lib/shared/http.js`（那层复用同一套上限与代理语义，但不经 `valve.traffic`）；`lib/transport/` 的适配器更是独立进程、完全不受阀门约束（见 `docs/SECURITY.md` 的说明）。`traffic.request`/`post` 现在没有任何生产调用点。 |
 | **`proxyStatus`**（代理状态，只读） | `hasProxy` | 只回答「有没有配 HTTP 代理」，不含任何判定或出网能力。插件/工具读它来决定自己的行为（例如某些搜索/反搜引擎只在走代理时可用），**而不是自己去嗅探配置或代理串**。 |
 
-其余成员（`isAllowedTarget` `assertHost` `resolve` `pin` 等策略判定，以及 `__setHooks` `uninstall` 测试注入）不属于这两个接口，是阀门内部与策略测试用的。
+其余成员（`isAllowedTarget` `assertHost` `resolve` `canonicalHost` `proxy` 等策略判定，以及 `uninstall` 卸载钩子）不属于这两个接口，是阀门内部与排障用的。
 
 ### 2.3 网关层 `lib/gateway/`
 

@@ -9,7 +9,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
-import { readdirSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const suites = [
@@ -50,13 +50,12 @@ const SUITE_BASELINE = Object.freeze({
   'test-adapter-reconnect.mjs': 11,
   'test-adapter-reverse.mjs': 19,
   'test-adapter-satori.mjs': 70,
-  'test-adapter.mjs': 23,
-  // 裸克隆（CI）只有 35 —— 缺 @deepseek-ai/dsh-tools 时那 5 条会标 [SKIP]，不记成通过。
-  // 基线必须取**任何环境的下限**，否则开发机（软链在）永远绿、CI 永远红。
-  'test-admin.mjs': 35,
+  'test-adapter.mjs': 24,
+  // 本机实测 40；裸克隆会把 5 条标 [SKIP]，那部分由『自报总数 + 跳过数』的判据抵掉。
+  'test-admin.mjs': 40,
   'test-bubbles.mjs': 16,
   'test-chunk.mjs': 15,
-  'test-client.mjs': 161,
+  'test-client.mjs': 163,
   'test-compat.mjs': 14,
   'test-config.mjs': 56,
   'test-flow-auth.mjs': 43,
@@ -75,19 +74,19 @@ const SUITE_BASELINE = Object.freeze({
   'test-model-router.mjs': 23,
   'test-msgid-cache.mjs': 13,
   'test-owner-settings.mjs': 60,
-  // 裸克隆只有 146（26 条工具断言标 [SKIP]）。同上：取下限，不是本机读数。
-  'test-plugin.mjs': 146,
-  'test-proactive-round.mjs': 49,
+  // 本机实测 172；裸克隆 26 条 SKIP 由上面的跳过数抵掉。
+  'test-plugin.mjs': 172,
+  'test-proactive-round.mjs': 52,
   'test-proactive-wiring.mjs': 23,
   'test-proactive.mjs': 76,
   'test-qq-bind.mjs': 20,
   'test-qr-consistency.mjs': 7,
   'test-qr.mjs': 18,
   'test-security.mjs': 55,
-  'test-session-archive.mjs': 55,
+  'test-session-archive.mjs': 57,
   'test-session-id.mjs': 5,
   'test-sticker-gate.mjs': 25,
-  'test-sticker.mjs': 96,
+  'test-sticker.mjs': 100,
   'test-stream-bridge.mjs': 18,
   'test-tool-output.mjs': 8,
   'test-totp-cli.mjs': 14,
@@ -95,6 +94,18 @@ const SUITE_BASELINE = Object.freeze({
   'test-update-check.mjs': 19,
   'test-valve-assembly.mjs': 27,
   'test-websearch.mjs': 5,
+});
+
+/**
+ * 裸克隆（缺 @deepseek-ai/dsh-tools）时，依赖宿主服务的断言会被标 [SKIP]、不计入通过。
+ * 这里只列**受影响的套件**及其在该环境下的实测总数；其它套件两套数字相同，无需登记。
+ *
+ * 为什么单独一张表而不是「总数 + 跳过数」：`skip()` 一次调用守一整段，
+ * test-plugin 的 6 次 skip() 对应 26 条 check —— 跳过数不能当额度用（见下面的判据注释）。
+ */
+const SUITE_BASELINE_SKIPPED = Object.freeze({
+  'test-admin.mjs': 35,
+  'test-plugin.mjs': 146,
 });
 
 /** 套件自报的「N 通过 / M 失败」：捕获输出解析，用来交叉校验退出码。 */
@@ -151,7 +162,20 @@ function runSuite(file) {
       const silent = selfTotal === null;
       // 项数基线：套件自报的总数低于历史值，说明有断言被删/被注释掉了。
       // 以前 run-all 只查「有没有失败」，b77809d 删了 27 条断言在 CI 里完全无声。
-      const baseline = SUITE_BASELINE[file];
+      //
+      // **两套基线，按环境选** —— 不能靠「总数 + 跳过数」抵额度。
+      //
+      // 为什么不能用跳过数抵：`skip()` 是**一次调用守一整段**。test-plugin 有 6 次 skip() 调用，
+      // 但被跳过的是 26 条 check（本机 172 → 裸克隆 146）。所以「另有 6 项跳过」+ 146 = 152 仍然
+      // 对不上 172 —— 拿它当额度会直接把 CI 判红（而且提示文案会说「有断言被删了」，误导 reviewer）。
+      //
+      // 也不能像上一版那样「基线取裸克隆下限」：本机跳过 0，下限当基线等于把额度放大，
+      // 实测在 test-proactive-round 上真删 3 条断言仍判 PASS。
+      //
+      // 所以：本机用自己的基线，裸克隆（缺 @deepseek-ai/dsh-tools）用 SKIPPED 那套。
+      // 环境判定用「套件自报里有没有跳过」——只有那两个套件在裸克隆里会打「另有 N 项跳过」。
+      const hasSkips = /（另有\s*\d+\s*项跳过/.test(captured);
+      const baseline = (hasSkips === true ? SUITE_BASELINE_SKIPPED[file] : SUITE_BASELINE[file]);
       const shrunk = (baseline !== undefined && selfTotal !== null && selfTotal < baseline)
         ? (baseline - selfTotal) : 0;
       resolve({
@@ -174,6 +198,25 @@ const onDisk = readdirSync(join(root, 'test')).filter((f) => /^test-.*\.mjs$/.te
 const missingOnDisk = suites.filter((f) => onDisk.includes(f) !== true);
 const notRegistered = onDisk.filter((f) => suites.includes(f) !== true);
 const drift = missingOnDisk.length > 0 || notRegistered.length > 0;
+
+// ───── 机制自身的两条约定（F3 的 DC-1：以前无守护，改坏了全套仍绿）─────
+// ① 基线判据必须真的会判红 —— 把 shrunk 恒置 0 就等于把整个基线机制废掉，而没有任何测试会转红。
+// ② 诊断出口只能暴露 state —— 回加 getSessionApi 会给出 getEntry 这种**会建会话**的写入口。
+const selfSrc = readFileSync(join(root, 'test', 'run-all.mjs'), 'utf8');
+const pluginSrc = readFileSync(join(root, 'lib', 'gateway', 'plugin.js'), 'utf8');
+const conventionProblems = [];
+if (selfSrc.indexOf('shrunk === 0') < 0) conventionProblems.push('基线判据里没有 shrunk === 0（机制被废掉了）');
+if (selfSrc.indexOf('SUITE_BASELINE_SKIPPED') < 0) conventionProblems.push('缺少裸克隆专用基线 SUITE_BASELINE_SKIPPED');
+if (pluginSrc.indexOf('return { state };') < 0) conventionProblems.push('诊断出口不再是 return { state }');
+// 要点：plugin.js 里还有**另一处** getSessionApi（proactive-surface 的 deps），那不是诊断出口，
+// 所以要限定在 apply 末尾那个 return 块里判，不能全文 grep。
+// 用 indexOf 定位 apply 末尾的 `return { state };`，再看它后面 40 字符内有没有 getConfig/getSessionApi ——
+// 不用正则，避开转义麻烦，也不受 plugin.js 里其它 getSessionApi（proactive-surface 的 deps）干扰。
+const diagAt = pluginSrc.lastIndexOf('return { state ');
+const diagTail = diagAt < 0 ? '' : pluginSrc.slice(diagAt, diagAt + 120);
+const diagBlock = diagTail.indexOf('getConfig:') >= 0 || diagTail.indexOf('getSessionApi:') >= 0;
+if (diagBlock === true) conventionProblems.push('诊断出口里又出现了 getConfig / getSessionApi（不是只读）');
+const conventionsOk = conventionProblems.length === 0;
 if (drift === true) {
   console.log('清单与目录不一致：');
   if (missingOnDisk.length > 0) console.log('  清单里有但目录没有：' + missingOnDisk.join(', '));
@@ -207,4 +250,5 @@ for (const r of results) {
 }
 console.log(okCount + '/' + results.length + ' 套件通过');
 if (drift === true) console.log('⚠️ 套件清单与 test/ 目录不一致（见上），可能有套件没跑到');
-process.exit(okCount === results.length && drift !== true ? 0 : 1);
+if (conventionsOk !== true) for (const p of conventionProblems) console.log('⚠️ ' + p);
+process.exit(okCount === results.length && drift !== true && conventionsOk === true ? 0 : 1);

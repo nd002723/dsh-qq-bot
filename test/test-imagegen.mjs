@@ -3,7 +3,7 @@
  * 用法：node test/test-imagegen.mjs
  */
 import { generationsUrl, trimBaseUrl, parseImagePayload, generateImage, referenceToDataUrl } from '../lib/tools/imagegen.js';
-import { mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync } from 'node:fs';
+import { mkdirSync, writeFileSync, symlinkSync, rmSync, realpathSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { qqMsgRootSync, imageCacheDir } from '../lib/session/workspace.js';
 import { meIsAllowedImageFile } from '../lib/tools/imgsearch.js';
@@ -103,11 +103,15 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
     writeFileSync(outside, 'SECRET', 'utf8');
     const realFile = join(ownDir, 'ok.png');
     writeFileSync(realFile, 'IMG', 'utf8');
-    check('会话目录下的普通图片 → 放行', meIsAllowedImageFile(realFile, sessionId) === true);
+    // 只断言「返回非空字符串」是不够的：那只能区分 boolean 与 string，区分不了「返回的是不是 real 路径」。
+    // 这条要断言**返回值就是那个文件的 realpath**（调用方读盘必须用它，判定与读取才是同一个串）。
+    const allowedReal = meIsAllowedImageFile(realFile, sessionId);
+    check('会话目录下的普通图片 → 放行，且返回该文件的 real 路径',
+      allowedReal === realpathSync(realFile), allowedReal);
 
     try { rmSync(link, { force: true }); } catch { /* 不存在 */ }
     symlinkSync(outside, link);
-    check('指向白名单外的软链 → 拒绝', meIsAllowedImageFile(link, sessionId) === false, link);
+    check('指向白名单外的软链 → 拒绝（返回空串）', meIsAllowedImageFile(link, sessionId) === '', link);
 
     // qqbot send 走的是另一条判定（lib/tools/index.js 的 resolveSendImagePath）：
     // 2026-10-29 注释审查发现它当时只做字符串前缀比较，同一个洞还开着。
@@ -117,6 +121,18 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
     writeFileSync(sendOk, 'IMG', 'utf8');
     check('qqbot send：白名单内的普通图片 → 放行',
       resolveSendImagePath(sendOk, sendRoot) === realpathSync(sendOk));
+
+    // 调用点也必须用返回值去读盘 —— 这层**没有行为测试网**（要搭完整工具上下文，成本远大于收益）。
+    // 所以退回**源码契约**：断言 `index.js` 里那两处不再把原始 filePath 传给读盘/上传。
+    // 它抓不住「逻辑改错」，但抓得住「有人把 allowed2 改回 filePath」这个具体回归 ——
+    // 而后者正是终审实测「全套 49/49 全绿」的那三处零覆盖之一。
+    const indexSrc = readFileSync(new URL('../lib/tools/index.js', import.meta.url), 'utf8');
+    check('imgsearch 调用点用白名单返回的路径去上传（不是原始入参）',
+      indexSrc.indexOf('uploadToHost(allowed2)') >= 0 && indexSrc.indexOf('uploadToHost(filePath)') < 0,
+      indexSrc.indexOf('uploadToHost(filePath)') >= 0 ? '仍在传原始 filePath' : '');
+    check('imgsearch 调用点用白名单返回的路径去直传（不是原始入参）',
+      indexSrc.indexOf('imgSearchSoutubotFile(allowed1') >= 0 && indexSrc.indexOf('imgSearchSoutubotFile(filePath') < 0,
+      indexSrc.indexOf('imgSearchSoutubotFile(filePath') >= 0 ? '仍在传原始 filePath' : '');
     check('qqbot send：指向白名单外的软链 → 拒绝',
       resolveSendImagePath(link, sendRoot) === '', link);
     check('qqbot send：不存在的文件 → 拒绝', resolveSendImagePath(join(sendRoot, 'nope.png'), sendRoot) === '');
@@ -124,10 +140,10 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
     const escape = join(ownDir, 'escape.png');
     try { rmSync(escape, { force: true }); } catch { /* 不存在 */ }
     symlinkSync('/etc/passwd', escape);
-    check('指向系统文件的软链 → 拒绝', meIsAllowedImageFile(escape, sessionId) === false, escape);
+    check('指向系统文件的软链 → 拒绝（返回空串）', meIsAllowedImageFile(escape, sessionId) === '', escape);
 
-    check('不存在的路径 → 拒绝（realpath 失败不认）', meIsAllowedImageFile(join(ownDir, 'nope.png'), sessionId) === false);
-    check('别的会话目录 → 拒绝', meIsAllowedImageFile(realFile, 'another-session') === false);
+    check('不存在的路径 → 拒绝（realpath 失败不认，返回空串）', meIsAllowedImageFile(join(ownDir, 'nope.png'), sessionId) === '');
+    check('别的会话目录 → 拒绝（返回空串）', meIsAllowedImageFile(realFile, 'another-session') === '');
 
     // 第三条路径：qq_draw 的 reference 也走本地图片白名单（lib/tools/imagegen.js）。
     // 它以前只做 pathResolve + 前缀比，同一个软链洞还开着，读到的内容会被 base64

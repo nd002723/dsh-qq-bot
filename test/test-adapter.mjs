@@ -5,12 +5,13 @@
  *
  *   node test-adapter.mjs
  *
- * Verifies:
- *   1. the adapter connects to a forward WebSocket and reports `status: connected`;
- *   2. an inbound OneBot `message` event (array segments AND a legacy CQ string)
- *      is normalized into the adapter's stdio `message` frame with readable text;
- *   3. an outbound `send` command on stdin reaches the OneBot HTTP API and its
- *      `send_result` comes back ok.
+ * Six sections（24 条断言），不是「三件事」——早先这里只列了三条，与用例数对不上：
+ *   1. connection handshake（连上正向 WS 并报 status: connected）；
+ *   2. inbound message normalization（段数组 → 可读文本 + mentions）；
+ *   3. inbound normalization（legacy CQ 字符串，含「已转义的手打不算 @」）；
+ *   4. outbound send（stdin 的 send 命令走 OneBot HTTP API，send_result ok）；
+ *   5. private send + ping；
+ *   6. clean shutdown（shutdown 命令后适配器 exit 0）。
  */
 
 import { spawn } from 'node:child_process';

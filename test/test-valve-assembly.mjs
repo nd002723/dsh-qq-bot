@@ -266,6 +266,19 @@ await check('net.fetchText：配了代理走代理，没配代理走直连', asy
       // 返回契约：两条分支都得给 text。直连走 publicFetch 时它只给 body，
       // 不映射的话 qq_webfetch 永远读到 undefined（页面「成功」但正文为空）。
       assert.equal(got.text, 'hello', '直连分支必须把 body 映射成 text');
+
+  // 代理分支的 maxBytes / binary 也必须透传：能力层（shared/http 的 fetchUrlViaProxy）早就支持，
+  // 但 network/index.js 曾只传 {useProxy, timeoutMs} —— 两行注释写着「要带下来」，代码没带。
+  //
+  // **为什么这条只能做源码契约断言，不做行为断言**：
+  //   · 配死代理 → 无论透没透传都会抛，断言恒真（第一版就是这么写的，零判别力）；
+  //   · 想用网络钩子观察 → 代理分支走的是**自己的 CONNECT 隧道**（proxyRequest 里手搓 socket），
+  //     根本不经过 requestOnce 的 hooks.request（实测 seen 恒为 null）；
+  //   · 造一个能接 CONNECT 的假服务器，成本远大于这条断言的价值。
+  // 所以这里退一步做**源码契约**：读 network/index.js，断言代理分支的调用处带了这两个字段。
+  // 它不是行为验证，但足以抓住「有人把这行改回 {useProxy, timeoutMs}」这个具体回归。
+  assert.ok(/fetchUrlViaProxy\(url,\s*\{[^}]*maxBytes[^}]*binary[^}]*\}/.test((await import('node:fs')).readFileSync(new URL('../lib/valve/network/index.js', import.meta.url), 'utf8')),
+    '代理分支的 fetchUrlViaProxy 调用必须带 maxBytes 与 binary');
     });
   } finally { __setNetworkHooks(null); }
 });
