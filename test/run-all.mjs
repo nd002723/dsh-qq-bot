@@ -69,7 +69,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-guard-proxy.mjs': 53,
   'test-history.mjs': 20,
   'test-http.mjs': 31,
-  'test-imagegen.mjs': 26,
+  'test-imagegen.mjs': 30,
   'test-interim.mjs': 14,
   'test-model-router.mjs': 23,
   'test-msgid-cache.mjs': 13,

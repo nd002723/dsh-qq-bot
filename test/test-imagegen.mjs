@@ -8,6 +8,7 @@ import { join } from 'node:path';
 import { qqMsgRootSync, imageCacheDir } from '../lib/session/workspace.js';
 import { meIsAllowedImageFile } from '../lib/tools/imgsearch.js';
 import { resolveSendImagePath } from '../lib/tools/index.js';
+import { createVision } from '../lib/gateway/vision.js';
 
 let pass = 0;
 let fail = 0;
@@ -174,6 +175,36 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
   check('测试临时文件已清理', cleaned === true);
 }
 
+
+// ─────── askVision 的能力检查（以前不检查：模型不支持时仍会白跑一次请求）───────
+// 现象：qq_history 拉历史图片走 askVision，它直接把 image 块塞给 llm.stream。
+// 遇到纯文本模型时上游把图降级成占位、模型回空串，调用方只能显示「图片识别无返回」，
+// 看不出真正原因（2026-11-16 那次排查就为此绕了一大圈）。
+// 现在能力明确为 'no' 时短路、不发请求；'unknown' 照常放行。
+{
+  let streamCalls = 0;
+  const ctxNo = {
+    llm: {
+      resolveModelInfo: async () => ({ provider: 'p', model: 'm', inputModalities: ['text'] }),
+      stream: async function* () { streamCalls += 1; yield { type: 'text-delta', text: 'x' }; },
+    },
+  };
+  const vNo = createVision({ TAG: '[test]', getConfig: () => ({ vision: {} }), ctx: ctxNo, describeError: (e) => String(e) });
+  const tNo = await vNo.askVision('p', 'm', 'ref-1', { index: 1, isOwn: false, where: '聊天记录里' });
+  check('模型明确不支持图片 → askVision 不发请求（避免白跑一次）', tNo === '' && streamCalls === 0,
+    'streamCalls=' + streamCalls);
+
+  let streamCalls2 = 0;
+  const ctxUnknown = {
+    llm: {
+      resolveModelInfo: async () => { throw new Error('宿主没报能力'); },
+      stream: async function* () { streamCalls2 += 1; yield { type: 'text-delta', text: '看得到' }; },
+    },
+  };
+  const vUnknown = createVision({ TAG: '[test]', getConfig: () => ({ vision: {} }), ctx: ctxUnknown, describeError: (e) => String(e) });
+  await vUnknown.askVision('p', 'm', 'ref-2', { index: 1, isOwn: false, where: '聊天记录里' });
+  check('能力未知 → askVision 照常请求（不误伤）', streamCalls2 === 1, 'streamCalls=' + streamCalls2);
+}
 console.log('\n' + pass + '/' + (pass + fail) + ' 项通过');
 if (fail > 0) { console.log('生图自测失败'); process.exit(1); }
 console.log('生图自测通过');

@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（49 个套件 / 1892 项）
+## 2. 测试（49 个套件 / 1896 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -72,7 +72,7 @@ npm test                   # 同上
 | `test-config.mjs` | 56 | 配置合并、volatile 还原、废弃键清理、`-conf.json` / `-set.json` 自动发现与护栏（组不存在 / 路径不存在 / 标签页不存在 / `priority` 非法 / 文件头 tab 也缺）、设置页分区顺序与字段继承 |
 | `test-websearch.mjs` | 5 | 多引擎搜索结果解析 |
 | `test-sticker.mjs` | 100 | 表情包图库：目录扫描 / sha1 增量索引（touch 不重打标、改内容只重打一张、改名与换系列按 sha1 认领标签）/ 坏索引自愈 / 搜索与挑图 / 发送目标判定 / 状态与重建路由 / 配置契约 / GIF 首帧转码与兼容模式（含假 .gif 按真实内容发） |
-| `test-imagegen.mjs` | 26 | 生图重试 / 轮询 / 响应解析；本地图片白名单必须解符号链接（软链指向白名单外一律拒） |
+| `test-imagegen.mjs` | 30 | 生图重试 / 轮询 / 响应解析；本地图片白名单必须解符号链接（软链指向白名单外一律拒） |
 | `test-session-id.mjs` | 5 | 会话 id 回退 |
 | `test-compat.mjs` | 14 | 运行时兼容自检 |
 | `test-update-check.mjs` | 19 | 上游新版本提示：range 判断、同版本/更旧不提示、不兼容标记、失败静默、缓存与开关、registry 回退、失败只缓存 5 分钟 |
