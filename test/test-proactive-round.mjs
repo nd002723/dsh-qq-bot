@@ -244,9 +244,12 @@ async function runScenario(options) {
     });
     check('Config 校验通过', validated.issues === undefined, JSON.stringify(validated.issues));
     if (hangWhenIdle === true) stats.hangWhenIdle = true;
-    // apply 的返回值是只读诊断出口（DSH 忽略它，测试靠它观察内部状态）。
-    const pluginHandle = await mod.apply(ctx, validated.value);
-    stats.handle = pluginHandle;
+    await mod.apply(ctx, validated.value);
+    // 诊断出口走 WeakMap 侧信道（不是 apply 的返回值）。
+    // 为什么：cordis 把 apply 的返回值当 effect 校验，返回普通对象会抛
+    // `Invalid effect` 让插件装不上 —— 而这里直接调用 apply 不经 fiber.effect，
+    // 那个校验跑不到，于是「测试全绿、生产全红」。
+    stats.handle = mod.pluginDiagnostics(ctx);
     await waitFor(() => mock.clientCount() === 1, 10000, '适配器连上假 OneBot');
     await waitFor(() => logs().some((l) => l.includes('OneBot 已连接')), 20000, 'OneBot 已连接');
     check('适配器已连接且 OneBot 就绪', mock.clientCount() === 1 && logs().some((l) => l.includes('OneBot 已连接')));
@@ -422,8 +425,28 @@ for (const scenario of [
 
 if (createdLink) { try { if (process.platform === 'win32') fs.rmdirSync(linkPath); else fs.unlinkSync(linkPath); } catch { /* ignore */ } }
 
+// ─────── 契约：apply 的返回值必须能被 cordis 当 effect 收下 ───────
+// cordis 的 fiber.effect 会把插件 apply 的返回值当 effect 校验：
+//   函数 = dispose、null/undefined = 放行、thenable / iterator / asyncIterator = 收下，
+//   **普通对象一律 throw new TypeError("Invalid effect")**。
+// 单测直接调用 apply 不经 fiber.effect，所以这条校验只有真装才跑到 ——
+// 曾经的 `return { state }` 让插件在生产装不上（读不到设置页模板），而全套测试 49/49 全绿。
+// 判据用**源码契约**：apply 体内不得出现 `return {…}`（那是唯一会踩雷的写法）。
+{
+  const pluginSrc = fs.readFileSync(path.join(PKG_ROOT, 'lib', 'gateway', 'plugin.js'), 'utf8');
+  // 只匹配「apply 末尾」那个位置：缩进 2 空格的 return {…}; 之后紧跟顶格的 `}`（apply 函数收尾）。
+  // 注意别写成 `\n  };` —— apply 的收尾大括号是**顶格**的，写成缩进会永远不匹配（恒不触发）。
+  const retPlain = /\n  return \{[^;]*\};\n\}/.test(pluginSrc);
+  check('apply 不返回普通对象（否则 cordis 抛 Invalid effect，插件装不上）',
+    retPlain === false, retPlain === true ? 'apply 末尾出现了 return {…}' : '');
+  const mod = await import(pathToFileURL(path.join(PKG_ROOT, 'lib', 'index.js')).href);
+  check('诊断出口通过 pluginDiagnostics(ctx) 侧信道取，不靠 apply 返回值',
+    typeof mod.pluginDiagnostics === 'function' && pluginSrc.indexOf('DIAGNOSTICS.set(ctx') >= 0,
+    typeof mod.pluginDiagnostics === 'function' ? '' : 'pluginDiagnostics 未导出');
+}
 const passed = results.filter(Boolean).length;
 console.log('\n' + passed + '/' + results.length + ' 项通过');
 if (failures > 0) { console.log('主动发言回合自测失败'); process.exit(1); }
+
 console.log('主动发言回合自测通过');
 process.exit(0);

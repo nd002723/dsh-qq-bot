@@ -76,7 +76,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-owner-settings.mjs': 60,
   // 本机实测 172；裸克隆 26 条 SKIP 由上面的跳过数抵掉。
   'test-plugin.mjs': 172,
-  'test-proactive-round.mjs': 52,
+  'test-proactive-round.mjs': 54,
   'test-proactive-wiring.mjs': 23,
   'test-proactive.mjs': 76,
   'test-qq-bind.mjs': 20,
@@ -207,15 +207,17 @@ const pluginSrc = readFileSync(join(root, 'lib', 'gateway', 'plugin.js'), 'utf8'
 const conventionProblems = [];
 if (selfSrc.indexOf('shrunk === 0') < 0) conventionProblems.push('基线判据里没有 shrunk === 0（机制被废掉了）');
 if (selfSrc.indexOf('SUITE_BASELINE_SKIPPED') < 0) conventionProblems.push('缺少裸克隆专用基线 SUITE_BASELINE_SKIPPED');
-if (pluginSrc.indexOf('return { state };') < 0) conventionProblems.push('诊断出口不再是 return { state }');
-// 要点：plugin.js 里还有**另一处** getSessionApi（proactive-surface 的 deps），那不是诊断出口，
-// 所以要限定在 apply 末尾那个 return 块里判，不能全文 grep。
-// 用 indexOf 定位 apply 末尾的 `return { state };`，再看它后面 40 字符内有没有 getConfig/getSessionApi ——
-// 不用正则，避开转义麻烦，也不受 plugin.js 里其它 getSessionApi（proactive-surface 的 deps）干扰。
-const diagAt = pluginSrc.lastIndexOf('return { state ');
-const diagTail = diagAt < 0 ? '' : pluginSrc.slice(diagAt, diagAt + 120);
-const diagBlock = diagTail.indexOf('getConfig:') >= 0 || diagTail.indexOf('getSessionApi:') >= 0;
-if (diagBlock === true) conventionProblems.push('诊断出口里又出现了 getConfig / getSessionApi（不是只读）');
+// 诊断出口现在走 WeakMap 侧信道（`DIAGNOSTICS.set(ctx, { state })`），**不再靠 apply 的返回值**。
+// 原因是 cordis 把 apply 的返回值当 effect 校验：普通对象会 `throw new TypeError("Invalid effect")`，
+// 插件在生产装不上（而单测直接调 apply 不经 fiber.effect，于是全套绿、生产红）。
+if (pluginSrc.indexOf('DIAGNOSTICS.set(ctx') < 0) conventionProblems.push('诊断出口不见了（应该 DIAGNOSTICS.set(ctx, …)）');
+// apply 末尾不得出现 `return {…}` —— 那正是踩雷的写法。
+if (/\n  return \{[^;]*\};\n\}/.test(pluginSrc) === true) conventionProblems.push('apply 又返回了普通对象（cordis 会抛 Invalid effect）');
+// 侧信道里只能放 state：曾经给过 getConfig / getSessionApi，两个都不是只读的
+// （getSessionApi().getEntry() 会建会话）。
+const diagSetAt = pluginSrc.lastIndexOf('DIAGNOSTICS.set(ctx');
+const diagStmt = diagSetAt < 0 ? '' : pluginSrc.slice(diagSetAt, diagSetAt + 120);
+if (diagStmt.indexOf('getConfig') >= 0 || diagStmt.indexOf('getSessionApi') >= 0) conventionProblems.push('诊断出口里又出现了 getConfig / getSessionApi（不是只读）');
 const conventionsOk = conventionProblems.length === 0;
 if (drift === true) {
   console.log('清单与目录不一致：');
