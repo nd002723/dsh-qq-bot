@@ -124,8 +124,8 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 
 同一项配置会出现在几个地方，漏一处不会加载期报错，所以列成必做项：
 
-1. **默认值**：归属工具/阀门的加在 `lib/<能力目录>/*-conf.json` 的 `defaults`；不归属的（传输/消息/网关/会话等）加在 `lib/config.js` 的 `CORE_DEFAULTS`。schema 的 `.default()` 用 `defaultsOf('组名')` 引用它，**不要再写一遍字面量**。
-2. **schema**：`lib/config.js` 的 `Config`：字段类型、`volatile()`、描述。核心分组（CORE_DEFAULTS）目前仍是双写，逐叶子测试会抓漂移。
+1. **默认值**：归属工具/阀门的加在 `lib/<能力目录>/*-conf.json` 的 `defaults`；不归属的（传输/消息/网关/会话等）加在 `lib/core-conf.json`（`"group": "core"`，字段直接摊在配置树顶层）。schema 的 `.default()` 用 `defaultsOf('组名')` / `defaultsOf('core').路径` 引用它，**不要再写一遍字面量**——写了就会遮蔽 JSON，改 JSON 不再生效。
+2. **schema**：`lib/config.js` 的 `Config`：字段类型、`volatile()`、描述。核心组的值只在 `lib/core-conf.json` 里，schema 只引用。
 3. **设置页**：`lib/<能力目录>/*-set.json`（或核心的 `lib/settings-core-set.json`）加字段：`path` / `label` / `tab` / `subtab` / 可选 `priority`。
 
 跑 `node test/test-config.mjs`：`DEFAULTS` 与 `new Config({})` 现在**逐叶子双向比对**（嵌套也能抓），任何一边改了另一边没跟上都会红；`path` 落不到 schema、组不存在、标签页不存在也会红。
@@ -500,7 +500,7 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 | `lib/config.js` | `Config` schema、`DEFAULTS`、深合并、volatile 还原、废弃键识别；`-conf.json` / `-set.json` 自动发现与三道护栏 |
 | `lib/settings-page-set.json` | 设置页骨架：四个标签页与各自的二级标签（标签、提示语） |
 | 各 `*-set.json` 的 `priority` / `tab` / `subtab` | 前者定同一标签页内的先后（升序，同值按文件路径，不写默认 500）；后两者是这份模板的字段默认落在哪个标签页，单条字段写了就覆盖 |
-| `lib/settings-core-set.json` | 不属于任何工具/阀门的设置页字段（与 `CORE_DEFAULTS` 对称） |
+| `lib/settings-core-set.json` | 不属于任何工具/阀门的设置页字段（与 `lib/core-conf.json` 对称） |
 | `tsconfig.json` / `lib/externals.d.ts` | 类型检查配置（`checkJs` + `noEmit`）与可选外部依赖的 ambient 声明 |
 | **阀门层** | |
 | `lib/valve/index.js` | 阀门注册表：有哪几道阀门、成型顺序、依赖关系（**调优先级只改这里**） |

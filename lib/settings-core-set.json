@@ -924,28 +924,6 @@
     {
       "path": [
         "proactive",
-        "speakFallback"
-      ],
-      "label": "两段式：发言失败时回退用判断模型的正文",
-      "kind": "bool",
-      "hint": "默认开启；关掉则发言阶段写不出可用正文时这一轮就不发",
-      "tab": "capability",
-      "subtab": "dialogue"
-    },
-    {
-      "path": [
-        "proactive",
-        "requireCjk"
-      ],
-      "label": "发送前兜底：整句英文（超过 12 字）就丢掉",
-      "kind": "bool",
-      "hint": "默认关。中文群建议开：模型偶尔会掉回英文拒答（Sorry, it looks like I can not…），整句不含任何 CJK 时几乎一定是它；英文群务必关掉。12 字符及以下的 ASCII 回应（666 / OK / lol）不会触发",
-      "tab": "capability",
-      "subtab": "dialogue"
-    },
-    {
-      "path": [
-        "proactive",
         "timeoutMs"
       ],
       "label": "判断请求超时（毫秒）",

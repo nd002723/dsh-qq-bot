@@ -128,3 +128,8 @@ console.log('8. 失败缓存只有 5 分钟（网络抖动不该盲等 6 小时�
   await checker.check();
   check('超过 5 分钟后重新探测（两个 registry 各一次）', calls === 4, 'calls=' + calls);
 }
+
+console.log('\n' + pass + ' 通过 / ' + fail + ' 失败');
+// 必须给退出码：run-all 只看退出码，没有它的话断言全挂也照样记 PASS，
+// 这一套件的任何回归都不会变红（连带 CI 对整片行为失明）。
+if (fail > 0) process.exitCode = 1;

@@ -24,14 +24,54 @@ const suites = [
 // 单套间超时：卡死的套间以前会让整个 CI 一起挂到 workflow 上限，看不出是谁卡住。
 const SUITE_TIMEOUT_MS = 180000;
 
+/** 套件自报的「N 通过 / M 失败」：捕获输出解析，用来交叉校验退出码。 */
+// 套件自报有两套写法，都得认：
+//   A) `N 通过 / M 失败`（多数套件）
+//   B) `P/T 项通过`（另一批，T 是总数，失败数 = T - P）
+const SELF_REPORT_A = /(\d+)\s*通过\s*\/\s*(\d+)\s*失败/;
+const SELF_REPORT_B = /(\d+)\s*\/\s*(\d+)\s*项通过/;
+
 function runSuite(file) {
   return new Promise((resolve) => {
-    const child = spawn(process.execPath, [join(root, 'test', file)], { cwd: root, stdio: 'inherit' });
+    // 输出改成透传 + 同时抓一份文本：只看退出码是有盲区的——
+    // 套件忘了 process.exit / 忘了 process.exitCode 时，断言全挂退出码仍是 0，
+    // 汇总照样记 PASS（test-update-check 就这样漏了整片回归）。
+    // 所以这里额外解析套件自己打的「N 通过 / M 失败」，两者一起判。
+    const child = spawn(process.execPath, [join(root, 'test', file)], { cwd: root });
+    let captured = '';
+    const tee = (stream, sink) => {
+      stream.on('data', (chunk) => {
+        const text = String(chunk);
+        if (captured.length < 8 * 1024 * 1024) captured += text;
+        sink.write(chunk);
+      });
+    };
+    tee(child.stdout, process.stdout);
+    tee(child.stderr, process.stderr);
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; try { child.kill('SIGKILL'); } catch (error) { /* 已退出 */ } }, SUITE_TIMEOUT_MS);
     child.on('exit', (code) => {
       clearTimeout(timer);
-      resolve({ file, ok: code === 0 && timedOut !== true, code: code ?? -1, timedOut });
+      // 取最后一次匹配（中途小结也可能打这几句，结尾那条才是最终结论）
+      let selfFail = null;
+      const allA = captured.match(/\d+\s*通过\s*\/\s*\d+\s*失败/g);
+      const allB = captured.match(/\d+\s*\/\s*\d+\s*项通过/g);
+      if (allA !== null && allA.length > 0) {
+        const m = SELF_REPORT_A.exec(allA[allA.length - 1]);
+        selfFail = m === null ? null : Number(m[2]);
+      } else if (allB !== null && allB.length > 0) {
+        const m = SELF_REPORT_B.exec(allB[allB.length - 1]);
+        selfFail = m === null ? null : (Number(m[2]) - Number(m[1]));
+      }
+      // 自报失败数 > 0 也判失败：这是对「退出码忘了设」的兜底。
+      const selfReportedFailure = selfFail !== null && selfFail > 0;
+      resolve({
+        file,
+        ok: code === 0 && timedOut !== true && selfReportedFailure !== true,
+        code: code ?? -1,
+        timedOut,
+        selfFail,
+      });
     });
     child.on('error', (err) => { clearTimeout(timer); resolve({ file, ok: false, code: -1, err: String(err) }); });
   });

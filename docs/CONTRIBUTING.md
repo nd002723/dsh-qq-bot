@@ -37,8 +37,9 @@ node test/run-all.mjs
    DSH 0.2 的 Cordis Guard 不允许直接读 `ctx.tools`，必须先 `ctx.get('tools')`，
    未就绪时用 `ctx.inject(['tools'], ...)` 动态挂载。绕过它会静默丢掉工具。
 2. **配置默认值**：写进对应工具/阀门目录的 `*-conf.json`（不属于任何工具、阀门的放进
-   `lib/config.js` 的 `CORE_DEFAULTS`），`DEFAULTS` 由这两份组装——改默认值只改 JSON。
-   schema 加在 `lib/config.js` 的 `Config`，运行期可热改的字段标 `.volatile()`。
+   `lib/core-conf.json`，`"group": "core"`），`DEFAULTS` 由这些 JSON 组装——改默认值只改 JSON。
+   schema 加在 `lib/config.js` 的 `Config`，运行期可热改的字段标 `.volatile()`；
+   默认值一律用 `defaultsOf(...)` 引用 JSON，**不要在 schema 里再写一遍字面量**（重复会导致改 JSON 不生效）。
 3. **设置页字段**：写进对应工具的 `*-set.json`；不属于任何工具、阀门的放
    `lib/settings-core-set.json`，标签页骨架在 `lib/settings-page-set.json`。
    客户端（`lib/client/settings.js`）只是渲染器——`FIELDS` 在加载时由模板填充，
