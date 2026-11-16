@@ -46,7 +46,7 @@ node test/run-all.mjs
 - 用 `@param {X} deps.foo` 这类**限定名**时，父参数必须保持 `@param {object} deps`；
   把它换成 `Record<string, any>` 会报 TS8032（「限定名不能没有前导的 @param {object}」）
 
-## 2. 测试（49 个套件 / 1890 项）
+## 2. 测试（49 个套件 / 1892 项）
 
 ```sh
 node test/run-all.mjs      # 一键全量（套件失败会自动重试一次，重试通过会标注）
@@ -79,7 +79,7 @@ npm test                   # 同上
 | `test-history.mjs` | 20 | 聊天记录鉴权与定向 |
 | `test-proactive-wiring.mjs` | 23 | 主动发言接线与人格：依赖键名对账、缺依赖启动即告警、`soul:persona` 只取人格段、求值降级、agent 传给宿主、表情包接线与隐式引导 |
 | `test-proactive.mjs` | 76 | 主动发言纯逻辑（时间窗、判据、去重、两段式、人格优先级、表情包关键词与发送方式） |
-| `test-proactive-round.mjs` | 52 | 主动发言回合端到端：触发真回合、切发言模型并切回、空回复静默丢弃（不动定时器） |
+| `test-proactive-round.mjs` | 54 | 主动发言回合端到端：触发真回合、切发言模型并切回、空回复静默丢弃（不动定时器） |
 | `test-owner-settings.mjs` | 60 | 拥有者设置通道（白名单 / 确认码 / 限流 / 审计） |
 | `test-totp.mjs` | 43 | TOTP / HOTP（RFC 4226 + 6238 官方向量） |
 | `test-totp-cli.mjs` | 14 | 终端绑定（secret / otpauth URI / 二维码） |
@@ -192,6 +192,8 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
       bubbleSplit: true   # 按空行把回复拆成 2–3 个气泡（代码块/表格/列表/标题/引用块不拆）
       bubbleGapMinMs: 500   # 气泡之间最短延迟
       bubbleGapMaxMs: 10000   # 气泡之间最长延迟；每段之间在这个区间里随机取
+      stylePrompt: "…"   # 输出风格提示：挂成 agent 级系统提示（每轮生效，只影响本插件的 QQ 会话）；留空即不注入
+      imageHint: "…"   # 图片提示：同上，随图片一起给出「怎么认图」的要求；留空即不注入
     limits:
       perMinute: 20   # 每个（会话, 用户）每分钟最多驱动几个回合（防刷额度；超了回一句提示）
       queueMax: 5   # 同一会话最多排几个待处理回合（超了直接拒收，不排队）
