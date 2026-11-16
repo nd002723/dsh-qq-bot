@@ -96,6 +96,18 @@ const SUITE_BASELINE = Object.freeze({
   'test-websearch.mjs': 5,
 });
 
+/**
+ * 裸克隆（缺 @deepseek-ai/dsh-tools）时，依赖宿主服务的断言会被标 [SKIP]、不计入通过。
+ * 这里只列**受影响的套件**及其在该环境下的实测总数；其它套件两套数字相同，无需登记。
+ *
+ * 为什么单独一张表而不是「总数 + 跳过数」：`skip()` 一次调用守一整段，
+ * test-plugin 的 6 次 skip() 对应 26 条 check —— 跳过数不能当额度用（见下面的判据注释）。
+ */
+const SUITE_BASELINE_SKIPPED = Object.freeze({
+  'test-admin.mjs': 35,
+  'test-plugin.mjs': 146,
+});
+
 /** 套件自报的「N 通过 / M 失败」：捕获输出解析，用来交叉校验退出码。 */
 // 套件自报有两套写法，都得认：
 //   A) `N 通过 / M 失败`（多数套件）
@@ -151,23 +163,21 @@ function runSuite(file) {
       // 项数基线：套件自报的总数低于历史值，说明有断言被删/被注释掉了。
       // 以前 run-all 只查「有没有失败」，b77809d 删了 27 条断言在 CI 里完全无声。
       //
-      // **跳过数要算进来**：test-plugin / test-admin 在裸克隆里会把依赖宿主的断言标 [SKIP]，
-      // 自报总数因此变小。以前我把基线取成「裸克隆下限」，结果本机（跳过数为 0）的额度被放大——
-      // 实测在 test-proactive-round 上真删 3 条断言仍判 PASS（基线 49、自报 49），机制等于失效。
-      // 现在基线统一取**本机实测总数**，判据是「自报总数 + 跳过数 >= 基线」：
-      // 本机跳过=0 → 少一条就红；裸克隆跳过=26 → 26 条 SKIP 把额度抵掉，两环境都对。
+      // **两套基线，按环境选** —— 不能靠「总数 + 跳过数」抵额度。
       //
-      // **前提**：跳过数从套件自己打的「另有 N 项跳过」里解析，目前只有 test-plugin / test-admin 有这句。
-      // 将来若有第三个套件加 SKIP 却没打这句，它那部分额度会算成 0 → 可能误判红。
-      // 这是**故意选的方向**（宁可真红、不要假绿）；真发生了就去那个套件里补一句「另有 N 项跳过」。
-      const selfSkip = (() => {
-        const m = /（另有\s*(\d+)\s*项跳过/.exec(captured);
-        return (m === null) ? 0 : Number(m[1]);
-      })();
-      const baseline = SUITE_BASELINE[file];
-      const effectiveTotal = (selfTotal === null) ? null : (selfTotal + selfSkip);
-      const shrunk = (baseline !== undefined && effectiveTotal !== null && effectiveTotal < baseline)
-        ? (baseline - effectiveTotal) : 0;
+      // 为什么不能用跳过数抵：`skip()` 是**一次调用守一整段**。test-plugin 有 6 次 skip() 调用，
+      // 但被跳过的是 26 条 check（本机 172 → 裸克隆 146）。所以「另有 6 项跳过」+ 146 = 152 仍然
+      // 对不上 172 —— 拿它当额度会直接把 CI 判红（而且提示文案会说「有断言被删了」，误导 reviewer）。
+      //
+      // 也不能像上一版那样「基线取裸克隆下限」：本机跳过 0，下限当基线等于把额度放大，
+      // 实测在 test-proactive-round 上真删 3 条断言仍判 PASS。
+      //
+      // 所以：本机用自己的基线，裸克隆（缺 @deepseek-ai/dsh-tools）用 SKIPPED 那套。
+      // 环境判定用「套件自报里有没有跳过」——只有那两个套件在裸克隆里会打「另有 N 项跳过」。
+      const hasSkips = /（另有\s*\d+\s*项跳过/.test(captured);
+      const baseline = (hasSkips === true ? SUITE_BASELINE_SKIPPED[file] : SUITE_BASELINE[file]);
+      const shrunk = (baseline !== undefined && selfTotal !== null && selfTotal < baseline)
+        ? (baseline - selfTotal) : 0;
       resolve({
         file,
         ok: code === 0 && timedOut !== true && selfReportedFailure !== true && silent !== true && shrunk === 0,
