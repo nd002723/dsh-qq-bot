@@ -11,7 +11,7 @@
       "options": [
         [
           "onebot11",
-          "OneBot 11（NapCat / go-cqhttp / Lagrange）"
+          "OneBot 11（任意实现端）"
         ],
         [
           "onebot12",
@@ -23,7 +23,7 @@
         ],
         [
           "milky",
-          "Milky（NapCat / Yogurt / Lagrange.Milky）"
+          "Milky（任意实现端）"
         ],
         [
           "qq-official",
@@ -38,15 +38,15 @@
       ],
       "label": "连接方式",
       "kind": "select",
-      "hint": "正向 = DSH 主动连 NapCat（同机/同容器最简单）；反向 = NapCat 连 DSH（跨容器/跨网络）",
+      "hint": "正向 = DSH 主动连协议端（同机/同容器最简单）；反向 = 协议端连 DSH（跨容器/跨网络）",
       "options": [
         [
           "forward",
-          "正向 WebSocket（DSH → NapCat）"
+          "正向 WebSocket（DSH → 协议端）"
         ],
         [
           "reverse",
-          "反向 WebSocket（NapCat → DSH）"
+          "反向 WebSocket（协议端 → DSH）"
         ]
       ],
       "tab": "connection"
@@ -97,7 +97,7 @@
       ],
       "label": "access_token",
       "kind": "password",
-      "hint": "NapCat 里设了 token 就填这里",
+      "hint": "协议端里设了 token 就填这里",
       "tab": "connection"
     },
     {

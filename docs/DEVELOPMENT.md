@@ -105,7 +105,7 @@ npm test                   # 同上
 | `test-gate-guard.mjs` | 32 | 闸门区改动判定：关着不需要码 / 没码·错码·无 secret 拒绝 / 对码接受 / ±1 窗口 / 开关本身变更也要码 / 名单没变时清码 / **保护面（密钥·恢复码·试错上限·授权时长）变更也要码且必须用变更前的密钥验** / 码不能重放 / 连错锁定 |
 | `test-guard-proxy.mjs` | 53 | 内网校验代理：CONNECT 与明文请求拒绝回环 / 元数据 / 私网 / IPv6 / 6to4 / Teredo / localhost；用「本地监听器 accept 计数 = 0」证明真的没有连过去（把判定改成一律放行必然变红），另覆盖上游代理链路与 403/502 语义分离、CONNECT 目标归一（尾点 / userinfo / 多冒号）、并发 start 去重、socks5 上游告警、拒绝后不崩、stop 后端口关闭、**解析失败在直连模式下必须拒绝（不再退化成盲连主机名）** |
 
-**手动联调**（假 OneBot 端口正好是 NapCat 默认值，不用真 QQ 号）：
+**手动联调**（假 OneBot 端口用常见默认值，不用真 QQ 号）：
 
 ```sh
 node test/mock-onebot.mjs --http-port 3000 --ws-port 3001
@@ -607,7 +607,7 @@ HTTP：`GET /dsh-qq-bot/sticker` 读状态、`POST /dsh-qq-bot/sticker/rebuild`�
 
 ## 13. 部署备注
 
-- **ARM / 手机容器跑 NapCat**：官方镜像有 arm64 版，但容器里再跑 Docker 通常需要 privileged。备选是直接在容器里跑 NapCat.Shell（要对应的 Linux QQ 版本）。同容器用 `forward` 连 `127.0.0.1:3001` 最省事；跨容器用 `reverse`，让 NapCat 连 `ws://<DSH主机IP>:6199/`——但**必须先配 `onebot.accessToken`**：没配 token 时反向端口会被强制收回 `127.0.0.1`（那个口上的帧能直接冒充任意 QQ 号）。**6099（WebUI）不要暴露到公网**。
+- **ARM / 手机容器跑协议端**：容器里再跑容器通常需要 privileged，直接在同容器里跑协议端更省事。同容器用 `forward` 连 `127.0.0.1:3001`；跨容器用 `reverse`，让协议端连 `ws://<DSH主机IP>:6199/`——但**必须先配 `onebot.accessToken`**：没配 token 时反向端口会被强制收回 `127.0.0.1`（那个口上的帧能直接冒充任意 QQ 号）。**协议端的 WebUI/管理口不要暴露到公网**。
 - **重启 DSH**：插件是常驻 Cordis 插件，装/升级/改连接方式后都要重启 Host；桌面版重启应用，CLI 重启 `dsh web`。
 - **日志**：插件前缀 `[dsh-qq-bot]`，适配器前缀 `[dsh-qq-bot]/adapter`，都打到 Host 的 stdout（systemd 部署看 `journalctl -u dsh-web`）。
 - **与 AstrBot 互斥**：AstrBot 也是 OneBot 消费方，两边同时接会让同一条消息被回两次。

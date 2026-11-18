@@ -4,7 +4,7 @@
  *
  * It implements just enough of the OneBot 11 surface that the DSH QQ Bot bridge
  * needs, so the whole integration can be exercised end-to-end on localhost with
- * no QQ account, no NapCat, and no Docker:
+ * no QQ account, no protocol server, and no Docker:
  *
  *   - HTTP API: POST /send_group_msg, /send_private_msg, /send_msg, /get_status
  *               -> records every outbound message.
@@ -236,7 +236,7 @@ export async function startMockOneBot(options = {}) {
     },
     get_group_msg_history(params) {
       const count = Math.max(1, Number(params.count ?? 20));
-      // NapCat 惯例：最新在前
+      // 常见实现惯例：最新在前
       return { messages: [...history].reverse().slice(0, count) };
     },
     get_friend_msg_history(params) {

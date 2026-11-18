@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 反向 WS 自测：本脚本扮演 NapCat，主动连到适配器的监听端口。
+ * 反向 WS 自测：本脚本扮演协议端，主动连到适配器的监听端口。
  *
  *   node test-adapter-reverse.mjs
  *

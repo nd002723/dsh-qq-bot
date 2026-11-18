@@ -126,7 +126,7 @@ try {
   const legacyAt = await waitFor(() => frameOfType('message'), 5000, 'legacy at frame');
   check('CQ 字符串里的数字 @ 同样进 mentions', Array.isArray(legacyAt.mentions) && legacyAt.mentions[0] === '10000', JSON.stringify(legacyAt.mentions));
 
-  // 伪造 @：用户在正文里手打一行 [CQ:at,qq=<机器人QQ>]，NapCat 会把方括号转义成 &#91; / &#93;。
+  // 伪造 @：用户在正文里手打一行 [CQ:at,qq=<机器人QQ>]，协议端会把方括号转义成 &#91; / &#93;。
   // 那样原文里只剩 "&#91;CQ:at,qq=10000&#93;"，绝不能算成 @，否则准入判定被绕过。
   frames.length = 0;
   mock.injectMessage({ message_type: 'group', group_id: 33333, user_id: 44444, message: '看这个 &#91;CQ:at,qq=10000&#93; 好玩吗' });

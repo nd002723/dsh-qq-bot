@@ -50,7 +50,7 @@ const d2 = parseDecision(fence + 'json\n{"speak":false}\n' + fence);
 check('parseDecision 去掉代码块', d2 !== null && d2.speak === false);
 check('parseDecision 非法返回 null', parseDecision('不是 JSON') === null);
 
-// 历史消息方向：NapCat 是最新在前，归一化必须纠正成升序，否则事件闸/提示词全看错消息
+// 历史消息方向：多数实现是最新在前，归一化必须纠正成升序，否则事件闸/提示词全看错消息
 const nowSec2 = Math.floor(Date.now() / 1000);
 const rawNewestFirst = [
   { message_id: 3, time: nowSec2 - 60, user_id: 3, sender: { nickname: '丙' }, message: [{ type: 'text', data: { text: '你们几点到？' } }] },

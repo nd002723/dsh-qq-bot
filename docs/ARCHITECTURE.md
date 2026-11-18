@@ -14,7 +14,7 @@ QQ 用户
 QQ 客户端 / 平台（QQ NT、QQ 开放平台、Discord/飞书…）
    │ 各家原生协议
    ▼
-协议端（不在本仓库，qq-official 例外：适配器直连腾讯 API 2）：NapCat · OneBot 12 实现端 · Koishi(Satori) · Milky 协议端
+协议端（不在本仓库，qq-official 例外：适配器直连腾讯 API 2）：OneBot 11 实现端 · OneBot 12 实现端 · Koishi(Satori) · Milky 协议端
    │ 5 种协议之一：onebot11 / onebot12 / satori / milky / qq-official
    ▼
 lib/transport/            传输层：独立子进程适配器，零 npm 依赖 —— 只懂协议
@@ -301,7 +301,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 | 文件 | 职责 | 关键导出 |
 | --- | --- | --- |
 | `transport/index.js` | 协议名 -> 适配器路径的注册表（新增协议只改这里） | `resolveAdapterPath` `ADAPTER_ENTRIES` `supportedProtocols` |
-| `transport/adapters/onebot11.mjs` | OneBot 11（NapCat 等）：正向/反向 WS + HTTP API | 脚本本体（默认协议） |
+| `transport/adapters/onebot11.mjs` | OneBot 11：正向/反向 WS + HTTP API | 脚本本体（默认协议） |
 | `transport/adapters/onebot12.mjs` | OneBot 12：WS + `POST /`；字符串 id，`mention`/`reply` 段 | 脚本本体 |
 | `transport/adapters/satori.mjs` | Satori：`WS /v1/events` + `POST /v1/{resource}.{method}` | 脚本本体 |
 | `transport/adapters/milky.mjs` | Milky 1.3：`WS /event` + `POST /api/:api` | 脚本本体 |
@@ -426,7 +426,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 
 | 协议 | 技术形态 | 消息体 | 主要缺口 |
 | --- | --- | --- | --- |
-| onebot11 | 正向/反向 WS + HTTP；`Bearer` / `?access_token=` | CQ 码字符串或段数组 | 动作集取决于实现端（NapCat 最全，其他实现参差） |
+| onebot11 | 正向/反向 WS + HTTP；`Bearer` / `?access_token=` | CQ 码字符串或段数组 | 动作集取决于实现端，参差不齐 |
 | onebot12 | WS + `POST /`（永远 HTTP 200，看 `retcode`）；`Bearer` + `Sec-WebSocket-Protocol` | 段数组（`mention`/`reply`，图片只有 `file_id`） | 段类型少，未映射段降级成 `[暂不支持的消息段]` |
 | satori | **应用连 SDK**（SDK 是服务端，与 OneBot 相反）：`WS /v1/events`（opcode 握手 + 心跳）+ `POST /v1/{resource}.{method}`；`Bearer` + `Satori-Platform`/`Satori-User-ID` | `content` 元素串（如 `hi<at id="1"/>`） | 无群名片/管理员/戳一戳；`channel_id` 靠事件缓存或约定重建；`upload.create`（multipart）未实现 |
 | milky | `WS /event` + `POST /api/:api`；`Bearer` 或 `?access_token=` | 段数组（`mention`/`mention_all`） | 响应没有 `echo`，只能看 `retcode`；临时会话撤回受限 |
@@ -444,7 +444,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 
 ### 5.4 其他
 
-- 本仓库不含协议端（NapCat / Koishi / Milky 服务端 / QQ 开放平台）和 QQ 客户端。
+- 本仓库不含协议端（OneBot / Koishi / Milky 服务端 / QQ 开放平台）和 QQ 客户端。
 - 一个适配器进程对应一份连接配置（OneBot 11 反向模式可接多条链路，取第一条就绪的）；多账号未内建。
 - 消息帧与发送帧的形状是插件与适配器的唯一耦合点，改动必须同步五个适配器与 `test/`。
 - 配置改动分两类：连接方式（`protocol`/`mode`/各协议连接参数）变化会重启适配器；其余 volatile 字段就地生效，下一轮消息即生效。

@@ -76,7 +76,7 @@ QQ_msg/sticker/                 ← 默认目录（sticker.dir 可改成任意�
 
 ### 日志一直「OneBot 未连接」
 
-NapCat 的「正向 WebSocket」是否开在 `onebot.wsUrl`；reverse 模式下 NapCat 是否指向 `ws://<DSH>:6199/`；防火墙；token 是否一致。
+协议端的「正向 WebSocket」是否开在 `onebot.wsUrl`；reverse 模式下协议端是否指向 `ws://<DSH>:6199/`；防火墙；token 是否一致。
 
 ### 能连上但收不到消息
 
@@ -96,7 +96,7 @@ OneBot 版本要选 **v11**；不能只开 HTTP，必须开正向或反向 WS。
 
 ### 发送失败
 
-NapCat 的 HTTP 服务器（默认 3000）是否开着；`accessToken`；看 DSH Host 日志里的「发送失败」。
+协议端的 HTTP 服务器（默认 3000）是否开着；`accessToken`；看 DSH Host 日志里的「发送失败」。
 
 ### 网页端整个插件报错 / 设置面板空白
 
@@ -107,7 +107,7 @@ NapCat 的 HTTP 服务器（默认 3000）是否开着；`accessToken`；看 DSH
 插件前缀 `[dsh-qq-bot]`，适配器前缀 `[dsh-qq-bot]/adapter`，都打到 DSH Host 的 stdout。
 
 > 本插件**不与 AstrBot 同时接**：AstrBot 也是 OneBot 的消费方，两边一起接会让同一条消息被两个大脑各回一次。
-> 对端只要是 OneBot 11 实现（NapCat / OneDisc / Lagrange）就行。
+> 对端只要是 OneBot 11 实现就行。
 
 
 ## 许可

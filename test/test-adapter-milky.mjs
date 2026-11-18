@@ -484,7 +484,7 @@ try {
   adapter.send({ type: 'action', action: 'get_group_msg_history', params: { group_id: 33333, count: 10 }, echo: 'a7' });
   const history = await waitFor(() => adapter.first('action_result'), 6000, 'get_group_msg_history');
   const ids = history.data.messages.map((message) => Number(message.message_id));
-  check('历史消息默认新->旧（对齐 NapCat）', history.ok === true && ids.length >= 2 && ids.every((id, index) => index === 0 || ids[index - 1] > id), JSON.stringify(ids));
+  check('历史消息默认新->旧（对齐常见实现）', history.ok === true && ids.length >= 2 && ids.every((id, index) => index === 0 || ids[index - 1] > id), JSON.stringify(ids));
   check('历史消息 limit 不超过 30', mock.lastCall('get_history_messages').params.limit <= 30, String(mock.lastCall('get_history_messages').params.limit));
 
   adapter.frames.length = 0;

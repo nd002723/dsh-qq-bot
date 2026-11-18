@@ -15,7 +15,7 @@
 - 生成过程：人类用自然语言提出需求与约束 → AI 编写代码与测试 → AI 在真实运行环境中执行测试并修复
   → 人类审查、否决不合适的方案、追加约束 → 迭代。
 - 人类做出的关键决策（可由提交历史与文档佐证）：
-  - 技术路线选择 **NapCat + OneBot 11**，而不是自造 QQ 协议；
+  - 技术路线选择 **OneBot 11 协议 + 现成协议端**，而不是自造 QQ 协议；
   - 否决"用执行级硬闸锁死非拥有者"的初版方案，改为**入口路由 + 权限模型**；
   - 要求**指令必须整条严格匹配**（斜杠在首位、无多余内容），防止聊天内容夹带指令样内容被误执行；
   - 要求**动态授权不可跨群**、**只有拥有者能永久授权**；
@@ -28,7 +28,7 @@
 | 操作系统 | Debian GNU/Linux 13 (trixie)，内核 6.12.113 |
 | Node.js | v22.23.4（CI 另跑 Node 24） |
 | DSH | 0.2.1-rc.2（web profile，独立进程运行；**公网入口默认关闭**，需要时临时开窗口） |
-| QQ 接入 | NapCat + OneBot 11 **正向 WebSocket**（插件反向连接，本机回环，不经公网） |
+| QQ 接入 | OneBot 11 **正向 WebSocket**（插件连本机回环地址，不经公网） |
 | 机器人账号 | 真实 QQ 号（OneBot `get_login_info` 可查），非模拟器 |
 | LLM | 自定义 OpenAI 兼容中转（地址与 key **只存在于部署侧配置，不进仓库**） |
 | 生图 | 自填 OpenAI 兼容 `/images/generations`（实测 `seedream-5.0-lite`，约 40 秒出图、单张约 3.6 MB） |
@@ -64,18 +64,17 @@
   - 配置热更新：改 `cordis.patch.yml` → 适配器重启 → 重连；
   - 跨工作区旧会话冲突：真实复现过 `session "..." belongs to "/root", not ".../QQ_msg"`，
     修复后改用 `-ws<哈希>` id 重建（见 CHANGELOG 0.9.2）。
-- **0.2.1-rc.3 兼容复核**：在隔离 `DSH_HOME`（独立 profile，未连 NapCat）装 rc.3 + 本插件，
+- **0.2.1-rc.3 兼容复核**：在隔离 `DSH_HOME`（独立 profile，未连协议端）装 rc.3 + 本插件，
   启动日志 9 个工具注册齐全、适配器 ready、无报错；插件启动会自检并打印实际 DSH 版本与判定，
   判定范围来自 `lib/shared/compat.js` 的两个常量，不逐版本硬编码。
 - 打包与组合校验：`dsh --profile web --dump-config` 接受插件行与 preset 行；
   解包到 profile 后 `@deepseek-ai/dsh-tools` 可解析；客户端清单通过 `dsh.client` 校验。
 - 核对过的上游文档：[OneBot 11 鉴权规范](https://github.com/botuniverse/onebot-11)、
-  [NapCat-Docker README](https://github.com/NapNeko/NapCat-Docker)、
-  [AstrBot aiocqhttp 文档](https://docs.astrbot.app/platform/aiocqhttp.html)。
+  [OneBot 11 消息段定义](https://github.com/botuniverse/onebot-11/blob/master/message/segment.md)。
 
 ### 已知限制与**尚未验证**的部分（请务必阅读）
 
-1. **多协议适配器只对「本地假协议端」验证过**：OneBot 12 / Satori / Milky / QQ 官方四个适配器各有独立测试套件，但尚未接真实实现端（OneBot 12 生态、Koishi、Milky 协议端、QQ 开放平台机器人）跑过端到端；上真实协议端时请先看 README「协议与连接方式」的能力边界。
+1. **Milky 已实测，其余多协议适配器只对「本地假协议端」验证过**：Milky 适配器实测覆盖 webhook 入站（群消息 + mention 段解析）、`send_group_message` 出站（文本 + 引用段）、`message_seq` 回填与 Bearer 鉴权；**尚未在真实 QQ 账号 + 真实 Milky 协议端上跑过完整回合**。OneBot 12 / Satori / QQ 官方三个适配器各有独立测试套件，但未接真实实现端跑过端到端；上真实协议端时请先看 README「协议与连接方式」的能力边界。
 2. **真实 QQ 只在维护者的单一账号 / 单机 Debian 13 上跑过**。其它 QQ 版本、其它 OneBot 实现
    （OneDisc / Lagrange 等）的字段细节、限流与风控未逐一验证；报错请附 `[dsh-qq-bot]` 日志。
 3. **跨对话检索（session_search 系列）尚未在真实 QQ 会话里端到端跑过一遍**：它依赖 DSH 的
@@ -96,13 +95,13 @@
 
 特别感谢：
 
-- [**NapCat**](https://napneko.github.io/) —— 提供灵感、OneBot v11 接口与文档。
+- [**OneBot 11 规范**](https://github.com/botuniverse/onebot-11) —— 接口与消息段定义，默认协议按它实现。
 - [**梁圣**](https://www.deepseek.com/) —— 忠！橙！
 
 
 - **OneBot 11** 是开放协议标准，由社区（botuniverse）维护；本项目是对其的客户端实现，
   未复制其任何代码。
-- **NapCat**、**AstrBot**、**LLOneBot**、**Lagrange** 等是各自独立的项目，本项目**不包含**它们的代码，
+- **AstrBot** 等第三方机器人框架与协议端是各自独立的项目，本项目**不包含**它们的代码，
   仅在文档中作为可对接的实现被提及。
 - **`@deepseek-ai/dsh-*`** 是 DSH 运行时，本项目以 **peerDependency** 方式使用，不打包、不分发。
 - 本项目运行时唯一依赖 `@deepseek-ai/schemastery`（Config schema 用）；
@@ -161,7 +160,7 @@ No source code from third-party projects was copied into this repository.
 | OS | Debian GNU/Linux 13 (trixie), kernel 6.12.113 |
 | Node.js | v22.23.4 (CI also runs Node 24) |
 | DSH | 0.2.1-rc.2 (web profile, standalone process; the **public entry is closed by default** and opened only for a manual time window) |
-| QQ transport | NapCat + OneBot 11 **forward WebSocket** (the plugin connects outbound to a loopback address; nothing is exposed publicly) |
+| QQ transport | OneBot 11 **forward WebSocket** (the plugin connects to a loopback address; nothing is exposed publicly) |
 | Bot account | a real QQ account (via OneBot `get_login_info`), not a simulator |
 | LLM / image APIs | self-hosted OpenAI-compatible relays; **endpoints and keys live only in deployment config and are never committed** |
 | Tools verified | `qqbot` / `qqconfig` / `qqgroup` / `qq_websearch` / `qq_webfetch` / `qq_imgsearch` / `qq_history` / `qq_draw` / `qqauth` — all nine registered |
@@ -179,8 +178,8 @@ No source code from third-party projects was copied into this repository.
   (one retry then success, `attempts=3, 38s`); config hot reload (adapter restart + reconnect);
   and the cross-workspace session conflict (`belongs to "/root", not ".../QQ_msg"`), fixed by re-creating
   the session under a workspace-scoped id while keeping the old session intact.
-- **Upstream documentation consulted:** the OneBot 11 specification, the NapCat-Docker README,
-  and the AstrBot aiocqhttp docs (links in the Chinese section above).
+- **Upstream documentation consulted:** the OneBot 11 specification and its message-segment definitions
+  (links in the Chinese section above).
 
 **Not verified — read before relying on this:**
 
@@ -199,8 +198,8 @@ No source code from third-party projects was copied into this repository.
 6. Reply handling captures only the referenced message id; merged forwards and nested reply chains are not handled.
 
 **Third-party attribution:** OneBot 11 is an open protocol standard (botuniverse) — this project is an
-independent client implementation and copies none of its code. NapCat, AstrBot, LLOneBot and Lagrange are
-separate projects and are **not** bundled. `@deepseek-ai/dsh-*` packages are consumed as peer dependencies
+independent client implementation and copies none of its code. AstrBot and other third-party bot
+frameworks / protocol servers are separate projects and are **not** bundled. `@deepseek-ai/dsh-*` packages are consumed as peer dependencies
 and are not redistributed. The only runtime dependency is `@deepseek-ai/schemastery` (for the Config schema);
 the adapter uses only Node 22's built-in `WebSocket` and `fetch`.
 

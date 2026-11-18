@@ -8,7 +8,7 @@
  *   sessionController -> one composed DSH Agent+Session per QQ conversation
  *   timer      -> patience notice + adapter restart backoff
  *
- *   QQ -> NapCat/AstrBot -OneBot11-> adapter -stdio JSON-> THIS PLUGIN
+ *   QQ -> OneBot11 实现端/AstrBot -> adapter -stdio JSON-> THIS PLUGIN
  *      -> agent.followup(msg) -> agent.whenIdle() -> session.deriveMessages()
  *      -> reply text -> adapter -> OneBot HTTP API -> QQ
  * ===========================================================================*/
@@ -20,7 +20,7 @@ const CONFIG = {
   nodeFallback: '/opt/node/bin/node',   // real path resolved from PATH at start
   workspace: '/home/dsh',               // cwd handed to each QQ agent session
 
-  // NapCat defaults: forward WebSocket 3001, HTTP API 3000.
+  // Common defaults: forward WebSocket 3001, HTTP API 3000.
   onebot: { wsUrl: 'ws://127.0.0.1:3001', httpUrl: 'http://127.0.0.1:3000', accessToken: '' },
 
   // Groups: answer only when @-mentioned, and only in these groups ([] = all).
@@ -41,7 +41,7 @@ const CONFIG = {
 
   perChatSession: true,                 // one DSH session per QQ chat
   agentPreset: '',                      // '' = the deployment's default preset
-  logAdapterFrames: false,              // very chatty; useful while wiring NapCat
+  logAdapterFrames: false,              // very chatty; useful while wiring the protocol server
 };
 
 const ADAPTER_ARGS = (() => {
@@ -406,7 +406,7 @@ return {
     try {
       const tool = harness.defineTool({
         name: 'qqbot',
-        description: 'Inspect or drive the local QQ Bot bridge (OneBot 11 transport to NapCat/AstrBot). '
+        description: 'Inspect or drive the local QQ Bot bridge (OneBot 11 transport to a protocol server / AstrBot). '
           + 'action "status" reports the connection and every live QQ conversation; "send" pushes one message '
           + 'to a QQ group or user; "interrupt" cancels the in-flight turn of a conversation (or all).',
         parameters: {

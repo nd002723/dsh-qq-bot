@@ -23,7 +23,7 @@
 - **Agent 有 10 个工具**：联网搜索、抓网页、图片反搜、生图、发表情包、读聊天记录、群管理、改设置。
 - **只有一条运行时依赖**：`@deepseek-ai/schemastery`（须与宿主同版本）；其余走 Node 22 内置的 `WebSocket` / `fetch`，适配器是零依赖子进程。
 
-[更新内容](#v0141-更新内容) · [版本支持](#版本支持政策) · [安装](#安装与更新) · [接上 QQ](#接上-qq推荐-napcat) · [能力](#它能做什么) · [协议](#协议与连接方式) · [工具](#agent-能用的工具) · [常见问题](#常见问题)
+[更新内容](#v0141-更新内容) · [版本支持](#版本支持政策) · [安装](#安装与更新) · [接上 QQ](#接上-qq) · [能力](#它能做什么) · [协议](#协议与连接方式) · [工具](#agent-能用的工具) · [常见问题](#常见问题)
 
 ## v0.14.1 更新内容
 
@@ -98,21 +98,21 @@ dsh --profile web --dump-config
 
 </details>
 
-## 接上 QQ（推荐 NapCat）
+## 接上 QQ
 
-NapCat 官方 Docker 镜像（amd64 / arm64）：
+本仓库**不含协议端**：需要一个兼容协议端把 QQ 账号暴露成某种受支持的上行协议，插件再把消息接进 DSH。
+选哪种由你决定，插件这边只认「协议 + 地址 + token」。
 
-```sh
-docker run -d --name napcat --restart=always \
-  -e NAPCAT_GID=$(id -g) -e NAPCAT_UID=$(id -u) \
-  -p 3000:3000 -p 3001:3001 -p 6099:6099 \
-  mlikiowa/napcat-docker:latest
-```
+以默认的 OneBot 11 为例，协议端里要开两个入口：
 
-- WebUI：`http://<主机IP>:6099/webui`，手机 QQ 扫码登录；token 默认在 `docker logs napcat` 里。
-- 建议把容器内 `/app/napcat/config` 与 `/app/.config/QQ` 挂卷，免得重启要重新扫码。
-- NapCat 的「网络配置」里开 **OneBot 11**：**HTTP 服务器 3000**（发消息）+ **正向 WebSocket 3001**（收事件），
-  端口默认就和本插件一致，不用改。
+| 用途 | 协议 | 插件里的字段 |
+| --- | --- | --- |
+| 发消息 | HTTP API | `onebot.httpUrl`（如 `http://127.0.0.1:3000`） |
+| 收事件 | 正向 WebSocket | `onebot.wsUrl`（如 `ws://127.0.0.1:3001`） |
+
+- 端口随便，填进设置即可；
+- 协议端要鉴权时，把同一个 token 填进 `onebot.accessToken`；
+- 走**反向** WebSocket 时，让协议端连 `ws://<DSH 主机>:6199/`，插件这边只负责监听。
 
 **配置入口统一到首页侧边栏「插件 → 已安装 → QQ 机器人」，使用 DSH 官方插件详情页接口。**
 
@@ -148,10 +148,10 @@ docker run -d --name napcat --restart=always \
 
 | protocol | 协议端 | 传输 | 备注 |
 | --- | --- | --- | --- |
-| `onebot11`（默认） | NapCat / go-cqhttp / Lagrange | 正向/反向 WS + HTTP | 与 0.9 的配置完全兼容 |
+| `onebot11`（默认） | 任意 OneBot 11 实现端 | 正向/反向 WS + HTTP | 与 0.9 的配置完全兼容 |
 | `onebot12` | OneBot 12 实现端 | 正向/反向 WS + HTTP | @ 是 `mention`、图片只有 `file_id` |
 | `satori` | Koishi（Satori 服务端） | WS `/v1/events` + HTTP RPC | 消息体是类 XHTML 元素串 |
-| `milky` | NapCat / Yogurt / Lagrange.Milky | `/event` WS + `/api` HTTP | 无 echo；消息 id 是 `message_seq` |
+| `milky` | 任意实现 Milky 规范的协议端 | `/event` WS + `/api` HTTP | **已实测**（入站消息 / 出站发送 / 引用回复）；无 echo，消息 id 是 `message_seq` |
 | `qq-official` | QQ 开放平台机器人 | Webhook 或 WS 网关 | AppID/AppSecret 鉴权；无群管理动作 |
 
 **能力边界**：`qq-official` 没有踢人/禁言/改名片这类动作（`qqgroup` 会明确回「不支持」）；`onebot12` 的图片段只有 `file_id`，
@@ -164,7 +164,7 @@ docker run -d --name napcat --restart=always \
 
 ## 配置
 
-常规用法全在设置面板里（入口见[接上 QQ](#接上-qq推荐-napcat)）。几个要点：
+常规用法全在设置面板里（入口见[接上 QQ](#接上-qq)）。几个要点：
 
 - **工作区自动管理**：插件在 DSH 默认工作区同级建 `QQ_msg` 并注册为 Web UI 侧栏的「QQ 消息」分组；带图消息的原图缓存在
   `QQ_msg/qq-images/<会话id>/`，会话结算后删除。
@@ -213,7 +213,7 @@ AI 自动打标只处理新增/内容变动的图；发送有闸门（概率 / �
 
 ## 常见问题
 
-- **一直「OneBot 未连接」**：NapCat 的「正向 WebSocket」是否开在 `onebot.wsUrl`；reverse 模式下是否指向 `ws://<DSH>:6199/`；token 是否一致。
+- **一直「OneBot 未连接」**：协议端的「正向 WebSocket」是否开在 `onebot.wsUrl`；reverse 模式下是否指向 `ws://<DSH>:6199/`；token 是否一致。
 - **能连上但收不到消息**：OneBot 版本要选 **v11**，且必须开正向或反向 WS（只开 HTTP 不够）。
 - **群里 @ 了也不回**：`group.enabled`、`group.allow` 白名单、`self_id` 是否一致（`logAdapterFrames: true` 看原始帧）。
 - **日志在哪**：插件前缀 `[dsh-qq-bot]`，适配器 `[dsh-qq-bot]/adapter`，都打到 DSH Host 的 stdout。
@@ -248,7 +248,7 @@ npx tsc --noEmit        # 类型检查（JSDoc + checkJs，不引入构建产物
 
 MIT，见 [LICENSE](LICENSE)。维护者 [@arrow1031](https://github.com/arrow1031)，核心贡献者 [@nd002723](https://github.com/nd002723)。
 
-- [**NapCat**](https://napneko.github.io/) —— OneBot v11 接口与文档；没有它把 NTQQ 的能力按 OneBot 规范暴露出来，这个项目无从起步。
+- [**OneBot 11 规范**](https://github.com/botuniverse/onebot-11) —— 消息段与动作集的事实标准，默认协议按它实现。
 - [**dsh-moli**](https://github.com/27painter/dsh-moli) —— 本地无头浏览器引擎与参数面；`qq_webfetch` 的渲染抓取直接借它的引擎。
 - [**@tencent-connect/dsh-qqbot**](https://github.com/tencent-connect/dsh-qqbot) —— 官方 QQ Bot 插件与扫码连接 SDK，部分能力参照其公开文档实现。
 - **梁圣** —— 忠！橙！
