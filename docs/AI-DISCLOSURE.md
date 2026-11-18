@@ -74,7 +74,7 @@
 
 ### 已知限制与**尚未验证**的部分（请务必阅读）
 
-1. **Milky 已实测，其余多协议适配器只对「本地假协议端」验证过**：Milky 适配器实测覆盖 webhook 入站（群消息 + mention 段解析）、`send_group_message` 出站（文本 + 引用段）、`message_seq` 回填与 Bearer 鉴权；**尚未在真实 QQ 账号 + 真实 Milky 协议端上跑过完整回合**。OneBot 12 / Satori / QQ 官方三个适配器各有独立测试套件，但未接真实实现端跑过端到端；上真实协议端时请先看 README「协议与连接方式」的能力边界。
+1. **Milky 已实测（真实账号 + 真实协议端），其余多协议适配器只对「本地假协议端」验证过**：Milky 适配器在真实 QQ 账号 + Milky 1.3 协议端上跑过完整回合——webhook/WS 入站收到群消息并 @ 触发回合、`send_group_message` 出站（文本 + 引用段）成功、`message_seq` 回填与 `get_impl_info` 自检通过；另覆盖 webhook 入站（mention 段解析）与 Bearer 鉴权。OneBot 12 / Satori / QQ 官方三个适配器各有独立测试套件，但未接真实实现端跑过端到端；上真实协议端时请先看 README「协议与连接方式」的能力边界。
 2. **真实 QQ 只在维护者的单一账号 / 单机 Debian 13 上跑过**。其它 QQ 版本、其它 OneBot 实现
    （OneDisc / Lagrange 等）的字段细节、限流与风控未逐一验证；报错请附 `[dsh-qq-bot]` 日志。
 3. **跨对话检索（session_search 系列）尚未在真实 QQ 会话里端到端跑过一遍**：它依赖 DSH 的

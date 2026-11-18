@@ -151,7 +151,7 @@ dsh --profile web --dump-config
 | `onebot11`（默认） | 任意 OneBot 11 实现端 | 正向/反向 WS + HTTP | 与 0.9 的配置完全兼容 |
 | `onebot12` | OneBot 12 实现端 | 正向/反向 WS + HTTP | @ 是 `mention`、图片只有 `file_id` |
 | `satori` | Koishi（Satori 服务端） | WS `/v1/events` + HTTP RPC | 消息体是类 XHTML 元素串 |
-| `milky` | 任意实现 Milky 规范的协议端 | `/event` WS + `/api` HTTP | **已实测**（入站消息 / 出站发送 / 引用回复）；无 echo，消息 id 是 `message_seq` |
+| `milky` | 任意实现 Milky 规范的协议端 | `/event` WS + `/api` HTTP | **已实测**（真实账号 + Milky 1.3 协议端：@ 触发、收群消息、发文本与引用回复）；无 echo，消息 id 是 `message_seq` |
 | `qq-official` | QQ 开放平台机器人 | Webhook 或 WS 网关 | AppID/AppSecret 鉴权；无群管理动作 |
 
 **能力边界**：`qq-official` 没有踢人/禁言/改名片这类动作（`qqgroup` 会明确回「不支持」）；`onebot12` 的图片段只有 `file_id`，
