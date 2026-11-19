@@ -227,6 +227,25 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 `{ label, disabled, run }`，以便现场决定文案与禁用态）。
 
 于是：**新加一张「只有字段和按钮」的卡片 = 只改 JSON**；只有引入全新控件才动前端。
+
+### 数字字段也是声明式的（`kind: "number"` 的 `num`）
+
+数字的显示信息归一成一份 `num`（`normalizeNumSpec` 校验），不再散在 `slider/min/max/step/unit`
+这几个平铺键上；客户端只认 `num`，老的平铺写法由服务端推导成同一份（读旧模板时仍然有效）。
+
+| 键 | 作用 |
+| --- | --- |
+| `num.mode` | `slider`（数值框 + 滑条）/ `plain`（只数值框）/ `digits`（只收纯数字、整数非负） |
+| `num.min` / `max` / `step` | 范围与步长；`slider` 必须给 min+max，`step` 缺省 1 |
+| `num.unit` | 单位文案（跟在输入框后面） |
+| `num.display` | `{ scale, suffix, decimals }`：**显示缩放**。内部 0.3 在界面上显示成 30%；回写按 scale 反算 |
+
+`num.display` 是这次新加的：概率这类 0–1 的值以前只能靠 0.01 步长的滑条，输入框里显示
+`0.3` 而不是 `30%`；现在写 `{"scale":100,"suffix":"%","decimals":0}` 就能以百分比呈现，
+存储值仍是 0 到 1。
+
+**文本字段的 `digitsOnly` 是另一回事**：它说的是「这个文本框只许敲数字」（6 位动态码这类），
+与数值范围无关，所以仍然作为独立键透传。
 排序表要的目录（默认顺序 / 上限 / 展示名 / 已注册的 provider 列表）随模板一起下发（`searchOrder`），
 客户端不硬编码第二份对照表。
 

@@ -42,6 +42,10 @@
 - **`renderField` 从 12 个位置参数收成一个上下文对象**：value / isSecret / secretSet 都改由
   `makeFieldCtx` 现算，加卡片时不再需要往任何签名里追加回调。
 - 结果：卡片折叠状态统一成按 `card.id` 存的 `cardOpen` map（原来 moli / 表情包 / 搜索各占一个布尔）。
+- **数字字段也归一成一份 `num`**：`mode`（slider / plain / digits）+ `min`/`max`/`step` + `unit`
+  + 新增的 `display`（显示缩放，内部 0.3 → 界面 30%）。老写法（`slider` / `digitsOnly` / `min` …）
+  由服务端推导成同一份，客户端只认 `num`；52 个数字字段与 10 份模板全部迁到新写法。
+  两个概率字段（主动配图概率、收图概率）现在按百分比显示，存储值仍是 0–1。
 
 ### 移除 / 升级说明
 

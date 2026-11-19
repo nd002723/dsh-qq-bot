@@ -135,6 +135,11 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
    只有引入**全新控件**（一类前端实现，如排序表 / 运行状态）时才动前端：在 `WIDGETS` 表里注册
    `render`（必填）以及可选的 `summary` / `badge` / `enabled` / `actions`。
 
+   **数字字段写一份 `num`**：`{ mode: "slider"|"plain"|"digits", min, max, step, unit, display }`。
+   概率、比例这类 0 到 1 的值用 `display: { scale: 100, suffix: "%", decimals: 0 }` 在界面上
+   以百分比呈现（存储值不变）。老的平铺写法（`slider: true` / `digitsOnly: true` / `min` …）
+   仍然有效，服务端会推导成同一份 `num`，但新加的字段请直接写 `num`。
+
 跑 `node test/test-config.mjs`：`DEFAULTS` 与 `new Config({})` 现在**逐叶子双向比对**（嵌套也能抓），任何一边改了另一边没跟上都会红；`path` 落不到 schema、组不存在、标签页不存在也会红。
 
 下面是全部字段与默认值（等价于「设置页什么都不改」的状态）。落点是 profile 的 `cordis.patch.yml`，**不要改包内的同名文件**。
