@@ -9,9 +9,57 @@
         "sticker",
         "enabled"
       ],
+      "kind": "card",
       "label": "表情包图库",
-      "kind": "sticker",
-      "hint": "扫描本地目录 + 建索引 + AI 自动打标，并让 Agent 用 qq_sticker 挑图发表情"
+      "sub": "目录 = 图库 · 子目录 = 系列 · index.json = 索引",
+      "hint": "扫描本地目录 + 建索引 + AI 自动打标，并让 Agent 用 qq_sticker 挑图发表情",
+      "card": {
+        "id": "sticker",
+        "headerToggle": false,
+        "dataAttr": "data-sticker-card",
+        "badge": {
+          "path": [
+            "sticker",
+            "enabled"
+          ],
+          "on": "已开启",
+          "off": "已关闭"
+        },
+        "advancedLabel": "高级设置",
+        "body": [],
+        "advanced": [
+          {
+            "in": "sticker-status"
+          },
+          {
+            "in": "sticker-card"
+          }
+        ],
+        "notices": [
+          {
+            "when": {
+              "sticker.enabled": false
+            },
+            "text": "图库当前未启用：Agent 侧 qq_sticker 与自动收图/自动打标不可用；展开「高级设置」后仍可手动跑「扫描并打标」「只重建索引」。",
+            "attr": "data-sticker-collapsed"
+          }
+        ],
+        "toggle": {
+          "label": "启用表情包图库",
+          "attr": "data-sticker-toggle"
+        },
+        "advancedAttr": "data-sticker-advanced"
+      }
+    },
+    {
+      "path": [
+        "sticker",
+        "_status"
+      ],
+      "kind": "sticker-status",
+      "in": "sticker-status",
+      "label": "图库运行状态",
+      "virtual": true
     },
     {
       "path": [

@@ -9,8 +9,54 @@
         "moli",
         "enabled"
       ],
+      "kind": "card",
       "label": "Moli 渲染抓取",
-      "kind": "moli"
+      "sub": "dsh-moli 装引擎 · qq_webfetch 渲染抓取",
+      "card": {
+        "id": "moli",
+        "headerToggle": false,
+        "dataAttr": "data-moli-card",
+        "badge": "auto",
+        "summary": "auto",
+        "toggle": {
+          "label": "启用 Moli 渲染抓取",
+          "attr": "data-moli-toggle",
+          "disabledByWidget": true
+        },
+        "advancedLabel": "高级设置",
+        "advancedAttr": "data-moli-advanced",
+        "actions": [
+          {
+            "id": "probe",
+            "label": "检测",
+            "attr": "data-moli-probe",
+            "onlyWhenAlways": true
+          }
+        ],
+        "forcedOffNotice": {
+          "text": "配置里这个开关是开的，但引擎当前不可用：保存后会强制写回关闭。"
+        },
+        "body": [
+          {
+            "in": "moli-status"
+          }
+        ],
+        "advanced": [
+          {
+            "in": "moli-card"
+          }
+        ]
+      }
+    },
+    {
+      "path": [
+        "moli",
+        "_engine"
+      ],
+      "kind": "moli-status",
+      "in": "moli-status",
+      "label": "Moli 引擎状态",
+      "virtual": true
     },
     {
       "path": [

@@ -7,11 +7,49 @@
     {
       "path": [
         "webSearch",
+        "_card"
+      ],
+      "kind": "card",
+      "virtual": true,
+      "label": "网络搜索",
+      "sub": "按下面的顺序依次尝试；每行可用 ▲ / ▼ 调换（DeepSeek 凭据：官方 key 优先，没有才用登录账号）",
+      "hint": "某后端未注册 / 不可用 / 调用失败 / 整批结果没简介时自动降级到下一个，全部失败才报错；用户取消时不重试。",
+      "card": {
+        "id": "websearch",
+        "defaultOpen": false,
+        "dataAttr": "data-search-card",
+        "toggleAttr": "data-search-open",
+        "summary": "auto",
+        "body": [
+          {
+            "in": "websearch"
+          },
+          {
+            "actions": "open"
+          },
+          {
+            "in": "websearch-params",
+            "title": "接线参数"
+          }
+        ],
+        "actions": [
+          {
+            "id": "reset-order",
+            "label": "恢复默认顺序",
+            "attr": "data-search-restore",
+            "onlyWhenOpen": true
+          }
+        ]
+      }
+    },
+    {
+      "path": [
+        "webSearch",
         "order"
       ],
-      "label": "网络搜索",
       "kind": "searchorder",
-      "hint": "从上到下依次尝试：某后端未注册 / 不可用 / 调用失败 / 整批结果没简介时自动降级到下一个，全部失败才报错；用户取消时不重试。"
+      "in": "websearch",
+      "label": "搜索后端优先级"
     },
     {
       "path": [
@@ -20,7 +58,7 @@
       ],
       "label": "每查询返回条数",
       "kind": "number",
-      "in": "search-card",
+      "in": "websearch-params",
       "min": 0,
       "max": 50,
       "step": 1,
@@ -33,7 +71,7 @@
       ],
       "label": "Tavily API Key（可选）",
       "kind": "password",
-      "in": "search-card",
+      "in": "websearch-params",
       "secret": true,
       "hint": "填入后搜索优先走 Tavily 官方 API（免费额度 1000 次/月，每次 1 点），用尽后自动降级到免 Key 引擎；留空 = 只读环境变量 TAVILY_API_KEY。",
       "placeholder": "tvly-..."
@@ -45,7 +83,7 @@
       ],
       "label": "联网搜索 HTTP 代理",
       "kind": "text",
-      "in": "search-card",
+      "in": "websearch-params",
       "hint": "http://host:port；免 Key 多引擎的请求都经同一套出网策略（网络阀门），留空直连",
       "placeholder": "（留空 = 直连）"
     }

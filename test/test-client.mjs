@@ -421,6 +421,18 @@ try {
   const searchRestoreBtn = findDataSet(capSearchOpen, 'data-search-restore');
   check('展开后有「恢复默认顺序」按钮',
     searchRestoreBtn !== null && childText(searchRestoreBtn) === '恢复默认顺序', String(searchRestoreBtn && childText(searchRestoreBtn)));
+  // 只有一个：动作槽指定了位置后，末尾不能再兜底渲染一遍（否则按钮会出现两份）。
+  {
+    let count = 0;
+    const walkRestore = (node) => {
+      if (node === null || node === undefined || typeof node !== 'object') return;
+      if (Array.isArray(node)) { for (const item of node) walkRestore(item); return; }
+      if (node.props !== undefined && node.props['data-search-restore'] !== undefined) count += 1;
+      for (const child of node.children || []) walkRestore(child);
+    };
+    walkRestore(capSearchOpen);
+    check('「恢复默认顺序」只渲染一次（动作槽与末尾兜底不重复）', count === 1, String(count));
+  }
   const searchOrderRows = (() => {
     const out = [];
     const walk = (node) => {
@@ -451,6 +463,20 @@ try {
     && wiringJoined.includes('每查询返回条数')
     && !wiringJoined.includes('搜索端点') && !wiringJoined.includes('搜索 key 名'),
     wiringJoined.slice(0, 600));
+  // 行序回归：老卡片是「排序表 → 恢复默认顺序 → 接线参数」。
+  // 以前按钮被固定排在所有槽位之后，于是「恢复默认顺序」跑到接线参数底部。
+  check('「恢复默认顺序」紧跟排序表、排在接线参数之前（行序回归）',
+    (() => {
+      const restoreAt = searchRestoreBtn !== null ? searchRestoreBtn : null;
+      if (restoreAt === null) return false;
+      // 按整页文本顺序比较：排序表最后一项 → 恢复按钮 → 接线参数标题
+      const joined = textsOf(capSearchOpen);
+      const idxRestore = joined.indexOf('恢复默认顺序');
+      const idxParams = joined.indexOf('接线参数');
+      const idxOrder = joined.indexOf('免 Key 多引擎（DDG/Bing/Yandex/Wikipedia + Tavily）');
+      return idxOrder >= 0 && idxRestore > idxOrder && idxParams > idxRestore;
+    })(),
+    textsOf(capSearchOpen).slice(0, 500));
   check('Tavily Key 说明写明免费额度、降级行为与「留空读环境变量」',
     wiringJoined.includes('留空 = 只读环境变量 TAVILY_API_KEY')
     && wiringJoined.includes('用尽后自动降级到免 Key 引擎'), wiringJoined.slice(0, 600));
@@ -728,13 +754,13 @@ try {
   // 判据抽到 secretInfoOf 后，这里改成断言「TOTP 走的是那个统一函数」而不是匹配某行字面量。
   // 卡片内的 secret 字段（webSearch.tavilyKey）也必须走真实密钥状态：
   // 以前卡片内 renderField 的 isSecret 硬写成 false，卡片里的密钥永远看不到「已设置 / 未设置」。
-  check('卡片内字段的密钥状态也按 path 现查（secretInfoOf），不再硬写 false',
-    /var info = secretInfoOf\(item, opts\.secrets\)/.test(bundleSource)
-    && /renderField\(item, getPath\(draft, item\.path\), updateField, info\.isSecret/.test(bundleSource)
-    && /secrets: \(gateFlags !== null && gateFlags !== undefined\) \? gateFlags\.secrets : undefined/.test(bundleSource), '');
-  check('moli / 表情包卡片同样按 path 查密钥状态（新增 secret 字段不会再踩同一个坑）',
-    /var info = secretInfoOf\(item, secrets\)/.test(bundleSource)
-    && bundleSource.split('secretInfoOf(item, secrets)').length - 1 === 2, '');
+  // 现在 renderField 自己按 path 现算，任何调用点都不可能再传错。
+  check('renderField 内部按 path 现算密钥状态（卡片里也不可能再丢徽标）',
+    /var isSecret = secretInfoOf\(field, ctx\.secrets\)\.isSecret/.test(bundleSource)
+    && /var secretSet = secretInfoOf\(field, ctx\.secrets\)\.secretSet/.test(bundleSource), '');
+  check('卡片内部的字段统一走同一个 renderField(ctx)，不再自己算 isSecret',
+    bundleSource.includes('widget.render(item, ctx)') && bundleSource.includes('renderField(item, ctx)')
+    && !bundleSource.includes('renderField(item, getPath'), '');
 
   check('TOTP 的已配置状态统一走 secretInfoOf（看 set，不看条目存在）',
     /secretInfoOf\(\{ path: \['flowAuth', 'totpSecret'\] \}, state\.secrets\)\.secretSet/.test(bundleSource)

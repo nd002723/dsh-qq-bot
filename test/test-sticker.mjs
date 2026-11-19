@@ -454,10 +454,23 @@ try {
   const config = await import('../lib/config.js');
   check('schema 里有 sticker 组且默认开启', config.DEFAULTS.sticker.enabled === true && config.DEFAULTS.sticker.autoTag === true);
   const stickerFields = config.SETTINGS_FIELDS.filter((field) => field.group === 'sticker');
-  check('设置页有 16 个表情包字段（含收图五项）', stickerFields.length === 16, String(stickerFields.length));
+  // 17 = 卡片容器 1 + 状态控件 1 + 卡片内参数 15。卡片容器与状态控件用的是同一个 path
+  // （sticker.enabled / sticker.enabled 锚点），它们不是配置字段，只是「这块 UI 放这里」。
+  check('设置页有 17 个表情包字段（卡片容器 + 状态控件 + 15 项参数）', stickerFields.length === 17, String(stickerFields.length));
   check('卡片字段挂在 能力 → 表情包', stickerFields.every((field) => field.tab === 'capability' && field.subtab === 'sticker'));
-  check('开关是 kind=sticker 的卡片，其余是卡片内字段',
-    stickerFields.find((field) => field.path.join('.') === 'sticker.enabled').kind === 'sticker'
+  // 行序回归：card.advanced 的槽位顺序决定「统计框 / 参数区」谁在上面，
+  // 老卡片是「统计框在上、参数在下」，模板必须保持这个顺序（否则参数区会被挤到最后一行）。
+  {
+    const card = stickerFields.find((field) => field.kind === 'card');
+    const slots = card.card.advanced.map((slot) => slot.in);
+    check('状态统计框排在参数区之前（card.advanced 槽序）',
+      JSON.stringify(slots) === JSON.stringify(['sticker-status', 'sticker-card']), JSON.stringify(slots));
+  }
+
+  check('开关是 kind=card 的声明式卡片，其余是卡片内字段 / 状态控件',
+    stickerFields.find((field) => field.kind === 'card') !== undefined
+    && stickerFields.find((field) => field.kind === 'sticker-status') !== undefined
+    && stickerFields.find((field) => field.kind === 'sticker-status').virtual === true
     && stickerFields.filter((field) => field.in === 'sticker-card').length === 15,
     JSON.stringify(stickerFields.map((field) => [field.path.join('.'), field.kind, field.in || ''])));
   console.log('\n18. 设置页路由：状态 / 重建 / 参数校验');
