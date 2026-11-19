@@ -1177,6 +1177,19 @@ try {
   check('状态区能渲染（test hook 可用）', statusSnapshot !== null, String(typeof plugin.__stickerStatusForTest));
 
   // 两段式的那两个字段：provider/model 必须是**一对**，发言模型不能去列判断阶段的模型。
+  // 数字字段的显示缩放：概率内部 0.3 在界面上是 30%，敲回 30 存进去仍是 0.3。
+  if (typeof plugin.__numDisplayForTest === 'function') {
+    const conv = plugin.__numDisplayForTest;
+    const pct = { mode: 'slider', min: 0, max: 100, step: 1, display: { scale: 100, suffix: '%', decimals: 0 } };
+    check('概率字段按百分比显示（0.3 → 30）', conv(pct, 0.3).shown === '30', JSON.stringify(conv(pct, 0.3)));
+    check('百分比后缀进界面', conv(pct, 0.3).suffix === '%');
+    check('显示值反算回存储值（30 → 0.3）', Math.abs(conv(pct, 0.3).stored - 0.3) < 1e-9, String(conv(pct, 0.3).stored));
+    check('没有 display 时原样显示（回归）', conv({ mode: 'slider', min: 0, max: 10 }, 7).shown === '7');
+    check('非有限值当 0（不把 NaN 显示进输入框）', conv(pct, Number.NaN).shown === '0');
+  } else {
+    check('数字显示换算钩子可用', false, '缺少 __numDisplayForTest');
+  }
+
   if (typeof plugin.__providerPathForTest === 'function') {
     const pp = plugin.__providerPathForTest;
     check('proactive.model 的 provider 是 proactive.provider',

@@ -42,11 +42,13 @@
       ],
       "label": "单条最多图片数",
       "kind": "number",
-      "min": 1,
-      "max": 20,
-      "step": 1,
-      "slider": true,
-      "unit": "张"
+      "num": {
+        "min": 1,
+        "max": 20,
+        "step": 1,
+        "unit": "张",
+        "mode": "slider"
+      }
     },
     {
       "path": [
@@ -55,11 +57,13 @@
       ],
       "label": "图片下载超时（毫秒）",
       "kind": "number",
-      "min": 0,
-      "max": 120000,
-      "step": 1000,
-      "slider": true,
-      "unit": "毫秒"
+      "num": {
+        "min": 0,
+        "max": 120000,
+        "step": 1000,
+        "unit": "毫秒",
+        "mode": "slider"
+      }
     }
   ]
 }

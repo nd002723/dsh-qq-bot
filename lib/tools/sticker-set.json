@@ -99,13 +99,15 @@
       ],
       "label": "收图大小上限（MB）",
       "kind": "number",
+      "num": {
+        "min": 0.1,
+        "max": 10,
+        "step": 0.1,
+        "unit": "MB",
+        "mode": "slider"
+      },
       "in": "sticker-card",
-      "hint": "超过这个大小的图不收（避免把大照片/原图塞进图库）；最大 10MB",
-      "min": 0.1,
-      "max": 10,
-      "step": 0.1,
-      "slider": true,
-      "unit": "MB"
+      "hint": "超过这个大小的图不收（避免把大照片/原图塞进图库）；最大 10MB"
     },
     {
       "path": [
@@ -116,10 +118,17 @@
       "kind": "number",
       "in": "sticker-card",
       "hint": "0–1：群里每张表情包按这个概率才收进图库。0 = 一张都不收，1 = 全收，默认 0.3（大概每三张收一张）。群里斗图时不会把图库塞爆",
-      "min": 0,
-      "max": 1,
-      "step": 0.01,
-      "slider": true
+      "num": {
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "mode": "slider",
+        "display": {
+          "scale": 100,
+          "suffix": "%",
+          "decimals": 0
+        }
+      }
     },
     {
       "path": [
@@ -128,9 +137,11 @@
       ],
       "label": "收图数量上限",
       "kind": "number",
+      "num": {
+        "mode": "digits"
+      },
       "in": "sticker-card",
-      "hint": "直接填纯数字：get_stickers 系列最多留几张（0 = 不限）。到上限后不再收新图；想继续收就调大它，或打开下面「超上限自动删最早的」腾位置",
-      "digitsOnly": true
+      "hint": "直接填纯数字：get_stickers 系列最多留几张（0 = 不限）。到上限后不再收新图；想继续收就调大它，或打开下面「超上限自动删最早的」腾位置"
     },
     {
       "path": [
@@ -183,13 +194,15 @@
       ],
       "label": "每次最多标记几张",
       "kind": "number",
+      "num": {
+        "min": 1,
+        "max": 1000,
+        "step": 10,
+        "unit": "张",
+        "mode": "slider"
+      },
       "in": "sticker-card",
-      "hint": "一次重建里最多给几张新图打标，超出的留到下次（避免一次烧太多 token）",
-      "min": 1,
-      "max": 1000,
-      "step": 10,
-      "slider": true,
-      "unit": "张"
+      "hint": "一次重建里最多给几张新图打标，超出的留到下次（避免一次烧太多 token）"
     },
     {
       "path": [
@@ -200,10 +213,17 @@
       "kind": "number",
       "in": "sticker-card",
       "hint": "0–1：模型自己决定配表情包时，按这个概率真正发出（1=每次都发，0=只有你明确要求才发）",
-      "min": 0,
-      "max": 1,
-      "step": 0.01,
-      "slider": true
+      "num": {
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "mode": "slider",
+        "display": {
+          "scale": 100,
+          "suffix": "%",
+          "decimals": 0
+        }
+      }
     },
     {
       "path": [
@@ -212,13 +232,15 @@
       ],
       "label": "每群每小时上限",
       "kind": "number",
+      "num": {
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "unit": "张",
+        "mode": "slider"
+      },
       "in": "sticker-card",
-      "hint": "同一个群每小时最多发几张表情包（含你明确要求的），0 = 不限",
-      "min": 0,
-      "max": 100,
-      "step": 1,
-      "slider": true,
-      "unit": "张"
+      "hint": "同一个群每小时最多发几张表情包（含你明确要求的），0 = 不限"
     },
     {
       "path": [
@@ -227,13 +249,15 @@
       ],
       "label": "同图去重（小时）",
       "kind": "number",
+      "num": {
+        "min": 0,
+        "max": 168,
+        "step": 1,
+        "unit": "小时",
+        "mode": "slider"
+      },
       "in": "sticker-card",
-      "hint": "同一张图这么多小时内不重复发（你明确要求时不受限），0 = 关",
-      "min": 0,
-      "max": 168,
-      "step": 1,
-      "slider": true,
-      "unit": "小时"
+      "hint": "同一张图这么多小时内不重复发（你明确要求时不受限），0 = 关"
     },
     {
       "path": [
@@ -242,12 +266,14 @@
       ],
       "label": "单张打标超时（毫秒）",
       "kind": "number",
-      "in": "sticker-card",
-      "min": 5000,
-      "max": 300000,
-      "step": 1000,
-      "slider": true,
-      "unit": "毫秒"
+      "num": {
+        "min": 5000,
+        "max": 300000,
+        "step": 1000,
+        "unit": "毫秒",
+        "mode": "slider"
+      },
+      "in": "sticker-card"
     }
   ]
 }

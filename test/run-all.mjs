@@ -55,7 +55,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-admin.mjs': 40,
   'test-bubbles.mjs': 16,
   'test-chunk.mjs': 15,
-  'test-client.mjs': 177,
+  'test-client.mjs': 182,
   'test-compat.mjs': 14,
   'test-config.mjs': 56,
   'test-flow-auth.mjs': 43,

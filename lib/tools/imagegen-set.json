@@ -68,12 +68,14 @@
       ],
       "label": "失败重试次数（含首次）",
       "kind": "number",
-      "hint": "429 / 5xx / 网络错 / 空结果会重试；4xx 直接报错不重试",
-      "min": 1,
-      "max": 10,
-      "step": 1,
-      "slider": true,
-      "unit": "次"
+      "num": {
+        "min": 1,
+        "max": 10,
+        "step": 1,
+        "unit": "次",
+        "mode": "slider"
+      },
+      "hint": "429 / 5xx / 网络错 / 空结果会重试；4xx 直接报错不重试"
     },
     {
       "path": [
@@ -82,11 +84,13 @@
       ],
       "label": "重试间隔（毫秒）",
       "kind": "number",
-      "min": 0,
-      "max": 60000,
-      "step": 500,
-      "slider": true,
-      "unit": "毫秒"
+      "num": {
+        "min": 0,
+        "max": 60000,
+        "step": 500,
+        "unit": "毫秒",
+        "mode": "slider"
+      }
     },
     {
       "path": [
@@ -104,11 +108,13 @@
       ],
       "label": "轮询间隔（毫秒）",
       "kind": "number",
-      "min": 0,
-      "max": 60000,
-      "step": 500,
-      "slider": true,
-      "unit": "毫秒"
+      "num": {
+        "min": 0,
+        "max": 60000,
+        "step": 500,
+        "unit": "毫秒",
+        "mode": "slider"
+      }
     },
     {
       "path": [
@@ -117,11 +123,13 @@
       ],
       "label": "最多轮询次数",
       "kind": "number",
-      "min": 0,
-      "max": 100,
-      "step": 1,
-      "slider": true,
-      "unit": "次"
+      "num": {
+        "min": 0,
+        "max": 100,
+        "step": 1,
+        "unit": "次",
+        "mode": "slider"
+      }
     },
     {
       "path": [
@@ -130,11 +138,13 @@
       ],
       "label": "单次请求超时（毫秒）",
       "kind": "number",
-      "min": 0,
-      "max": 300000,
-      "step": 1000,
-      "slider": true,
-      "unit": "毫秒"
+      "num": {
+        "min": 0,
+        "max": 300000,
+        "step": 1000,
+        "unit": "毫秒",
+        "mode": "slider"
+      }
     }
   ]
 }

@@ -58,10 +58,13 @@
       ],
       "label": "每查询返回条数",
       "kind": "number",
+      "num": {
+        "min": 0,
+        "max": 50,
+        "step": 1,
+        "mode": "plain"
+      },
       "in": "websearch-params",
-      "min": 0,
-      "max": 50,
-      "step": 1,
       "hint": "每个查询最多保留几条来源，0 表示不接管（沿用各后端自己的默认条数）。实际条数还受后端自身限制。"
     },
     {

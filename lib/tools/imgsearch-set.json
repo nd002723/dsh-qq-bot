@@ -20,11 +20,13 @@
       ],
       "label": "每次反搜最多返回结果数",
       "kind": "number",
-      "min": 1,
-      "max": 20,
-      "step": 1,
-      "slider": true,
-      "unit": "条"
+      "num": {
+        "min": 1,
+        "max": 20,
+        "step": 1,
+        "unit": "条",
+        "mode": "slider"
+      }
     },
     {
       "path": [
