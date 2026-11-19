@@ -112,7 +112,7 @@ DSH Agent（默认每个 QQ 会话一个）
 `config.js` 在加载时**遍历**这两个目录，逐个读取，每个 JSON 自己声明管哪个配置组：
 
 ```json
-{ "group": "webSearch", "defaults": { "maxUses": 5 } }
+{ "group": "webSearch", "defaults": { "perQuery": 0 } }
 ```
 
 于是加新工具只需要往对应目录丢一个 JSON，不用回来改 `config.js`。文件名只用于报错定位，
@@ -142,7 +142,7 @@ schema 的默认值直接引用组装结果，所以「默认值」只有一处�
   "group": "webSearch",
   "tab": "capability",
   "subtab": "retrieval",
-  "fields": [{ "path": ["webSearch", "maxUses"], "label": "每次搜索最多触发次数",
+  "fields": [{ "path": ["webSearch", "perQuery"], "label": "每查询返回条数",
                "kind": "number" }] }
 ```
 
@@ -199,7 +199,12 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 | 文件头和字段都没写 `tab` | 字段不知道去哪个标签页 | 加载期报错（带字段序号与文件名） |
 
 两个例外标记：`virtual: true`（纯界面锚点，例如扫码绑定，不对应任何配置项，跳过路径校验）、
-`in: "moli-card"`（渲染在 moli 卡片内部，不占外层位置，但保存/还原仍按普通字段处理）。
+`in: "moli-card" / "sticker-card" / "search-card"`（渲染在某张卡片内部，不占外层位置，但保存/还原仍按普通字段处理）。
+
+`kind: "searchorder"` 是第六块自定义组件（与 moli / sticker 卡片同一类）：它渲染
+「网络搜索」卡片——排序表（▲/▼ 手动调后端顺序 + 恢复默认）+ 折叠的接线参数（`in: "search-card"`）。
+排序表要的目录（默认顺序 / 上限 / 展示名 / 已注册的 provider 列表）随模板一起下发（`searchOrder`），
+客户端不硬编码第二份对照表；模板里只写 `path` + `label` + `hint`。
 
 `schemaHasPath` 有个坑值得记：schemastery 的 `schema.dict[key]` 存的是 **Schema 构造器本身**
 （`typeof` 是 `'function'`），只判 `typeof === 'object'` 会把每一层都判成不存在。

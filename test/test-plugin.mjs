@@ -420,13 +420,22 @@ try {
   // update 只是「有没有新版本」的状态（版本号/兼容位），不含任何用户配置值。
   // 白名单是「这个路由只回这几样、绝不夹带用户配置」的护栏。加字段必须同步这里——
   // gateSecurityFields 只含字段名（不含值），与 sources 同级，可以放行。
-  check('模板路由不回用户配置（模板 + 来源 + 更新状态 + 保护面字段名）',
+  // searchOrder 是「网络搜索」卡片的排序表数据：默认优先级 / 上限 / 可选后端目录 / 展示名。
+  // 它同样不含任何用户配置值（只有编译期常量与注册表里的 provider id），与 sources 同级放行。
+  check('模板路由不回用户配置（模板 + 来源 + 更新状态 + 保护面字段名 + 搜索后端目录）',
     settingsBody !== null
-      && Object.keys(settingsBody).sort().join(',') === 'fields,gateSecurityFields,ok,sources,tabs,update'
+      && Object.keys(settingsBody).sort().join(',') === 'fields,gateSecurityFields,ok,searchOrder,sources,tabs,update'
       && (settingsBody.update === null || typeof settingsBody.update === 'object')
       && Array.isArray(settingsBody.gateSecurityFields)
       && Object.keys(settingsBody.gateSecurityFields).length === settingsBody.gateSecurityFields.length,
     settingsBody === null ? '' : Object.keys(settingsBody).join(','));
+  check('搜索后端目录只回 id 与展示名（不含配置值）',
+    settingsBody !== null && settingsBody.searchOrder !== null && typeof settingsBody.searchOrder === 'object'
+      && JSON.stringify(settingsBody.searchOrder.defaults) === JSON.stringify(configMod.SETTINGS_SEARCH_ORDER.defaults)
+      && Array.isArray(settingsBody.searchOrder.backends)
+      && settingsBody.searchOrder.backends.every((item) => Object.keys(item).join(',') === 'id')
+      && typeof settingsBody.searchOrder.labels === 'object',
+    JSON.stringify(settingsBody === null ? null : settingsBody.searchOrder).slice(0, 200));
   check('模板里有标签页与字段',
     settingsBody !== null && settingsBody.tabs.length === 4 && settingsBody.fields.length === configMod.SETTINGS_FIELDS.length,
     settingsBody === null ? '' : settingsBody.tabs.length + ' 页 / ' + settingsBody.fields.length + ' 字段');
@@ -1164,12 +1173,20 @@ try {
   check('未进入 Agent（没有识别流）', visionCalls.filter((c) => c.kind === 'stream').length === streamsBefore4c,
     String(visionCalls.filter((c) => c.kind === 'stream').length));
 
-  console.log('\n4d. 多引擎搜索：multiEngine 默认开，走 DuckDuckGo 而非官方 DeepSeek');
-  check('webSearch.multiEngine 默认 true（设置页有开关）',
-    liveConfig.webSearch.multiEngine !== undefined && liveConfig.webSearch.multiEngine !== null
-    && typeof liveConfig.webSearch.multiEngine.get === 'function'
-    && liveConfig.webSearch.multiEngine.get() === true,
-    String(liveConfig.webSearch.multiEngine && liveConfig.webSearch.multiEngine.get && liveConfig.webSearch.multiEngine.get()));
+  console.log('\n4d. 搜索后端优先级：默认列表让内置免 Key 多引擎顶上去（走 DuckDuckGo 而非官方 DeepSeek）');
+  // 旧字段 multiEngine 已移除（被 order 取代）：默认顺序 = deepseek-search-api → 免 Key 多引擎 → Messages。
+  // 测试环境里 Search API 那个 provider 没注册，所以实际会落到第二项 = 内置免 Key 多引擎。
+  check('webSearch.order 默认是三项有序列表（Search API → 智谱 GLM → 免 Key多引擎）',
+    liveConfig.webSearch.order !== undefined && liveConfig.webSearch.order !== null
+    && typeof liveConfig.webSearch.order.get === 'function'
+    && JSON.stringify(liveConfig.webSearch.order.get()) === JSON.stringify(['deepseek-search-api', 'zhipu-web-search-prime', 'dsh-qq-bot-free']),
+    JSON.stringify(liveConfig.webSearch.order && liveConfig.webSearch.order.get && liveConfig.webSearch.order.get()));
+  check('手填端点的两个旧字段已移除（端点与凭据由 provider 自己管，本插件不回退）',
+    liveConfig.webSearch.baseUrl === undefined && liveConfig.webSearch.apiKeyEnv === undefined,
+    JSON.stringify([liveConfig.webSearch.baseUrl, liveConfig.webSearch.apiKeyEnv]));
+  check('旧字段 multiEngine 已移除（schema 不再有它，升级时会被自动清掉）',
+    liveConfig.webSearch.multiEngine === undefined,
+    String(liveConfig.webSearch.multiEngine));
   if (hasDshTools === true) {
   const wsTool4d = registeredTools.find((t) => t.name === 'qq_websearch');
   TEST_HIT_HOSTS.length = 0;

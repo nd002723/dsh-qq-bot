@@ -261,11 +261,16 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
       maxImages: 3   # 单条消息最多送入几张图
       downloadTimeoutMs: 10000
     webSearch:
-      baseUrl: ''
-      apiKeyEnv: ''
-      proxy: ''   # http://host:port；留空直连；搜索与抓取都走它
-      maxUses: 5
-      multiEngine: true   # 多引擎组合搜索（关则落回官方 DeepSeek web_search）
+      # 搜索后端优先级：从上到下依次尝试，未注册 / 不可用 / 失败 / 整批无简介就降级到下一个。
+      # 可填内置占位 dsh-qq-bot-free（免 Key 多引擎）与任意已注册的 web provider id。
+      order:
+        - deepseek-search-api   # DeepSeek Search API（凭据：官方 key 优先、DSH 登录账号兜底，由 provider 自己选）
+        - zhipu-web-search-prime  # 智谱 GLM 搜索（装了对应插件才会注册，没装静默跳过）
+        - dsh-qq-bot-free       # 免 Key 多引擎兜底
+      perQuery: 0   # 单条查询最多几条来源；0 = 不截断（沿用后端自己的默认）
+      proxy: ''   # http://host:port；留空直连；免 Key 多引擎的请求都走它
+      tavilyKey: <secret>   # Tavily API Key（只写字段，仿 imgSearch.saucenaoKey）；留空 = 只读环境变量 TAVILY_API_KEY
+      # 没有 baseUrl / apiKeyEnv：端点与凭据由 provider 自己管，本插件不填、也不回退
     imgSearch:
       enabled: true
       maxResults: 5
@@ -358,7 +363,44 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 
 ### qq_websearch
 
-`{query, max_uses?}` → `{ok, count, sources, text}`。默认多引擎组合：Tavily（配 `TAVILY_API_KEY` 才启用）→ DuckDuckGo（html→lite，串行 + 限流记忆）→ Yandex / Bing / Wikipedia 并发兜底，聚合去重；`multiEngine: false` 落回官方 DeepSeek web_search。请求都走 `webSearch.proxy`（非空时 HTTP CONNECT 隧道 + TLS）。
+`{query, per_query?}` → `{ok, count, sources, text}`。
+
+后端按 `webSearch.order` 的优先级列表依次尝试：
+每一项要么是 `ctx.web` 注册表里的 search provider（`deepseek-search-api` / `zhipu-web-search-prime` …），
+要么是内置占位 `dsh-qq-bot-free`（免 Key 多引擎：Tavily → DuckDuckGo（html→lite，串行 + 限流记忆）
+→ Yandex / Bing / Wikipedia 并发兜底、聚合去重）。
+
+本模块**不自带 DeepSeek / 智谱的 HTTP 实现**：这两个后端的能力（端点、凭据、以及「先官方 key、
+后 DSH 登录账号」的选源顺序）全在 provider 里，本插件只是按 id 去注册表取用。注册表里没有就是
+「未注册」——跳过，**不回退到自建实现**。
+
+降级语义：未注册 / `available()` 为假 → 静默跳过不记失败；调用失败 → 记归因继续下一个；
+**成功但整批结果没有简介**（snippet 覆盖率 < 0.5）→ 记为回落候选继续试，
+全部后端都无简介时回落到候选（绝不比不加闸门更差）；全部失败才抛错，且错误里聚合每个后端的归因；
+全部无结果且无真实失败 → 空数组。用户取消时立即停止并把取消原样抛出，不继续降级。
+
+`per_query` 覆盖 `webSearch.perQuery`（0 = 不截断）。免 Key 多引擎的请求都走 `webSearch.proxy`（非空时 HTTP CONNECT 隧道 + TLS）。
+
+**日志里三类事件分开记**（前缀 `[dsh-qq-bot]`）：
+
+| 事件 | 例子 | 含义 |
+| --- | --- | --- |
+| 跳过 | `后端跳过：DeepSeek Search API 未注册，跳过` | 注册表里没有这个 provider |
+| 跳过 | `后端跳过：… 报告不可用（凭据缺失 / 端点无效 / 配置非法），跳过` | `available() === false` |
+| 降级 | `后端降级：… 返回 N 条但整批没有简介，继续尝试下一个` | 成功但没摘要 |
+| 失败 | `后端失败：… 余额不足 — …` | **官方 key 没余额**（HTTP 402 / Insufficient Balance） |
+| 失败 | `后端失败：… 凭据无效 / 未登录 — …` | 401 / 403 / invalid api key |
+| 失败 | `后端失败：… 被限流 — …` · `凭据缺失` · `后端不可用` · `调用失败` | 其余分类 |
+
+**「余额不足」必须与「凭据缺失」分成两句话**：前者是「配好了但没钱，去充值」，后者是「没配或配错，
+去填 key / 重新登录」。分类器是 `classifySearchError()`（`lib/tools/websearch.js`），
+`qq_websearch` 对这几类也**跳过重试**（等 500ms 不会让 402 变成 200）。
+
+DeepSeek 只有 **Search API** 一条检索后端（`deepseek-search-api`），凭据「官方 key 优先、
+DSH 登录账号兜底」由 provider 自己选。其它已注册的 provider（如智谱）按 id 加进 `webSearch.order`
+即可接入，本插件不内置任何第三方实现。
+Tavily 的 key 与 SauceNAO 同一套写法：设置页里是只写字段（`webSearch.tavilyKey`，落 profile 配置），
+填了就用它，留空才读环境变量 / 凭据文件里的 `TAVILY_API_KEY`。
 
 ### qq_webfetch
 

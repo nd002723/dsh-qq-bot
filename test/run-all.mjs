@@ -55,7 +55,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-admin.mjs': 40,
   'test-bubbles.mjs': 16,
   'test-chunk.mjs': 15,
-  'test-client.mjs': 163,
+  'test-client.mjs': 175,
   'test-compat.mjs': 14,
   'test-config.mjs': 56,
   'test-flow-auth.mjs': 43,
@@ -75,7 +75,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-msgid-cache.mjs': 13,
   'test-owner-settings.mjs': 60,
   // 本机实测 172；裸克隆 26 条 SKIP 由上面的跳过数抵掉。
-  'test-plugin.mjs': 172,
+  'test-plugin.mjs': 175,
   'test-proactive-round.mjs': 54,
   'test-proactive-wiring.mjs': 23,
   'test-proactive.mjs': 76,
@@ -93,7 +93,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-totp.mjs': 43,
   'test-update-check.mjs': 19,
   'test-valve-assembly.mjs': 27,
-  'test-websearch.mjs': 5,
+  'test-websearch.mjs': 64,
 });
 
 /**

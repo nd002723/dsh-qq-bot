@@ -219,7 +219,7 @@ console.log('\n10. 默认值 JSON：自动发现 / 与 schema 一致 / 邪门输
 
     writeFileSync(setFile, JSON.stringify({
       group: 'webSearch',
-      fields: [{ path: ['webSearch', 'maxUses'], label: '标签页写错', kind: 'number', tab: 'nope', subtab: 'retrieval' }],
+      fields: [{ path: ['webSearch', 'perQuery'], label: '标签页写错', kind: 'number', tab: 'nope', subtab: 'retrieval' }],
     }), 'utf8');
     let badTabError = '';
     try { runImport(); } catch (error) { badTabError = String((error.stderr || '') + (error.message || '')); }

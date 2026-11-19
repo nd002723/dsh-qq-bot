@@ -207,7 +207,21 @@ try {
   // 设置页模板：字段定义现在住在 lib/**/*-set.json 里，由服务端组装后下发。
   // 测试直接用同一份组装结果，避免测试自己维护一份会过期的字段表。
   const settingsModule = await import(pathToFileURL(path.join(here, '..', 'lib', 'config.js')).href);
-  const template = { tabs: settingsModule.SETTINGS_TABS, fields: settingsModule.SETTINGS_FIELDS };
+  // 「网络搜索」卡片的排序表数据与真实路由下发的是同一份（config.js 的 SETTINGS_SEARCH_ORDER），
+  // 测试不再自己造一份：造出来的默认顺序与真实默认值漂移时，界面会静默显示错的顺序。
+  const template = {
+    tabs: settingsModule.SETTINGS_TABS,
+    fields: settingsModule.SETTINGS_FIELDS,
+    searchOrder: {
+      defaults: settingsModule.SETTINGS_SEARCH_ORDER.defaults.slice(),
+      max: settingsModule.SETTINGS_SEARCH_ORDER.max,
+      perQueryMax: settingsModule.SETTINGS_SEARCH_ORDER.perQueryMax,
+      // 模拟真实运行：内置免 Key 多引擎 + 三个已注册的官方/第三方 provider（智谱那个也要在，
+      // 否则卡片会把它标成「当前未注册」——那是配置里有、注册表里没有时的正确提示）。
+      backends: [{ id: 'dsh-qq-bot-free' }, { id: 'deepseek-search-api' }, { id: 'zhipu-web-search-prime' }],
+      labels: settingsModule.SETTINGS_SEARCH_ORDER.labels,
+    },
+  };
   const props = {
     ...faces,
     loadTemplate: () => Promise.resolve({ ok: true, value: template }),
@@ -373,8 +387,10 @@ try {
 
   const capRetrievalTree = clickSubTab('搜索与抓取');
   const capRetrievalJoined = textsOf(capRetrievalTree);
-  check('搜索与抓取页含联网搜索与图片反搜',
-    capRetrievalJoined.includes('联网搜索 HTTP 代理') && capRetrievalJoined.includes('图片反搜'), capRetrievalJoined.slice(0, 200));
+  // 「联网搜索 HTTP 代理」这类接线参数已收进「网络搜索」卡片的折叠区（默认收起），
+  // 所以这里断言的是卡片本身在，代理字段的断言放到下面展开之后再验。
+  check('搜索与抓取页含联网搜索卡片与图片反搜',
+    capRetrievalJoined.includes('网络搜索') && capRetrievalJoined.includes('图片反搜'), capRetrievalJoined.slice(0, 200));
 
   // 找带某个 data-* 标记的元素（卡片里的开关 / 检测按钮）。
   const findDataSet = (node, key) => {
@@ -384,6 +400,67 @@ try {
     for (const child of node.children || []) { const hit = findDataSet(child, key); if (hit) return hit; }
     return null;
   };
+
+  // 「网络搜索」卡片：整张卡片折叠——默认收起，头部是名称 + 当前顺序摘要，
+  // 点开才出现排序表（每行一个后端 + ▲ / ▼）、「恢复默认顺序」与接线参数。
+  const searchHeadBtn = findDataSet(capRetrievalTree, 'data-search-open');
+  check('网络搜索卡片默认收起（头部是按钮，aria-expanded=false）',
+    searchHeadBtn !== null && searchHeadBtn.props['aria-expanded'] === false, JSON.stringify(searchHeadBtn === null ? null : searchHeadBtn.props));
+  check('收起时头部显示当前顺序摘要（一眼知道按什么顺序搜）',
+    capRetrievalJoined.includes('DeepSeek Search API → 智谱 GLM 搜索 → 免 Key 多引擎（DDG/Bing/Yandex/Wikipedia + Tavily）'),
+    capRetrievalJoined.slice(0, 400));
+  check('收起时排序表与接线参数都不渲染',
+    !capRetrievalJoined.includes('每查询返回条数') && !capRetrievalJoined.includes('Tavily API Key（可选）')
+    && !capRetrievalJoined.includes('恢复默认顺序'), capRetrievalJoined.slice(0, 300));
+  searchHeadBtn.props.onClick();
+  reactRuntime.__beginRender();
+  const capSearchOpen = registered.component(props);
+  check('点开头部后卡片展开（aria-expanded=true）',
+    (() => { const btn = findDataSet(capSearchOpen, 'data-search-open'); return btn !== null && btn.props['aria-expanded'] === true; })(),
+    JSON.stringify(findDataSet(capSearchOpen, 'data-search-open') === null ? null : findDataSet(capSearchOpen, 'data-search-open').props));
+  const searchRestoreBtn = findDataSet(capSearchOpen, 'data-search-restore');
+  check('展开后有「恢复默认顺序」按钮',
+    searchRestoreBtn !== null && childText(searchRestoreBtn) === '恢复默认顺序', String(searchRestoreBtn && childText(searchRestoreBtn)));
+  const searchOrderRows = (() => {
+    const out = [];
+    const walk = (node) => {
+      if (node === null || node === undefined || typeof node !== 'object') return;
+      if (Array.isArray(node)) { for (const item of node) walk(item); return; }
+      if (node.type === 'li' && node.props && String(node.props.key || '').indexOf('order-') === 0) out.push(node);
+      for (const child of node.children || []) walk(child);
+    };
+    walk(capSearchOpen);
+    return out;
+  })();
+  check('排序表按模板默认顺序渲染出三项（Search API / 智谱 GLM / 免 Key多引擎）',
+    searchOrderRows.length === 3
+    && textsOf(searchOrderRows[0]).includes('DeepSeek Search API')
+    && textsOf(searchOrderRows[1]).includes('智谱 GLM 搜索')
+    && textsOf(searchOrderRows[2]).includes('免 Key 多引擎'),
+    searchOrderRows.map((row) => textsOf(row).slice(0, 40)).join(' | '));
+  // 第一行不能上移、最后一行不能下移（按钮 disabled）
+  const firstRowButtons = collectButtons(searchOrderRows[0], []);
+  const firstUp = firstRowButtons.find((b) => b.props['aria-label'] === '上移');
+  check('第一项的「上移」是禁用态', firstUp !== undefined && firstUp.props.disabled === true,
+    JSON.stringify(firstUp && firstUp.props.disabled));
+  // 展开后接线参数与排序表同在一个展开区里（不再有第二层折叠按钮）。
+  const wiringJoined = textsOf(capSearchOpen);
+  // 端点 / key 名两项**不再存在**：DeepSeek 的后端由 provider 自己管端点与凭据，本插件不填。
+  check('展开后接线参数只剩三项（代理 / Tavily Key / 每查询条数）',
+    wiringJoined.includes('联网搜索 HTTP 代理') && wiringJoined.includes('Tavily API Key')
+    && wiringJoined.includes('每查询返回条数')
+    && !wiringJoined.includes('搜索端点') && !wiringJoined.includes('搜索 key 名'),
+    wiringJoined.slice(0, 600));
+  check('Tavily Key 说明写明免费额度、降级行为与「留空读环境变量」',
+    wiringJoined.includes('留空 = 只读环境变量 TAVILY_API_KEY')
+    && wiringJoined.includes('用尽后自动降级到免 Key 引擎'), wiringJoined.slice(0, 600));
+  check('展开后再点头部会收起（接线参数又消失）',
+    (() => {
+      const btn = findDataSet(capSearchOpen, 'data-search-open');
+      btn.props.onClick();
+      reactRuntime.__beginRender();
+      return !textsOf(registered.component(props)).includes('Tavily API Key（可选）');
+    })());
 
   check('搜索与抓取页把 moli 收成一张卡片',
     capRetrievalJoined.includes('Moli 渲染抓取') && capRetrievalJoined.includes('dsh-moli 装引擎 · qq_webfetch 渲染抓取')
@@ -555,7 +632,10 @@ try {
   check('发言阶段 provider 留空时，发言模型标明自动跟随、不给单独设',
     capDialogueJoined.includes('发言模型自动跟随判断模型，不用单独设'), capDialogueJoined.slice(0, 600));
   check('生图 key 说明不再给主动发言兜底', capJoined.includes('不再给主动发言兜底'), capJoined.slice(0, 240));
-  check('搜索 key 声明与生图/主动发言互不影响', capRetrievalJoined.includes('与生图的 key 互不影响'), capRetrievalJoined.slice(0, 200));
+  // 联网搜索的 key 与生图 / 主动发言各用各的：那条说明现在在「网络搜索」卡片的接线区里
+  // （默认收起），所以这里只断言它**不在**外层渲染——文案本身在展开后由下面 4c' 那组断言负责。
+  check('检索分区的 key 说明没有溢到外层（留在卡片接线区里）',
+    !capRetrievalJoined.includes('与生图的 key 互不影响'), capRetrievalJoined.slice(0, 200));
 
   // 第 8 项：视觉留空 = 会话模型的风险提示
   check('视觉 provider 标注会话模型不一定支持图片', capJoined.includes('会话模型不一定支持图片'), capJoined.slice(0, 200));
@@ -644,9 +724,21 @@ try {
   check('未设置时走灰框灰字分支（源码里有 secretBadgeOff 与「未设置」）',
     bundleSource.includes('secretBadgeOff') && bundleSource.includes("'未设置'"));
   // 同类缺陷：secrets 里每个 secret 字段都会有一条记录（set 可能为 false），
-  // 以前看「条目存在」就当已配置，于是没配过 TOTP 也显示「密钥已经配置好了」。
-  check('TOTP 是否已配置看 secrets 的 set（不是看条目存在）',
-    /secretKey === 'flowAuth\.totpSecret'\) totpSecretSet = entry\.set === true/.test(bundleSource), '');
+  // 看「条目存在」就当已配置，于是没配过 TOTP 也显示「密钥已经配置好了」。
+  // 判据抽到 secretInfoOf 后，这里改成断言「TOTP 走的是那个统一函数」而不是匹配某行字面量。
+  // 卡片内的 secret 字段（webSearch.tavilyKey）也必须走真实密钥状态：
+  // 以前卡片内 renderField 的 isSecret 硬写成 false，卡片里的密钥永远看不到「已设置 / 未设置」。
+  check('卡片内字段的密钥状态也按 path 现查（secretInfoOf），不再硬写 false',
+    /var info = secretInfoOf\(item, opts\.secrets\)/.test(bundleSource)
+    && /renderField\(item, getPath\(draft, item\.path\), updateField, info\.isSecret/.test(bundleSource)
+    && /secrets: \(gateFlags !== null && gateFlags !== undefined\) \? gateFlags\.secrets : undefined/.test(bundleSource), '');
+  check('moli / 表情包卡片同样按 path 查密钥状态（新增 secret 字段不会再踩同一个坑）',
+    /var info = secretInfoOf\(item, secrets\)/.test(bundleSource)
+    && bundleSource.split('secretInfoOf(item, secrets)').length - 1 === 2, '');
+
+  check('TOTP 的已配置状态统一走 secretInfoOf（看 set，不看条目存在）',
+    /secretInfoOf\(\{ path: \['flowAuth', 'totpSecret'\] \}, state\.secrets\)\.secretSet/.test(bundleSource)
+    && /out\.secretSet = entry\.set === true/.test(bundleSource), '');
   check('扫码绑定的「已绑定 AppID」用去空白后的非空判断',
     /String\(st\.appId \|\| ''\)\.trim\(\) !== ''/.test(bundleSource), '');
 

@@ -7,53 +7,47 @@
     {
       "path": [
         "webSearch",
+        "order"
+      ],
+      "label": "网络搜索",
+      "kind": "searchorder",
+      "hint": "从上到下依次尝试：某后端未注册 / 不可用 / 调用失败 / 整批结果没简介时自动降级到下一个，全部失败才报错；用户取消时不重试。"
+    },
+    {
+      "path": [
+        "webSearch",
+        "perQuery"
+      ],
+      "label": "每查询返回条数",
+      "kind": "number",
+      "in": "search-card",
+      "min": 0,
+      "max": 50,
+      "step": 1,
+      "hint": "每个查询最多保留几条来源，0 表示不接管（沿用各后端自己的默认条数）。实际条数还受后端自身限制。"
+    },
+    {
+      "path": [
+        "webSearch",
+        "tavilyKey"
+      ],
+      "label": "Tavily API Key（可选）",
+      "kind": "password",
+      "in": "search-card",
+      "secret": true,
+      "hint": "填入后搜索优先走 Tavily 官方 API（免费额度 1000 次/月，每次 1 点），用尽后自动降级到免 Key 引擎；留空 = 只读环境变量 TAVILY_API_KEY。",
+      "placeholder": "tvly-..."
+    },
+    {
+      "path": [
+        "webSearch",
         "proxy"
       ],
       "label": "联网搜索 HTTP 代理",
       "kind": "text",
-      "hint": "http://host:port；仅作用于 qq_websearch 联网搜索请求",
+      "in": "search-card",
+      "hint": "http://host:port；免 Key 多引擎的请求都经同一套出网策略（网络阀门），留空直连",
       "placeholder": "（留空 = 直连）"
-    },
-    {
-      "path": [
-        "webSearch",
-        "baseUrl"
-      ],
-      "label": "搜索 API 端点",
-      "kind": "text",
-      "placeholder": "（留空 = https://api.deepseek.com/anthropic/v1）"
-    },
-    {
-      "path": [
-        "webSearch",
-        "apiKeyEnv"
-      ],
-      "label": "搜索 API key 环境变量名",
-      "kind": "text",
-      "hint": "搜索服务专用，与生图的 key 互不影响",
-      "placeholder": "（留空 = DEEPSEEK_BALANCE_API_KEY）"
-    },
-    {
-      "path": [
-        "webSearch",
-        "maxUses"
-      ],
-      "label": "每次搜索最多触发次数",
-      "kind": "number",
-      "min": 0,
-      "max": 20,
-      "step": 1,
-      "slider": true,
-      "unit": "次"
-    },
-    {
-      "path": [
-        "webSearch",
-        "multiEngine"
-      ],
-      "label": "多引擎组合搜索（Tavily → DuckDuckGo → Yandex/Bing/Wikipedia；关闭则用官方 DeepSeek 搜索）",
-      "kind": "bool",
-      "hint": "默认开；所有引擎请求都走上面的 HTTP 代理，留空直连"
     }
   ]
 }

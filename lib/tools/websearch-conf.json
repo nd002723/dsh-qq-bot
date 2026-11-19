@@ -1,10 +1,12 @@
 {
   "group": "webSearch",
   "defaults": {
-    "baseUrl": "",
-    "apiKeyEnv": "",
-    "proxy": "",
-    "maxUses": 5,
-    "multiEngine": true
+    "order": [
+      "deepseek-search-api",
+      "zhipu-web-search-prime",
+      "dsh-qq-bot-free"
+    ],
+    "perQuery": 0,
+    "proxy": ""
   }
 }
