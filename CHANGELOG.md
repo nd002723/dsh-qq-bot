@@ -30,6 +30,19 @@
 - **用户取消搜索时立刻停**：以前点「停止」还要等一整串引擎跑完，现在取消信号透传到编排层，
   立即停止降级、不再重试，并把取消原样抛回。
 
+### 设置页：卡片变成声明式
+
+- **卡片外壳回模板**：`kind: "card"` 把标题、副标题、徽标、启用开关、高级设置折叠、条件提示、
+  动作按钮、折叠态全部写成数据（`lib/config.js` 的 `normalizeCardSpec` 做结构校验）。
+  客户端只剩一份通用 `renderCard`，moli / 表情包 / 网络搜索三张卡的 `renderXxxCard`
+  （合计约 470 行）全部删掉，三份 `Xxx_CARD_FIELDS` 数组换成一张 `IN_GROUPS` map。
+- **特殊 UI 降级成「控件」**：排序表 `searchorder`、图库状态 `sticker-status`、
+  引擎状态 `moli-status` 都是卡片里的一个字段，自己实现 `render` / `summary` / `badge` /
+  `enabled` / `actions`。**新加一张「只有字段和按钮」的卡片 = 只改 JSON。**
+- **`renderField` 从 12 个位置参数收成一个上下文对象**：value / isSecret / secretSet 都改由
+  `makeFieldCtx` 现算，加卡片时不再需要往任何签名里追加回调。
+- 结果：卡片折叠状态统一成按 `card.id` 存的 `cardOpen` map（原来 moli / 表情包 / 搜索各占一个布尔）。
+
 ### 移除 / 升级说明
 
 - `webSearch.multiEngine` 与 `webSearch.maxUses` **已移除**（分别被 `order` 与 `perQuery` 取代）。

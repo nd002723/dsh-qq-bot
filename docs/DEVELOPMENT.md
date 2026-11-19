@@ -128,6 +128,13 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 2. **schema**：`lib/config.js` 的 `Config`：字段类型、`volatile()`、描述。核心组的值只在 `lib/core-conf.json` 里，schema 只引用。
 3. **设置页**：`lib/<能力目录>/*-set.json`（或核心的 `lib/settings-core-set.json`）加字段：`path` / `label` / `tab` / `subtab` / 可选 `priority`。
 
+   **要做一张卡片？只改 JSON**：写一条 `kind: "card"`（通常同时 `virtual: true`，
+   它只是外壳锚点），卡的标题/副标题/徽标/开关/高级设置/按钮/提示全部在 `card` 对象里声明；
+   卡里的字段写 `in: "<card.id>"`（或自己起的组名，配 `card.body` / `card.advanced` 的槽位）。
+   `lib/client/settings.js` 里只有一份通用 `renderCard`，不需要为每张卡写 `renderXxxCard`。
+   只有引入**全新控件**（一类前端实现，如排序表 / 运行状态）时才动前端：在 `WIDGETS` 表里注册
+   `render`（必填）以及可选的 `summary` / `badge` / `enabled` / `actions`。
+
 跑 `node test/test-config.mjs`：`DEFAULTS` 与 `new Config({})` 现在**逐叶子双向比对**（嵌套也能抓），任何一边改了另一边没跟上都会红；`path` 落不到 schema、组不存在、标签页不存在也会红。
 
 下面是全部字段与默认值（等价于「设置页什么都不改」的状态）。落点是 profile 的 `cordis.patch.yml`，**不要改包内的同名文件**。

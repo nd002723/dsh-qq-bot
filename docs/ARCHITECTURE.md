@@ -198,13 +198,37 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 | `priority` 不是有限数字 | 排序变成 `NaN` 比较，整页顺序不可预期 | 加载期校验 |
 | 文件头和字段都没写 `tab` | 字段不知道去哪个标签页 | 加载期报错（带字段序号与文件名） |
 
-两个例外标记：`virtual: true`（纯界面锚点，例如扫码绑定，不对应任何配置项，跳过路径校验）、
-`in: "moli-card" / "sticker-card" / "search-card"`（渲染在某张卡片内部，不占外层位置，但保存/还原仍按普通字段处理）。
+两个例外标记：`virtual: true`（纯界面锚点，例如扫码绑定、卡片里的控件锚点，不对应任何配置项，
+跳过路径校验）、`in: "<组名>"`（渲染在某张卡片/某个控件内部，不占外层位置，但保存/还原仍按普通字段处理）。
+客户端把所有 `in` 相同的字段归到一个组（`IN_GROUPS[in]`），所以「有几张卡、卡里有什么」
+不需要在客户端写死任何一支 if。
 
-`kind: "searchorder"` 是第六块自定义组件（与 moli / sticker 卡片同一类）：它渲染
-「网络搜索」卡片——排序表（▲/▼ 手动调后端顺序 + 恢复默认）+ 折叠的接线参数（`in: "search-card"`）。
+### 卡片是声明式的（`kind: "card"`）
+
+卡的**外壳**（标题 / 副标题 / 徽标 / 启用开关 / 高级设置折叠 / 条件提示 / 动作按钮 / 折叠态）
+全部由模板的 `card` 对象描述，客户端只有一份通用 `renderCard`：
+
+| 模板字段 | 作用 |
+| --- | --- |
+| `label` / `sub` | 卡片标题与展开时的副标题 |
+| `card.badge` | `"auto"`（交给控件）或 `{ path, on, off, toneOn, toneOff }`（由某个配置值驱动） |
+| `card.summary` | `"auto"`（交给控件算，收起时那行摘要）或字面量 |
+| `card.headerToggle` | 默认 `true`＝整卡折叠；`false`＝卡片常驻，折叠只作用于 `advanced` 区 |
+| `card.toggle` | 卡片自带的启用开关（`label` / `attr` / `disabledByWidget`），值绑在 card 自己的 `path` |
+| `card.body` / `card.advanced` | 槽位数组 `[{ in, title? }]`：常驻区 / 高级设置区 |
+| `card.actions` | 按钮 `[{ id, label, attr?, onlyWhenOpen?, onlyWhenAlways? }]`，实现由控件提供 |
+| `card.notices` | 条件提示行（`when` 语义与字段的 `when` 一致） |
+| `card.forcedOffNotice` | 开关值仍为 true 但控件判定不可用时的提示（保存会写回关闭） |
+| `card.dataAttr` / `toggleAttr` / `advancedAttr` | 这些 DOM 标记由模板给，客户端不硬编码 |
+
+**控件**（`WIDGET_KINDS`：`searchorder` / `sticker-status` / `moli-status`）是卡片里的
+一块自定义 UI，在客户端 `WIDGETS` 表里实现三样可选能力：`render`（画）、`summary`/`badge`/
+`enabled`（给卡片头部与开关提供状态）、`actions`（按 id 提供按钮实现，返回值可以是
+`{ label, disabled, run }`，以便现场决定文案与禁用态）。
+
+于是：**新加一张「只有字段和按钮」的卡片 = 只改 JSON**；只有引入全新控件才动前端。
 排序表要的目录（默认顺序 / 上限 / 展示名 / 已注册的 provider 列表）随模板一起下发（`searchOrder`），
-客户端不硬编码第二份对照表；模板里只写 `path` + `label` + `hint`。
+客户端不硬编码第二份对照表。
 
 `schemaHasPath` 有个坑值得记：schemastery 的 `schema.dict[key]` 存的是 **Schema 构造器本身**
 （`typeof` 是 `'function'`），只判 `typeof === 'object'` 会把每一层都判成不存在。
