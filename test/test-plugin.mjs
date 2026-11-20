@@ -712,9 +712,13 @@ try {
     Array.isArray(replyBotSent[0].message) && replyBotSent[0].message[0] && replyBotSent[0].message[0].type === 'reply',
     JSON.stringify(replyBotSent[0].message));
   const replyBotText = textOf(replyBotSent[0]);
-  check('Agent 不再自动收到塞入的聊天上下文（改由 qq_history 自取）',
-    !replyBotText.includes('最近相关发言') && !replyBotText.includes('上次 bot 的回复') && !replyBotText.includes('上次用户的发言'),
+  check('不再自动塞入整段聊天上下文（改由 qq_history 自取）',
+    !replyBotText.includes('最近相关发言') && !replyBotText.includes('上次用户的发言'),
     JSON.stringify(replyBotText.slice(0, 160)));
+  // 但被引用的那一条要进来：以前 reply 段被整段丢掉，模型只能盲猜「上次说的是什么」。
+  check('被引用的 bot 消息正文会带来源标注进入上下文',
+    replyBotText.includes('引用的「机器人」的消息') && replyBotText.includes('上次 bot 的回复'),
+    JSON.stringify(replyBotText.slice(0, 200)));
 
   console.log('\n4a2. 回复（引用）非 bot 消息 -> 不触发');
   const nonBotMsgId = 600002;
@@ -828,8 +832,10 @@ try {
   check('纯回复 bot（无正文）：触发处理', sent5a.length > 0 && sent5a[0].action === 'send_group_msg', JSON.stringify(sent5a));
   check('纯回复 bot（无正文）：引用回复', sent5a[0].message[0] && sent5a[0].message[0].type === 'reply', JSON.stringify(sent5a[0].message));
   const text5a = textOf(sent5a[0]);
-  check('纯回复 bot（无正文）：Agent 收到占位正文（不再自动塞上下文）',
-    text5a.includes('只有 @') && !text5a.includes('用户说过的话'), JSON.stringify(text5a.slice(0, 140)));
+  check('纯回复 bot（无正文）：Agent 收到占位正文（不塞无关聊天记录）',
+    text5a.includes('只有 @') && !text5a.includes('用户说过的话'), JSON.stringify(text5a.slice(0, 160)));
+  check('纯回复 bot（无正文）：被引用的 bot 正文仍会进上下文',
+    text5a.includes('引用的「机器人」的消息') && text5a.includes('bot 上一条'), JSON.stringify(text5a.slice(0, 200)));
 
   // (2) 只 @bot（只有 at 段，无文字）
   mock.history.length = 0;
@@ -861,8 +867,10 @@ try {
   check('回复别人 + @bot（无正文）：触发处理', sent5c.length > 0 && sent5c[0].action === 'send_group_msg', JSON.stringify(sent5c));
   check('回复别人 + @bot（无正文）：引用回复', sent5c[0].message[0] && sent5c[0].message[0].type === 'reply', JSON.stringify(sent5c[0].message));
   const text5c = textOf(sent5c[0]);
-  check('回复别人 + @bot（无正文）：占位正文（不再自动塞被回复者发言）',
-    text5c.includes('只有 @') && !text5c.includes('别人消息'), JSON.stringify(text5c.slice(0, 140)));
+  check('回复别人 + @bot（无正文）：占位正文',
+    text5c.includes('只有 @'), JSON.stringify(text5c.slice(0, 160)));
+  check('回复别人 + @bot（无正文）：被引用的那条别人的消息也会进来（带来源）',
+    text5c.includes('引用的「小红」的消息') && text5c.includes('别人消息'), JSON.stringify(text5c.slice(0, 200)));
 
   console.log('\n4a6. 被回复消息不在最近历史（窗口外）-> 不再并入上下文（AI 自取走 qq_history）');
   mock.history.length = 0;
@@ -884,7 +892,8 @@ try {
   });
   const sent6 = await waitFor(() => (mock.sent.length > before6 ? mock.sent.slice(before6) : null), 15000, '窗口外被回复消息');
   const text6 = textOf(sent6[0]);
-  check('被回复消息不在历史窗口：不再并入上下文（get_msg 仍可用于收被回复图片）', !text6.includes('很旧的那条被回复消息'), JSON.stringify(text6.slice(0, 160)));
+  check('被回复消息即使不在历史窗口，也会经 get_msg 取回正文',
+    text6.includes('引用的「小红」的消息') && text6.includes('很旧的那条被回复消息'), JSON.stringify(text6.slice(0, 200)));
   check('上下文不再含发言人/bot 发言（不再自动拉上下文）', !text6.includes('发言人最近发言') && !text6.includes('bot最近发言'), JSON.stringify(text6.slice(0, 160)));
 
   console.log('\n4a7. 相关发言为空时 -> 只留发言人本条（不并入被回复消息）');
@@ -905,7 +914,8 @@ try {
   });
   const sent7 = await waitFor(() => (mock.sent.length > before7 ? mock.sent.slice(before7) : null), 15000, '最低2条兜底');
   const text7 = textOf(sent7[0]);
-  check('相关发言为空：不再并入被回复消息（bot 很久前的消息不塞上下文）', !text7.includes('bot 很久前的消息'), JSON.stringify(text7.slice(0, 160)));
+  check('相关发言为空：被引用的那一条仍会进上下文（只这一条，不拉聊天记录）',
+    text7.includes('引用的「机器人」的消息') && text7.includes('bot 很久前的消息'), JSON.stringify(text7.slice(0, 200)));
   check('相关发言为空时上下文含发言人本条（最低 2 条兜底）', text7.includes('只有 @'), JSON.stringify(text7.slice(0, 160)));
   check('最低 2 条兜底：不硬补其它群友', !text7.includes('别的群友插话'), JSON.stringify(text7.slice(0, 160)));
 

@@ -75,7 +75,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-msgid-cache.mjs': 13,
   'test-owner-settings.mjs': 60,
   // 本机实测 172；裸克隆 26 条 SKIP 由上面的跳过数抵掉。
-  'test-plugin.mjs': 175,
+  'test-plugin.mjs': 178,
   'test-proactive-round.mjs': 54,
   'test-proactive-wiring.mjs': 23,
   'test-proactive.mjs': 76,
