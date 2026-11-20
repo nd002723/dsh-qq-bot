@@ -128,7 +128,7 @@ node -e "fetch('http://127.0.0.1:3000/__sent').then(r=>r.json()).then(j=>console
 2. **schema**：`lib/config.js` 的 `Config`：字段类型、`volatile()`、描述。核心组的值只在 `lib/core-conf.json` 里，schema 只引用。
 3. **设置页**：`lib/<能力目录>/*-set.json`（或核心的 `lib/settings-core-set.json`）加字段：`path` / `label` / `tab` / `subtab` / 可选 `priority`。
 
-   **要做一张卡片？只改 JSON**：写一条 `kind: "card"`（通常同时 `virtual: true`，
+   **要做一张卡片？只改 JSON**（带按钮的卡片还需要控件提供对应 `actions` 实现）：写一条 `kind: "card"`（壳字段通常是配置键本身；纯锚点才加 `virtual: true`，
    它只是外壳锚点），卡的标题/副标题/徽标/开关/高级设置/按钮/提示全部在 `card` 对象里声明；
    卡里的字段写 `in: "<card.id>"`（或自己起的组名，配 `card.body` / `card.advanced` 的槽位）。
    `lib/client/settings.js` 里只有一份通用 `renderCard`，不需要为每张卡写 `renderXxxCard`。

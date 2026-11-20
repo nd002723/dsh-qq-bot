@@ -208,25 +208,38 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 卡的**外壳**（标题 / 副标题 / 徽标 / 启用开关 / 高级设置折叠 / 条件提示 / 动作按钮 / 折叠态）
 全部由模板的 `card` 对象描述，客户端只有一份通用 `renderCard`：
 
+两种形态（`card.headerToggle`）**内容区规则完全一致**，只是「内容什么时候可见」不同：
+
+| `card.headerToggle` | 头部 | 内容区 |
+| --- | --- | --- |
+| `true`（默认） | 按钮，点击折叠整卡 | 只在卡片展开时渲染 |
+| `false` | 静态标题行（不折叠整卡） | 常驻渲染；`advanced` 区跟着「高级设置」按钮展开收起 |
+
 | 模板字段 | 作用 |
 | --- | --- |
 | `label` / `sub` | 卡片标题与展开时的副标题 |
-| `card.badge` | `"auto"`（交给控件）或 `{ path, on, off, toneOn, toneOff }`（由某个配置值驱动） |
+| `card.id` | **必填**。折叠状态按它存（`cardOpen`），也是 `body` 省略时的默认字段组名 |
+| `card.defaultOpen` | 初始是否展开（默认收起） |
+| `card.badge` | `"auto"`（交给控件）或 `{ path, on, off, toneOn, toneOff }`（由某个配置值驱动）；`path` 必须能取到值，写错不报错只会让徽标恒为关闭 |
 | `card.summary` | `"auto"`（交给控件算，收起时那行摘要）或字面量 |
-| `card.headerToggle` | 默认 `true`＝整卡折叠；`false`＝卡片常驻，折叠只作用于 `advanced` 区 |
-| `card.toggle` | 卡片自带的启用开关（`label` / `attr` / `disabledByWidget`），值绑在 card 自己的 `path` |
-| `card.body` / `card.advanced` | 槽位数组 `[{ in, title? }]`：常驻区 / 高级设置区 |
-| `card.actions` | 按钮 `[{ id, label, attr?, onlyWhenOpen?, onlyWhenAlways? }]`，实现由控件提供 |
-| `card.notices` | 条件提示行（`when` 语义与字段的 `when` 一致） |
-| `card.forcedOffNotice` | 开关值仍为 true 但控件判定不可用时的提示（保存会写回关闭） |
-| `card.dataAttr` / `toggleAttr` / `advancedAttr` | 这些 DOM 标记由模板给，客户端不硬编码 |
+| `card.toggle` | 卡片自带的启用开关（`label` / `attr`）；可用性总由控件判定，`disabledByWidget` **当前无实现**，别写 |
+| `card.body` / `card.advanced` | 槽位数组，两种写法：`{ "in": "<组名>", "title"? }` 渲染一组字段；`{ "actions": "open"\|"idle"\|"always" }` 就地插入按钮 |
+| `card.advancedLabel` / `advancedAttr` | 「高级设置」按钮的文案与 DOM 标记（`advancedAttr` 缺失时按钮无标记，测试抓不到） |
+| `card.actions` | 按钮 `[{ id, label, attr?, onlyWhenOpen?, onlyWhenAlways? }]`；**常驻卡（`headerToggle:false`）必须写 `onlyWhenAlways:true`**，否则按钮不出现 |
+| `card.notices` | 条件提示行（`when` 原样透传给 `whenMatches`，不走字段那套 `normalizeWhen` 校验，写错静默不显示） |
+| `card.forcedOffNotice` | 开关值仍为 true 但控件判定不可用时的一行提示。**「保存时写回关闭」目前是 moli 专用的硬编码逻辑**，新卡声明它只多一行文字 |
+| `card.dataAttr` / `toggleAttr` | 这些 DOM 标记由模板给，客户端不硬编码 |
 
-**控件**（`WIDGET_KINDS`：`searchorder` / `sticker-status` / `moli-status`）是卡片里的
-一块自定义 UI，在客户端 `WIDGETS` 表里实现三样可选能力：`render`（画）、`summary`/`badge`/
-`enabled`（给卡片头部与开关提供状态）、`actions`（按 id 提供按钮实现，返回值可以是
-`{ label, disabled, run }`，以便现场决定文案与禁用态）。
+**控件**（`WIDGET_KINDS`：`searchorder` / `sticker-status` / `moli-status`）是卡片里的一块
+自定义 UI，在客户端 `WIDGETS` 表里实现：`render`（**必填**，缺了会在渲染期 TypeError 打挂整页）、
+可选的 `summary` / `badge` / `enabled`（给卡片头部与开关提供状态）、`actions`（按 id 提供按钮
+实现，返回值可以是 `{ label, disabled, run }`，以便现场决定文案与禁用态）。
 
-于是：**新加一张「只有字段和按钮」的卡片 = 只改 JSON**；只有引入全新控件才动前端。
+于是：**新加一张「只有字段、没有按钮」的卡片 = 只改 JSON**；带按钮的卡片还需要有控件提供
+对应 `actions` 实现（找不到实现时按钮静默不渲染）；引入全新控件才动前端。
+
+> 控件的锚点字段建议写 `virtual: true` + `in: "<组名>"`。**漏写 `in` 的控件会掉进外层
+> 字段列表，变成一个可编辑文本框，改动会被写进配置**（`FIELD_KINDS` 不校验这一点）。
 
 ### 数字字段也是声明式的（`kind: "number"` 的 `num`）
 
