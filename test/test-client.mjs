@@ -1186,6 +1186,17 @@ try {
     check('显示值反算回存储值（30 → 0.3）', Math.abs(conv(pct, 0.3).stored - 0.3) < 1e-9, String(conv(pct, 0.3).stored));
     check('没有 display 时原样显示（回归）', conv({ mode: 'slider', min: 0, max: 10 }, 7).shown === '7');
     check('非有限值当 0（不把 NaN 显示进输入框）', conv(pct, Number.NaN).shown === '0');
+    // 判别力回归：换算只有一份实现。组件与钩子都必须调 numDisplayOf，
+    // 否则测试又会退化成「测复制品」（三组变异测试全绿的那种）。
+    check('显示换算只有一份实现（组件与钩子都走 numDisplayOf）',
+      bundleSource.includes('var display = numDisplayOf(num);')
+      && bundleSource.includes('var display = numDisplayOf(numSpec);')
+      && bundleSource.split('function numDisplayOf(').length === 2, '');
+    check('decimals 被夹在 0–20（超出会让 toFixed 抛 RangeError 打挂渲染）',
+      conv({ mode: 'slider', display: { scale: 1, decimals: 101 } }, 3).shown === '3.00000000000000000000', '');
+    // 失焦不编辑不该改写配置：靠源码结构锁住这条（真渲染断言在 test-client 的 NumberField 段）。
+    check('失焦未编辑时不回写（0.124 不会被改成 0.12）',
+      bundleSource.includes('if (text === currentShown) return;'), '');
   } else {
     check('数字显示换算钩子可用', false, '缺少 __numDisplayForTest');
   }
