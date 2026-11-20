@@ -1194,9 +1194,29 @@ try {
       && bundleSource.split('function numDisplayOf(').length === 2, '');
     check('decimals 被夹在 0–20（超出会让 toFixed 抛 RangeError 打挂渲染）',
       conv({ mode: 'slider', display: { scale: 1, decimals: 101 } }, 3).shown === '3.00000000000000000000', '');
-    // 失焦不编辑不该改写配置：靠源码结构锁住这条（真渲染断言在 test-client 的 NumberField 段）。
-    check('失焦未编辑时不回写（0.124 不会被改成 0.12）',
-      bundleSource.includes('if (text === currentShown) return;'), '');
+    // 「失焦/回车要不要写回」的判定是纯函数（组件与这里同一份实现），直接测行为。
+    if (typeof plugin.__numCommitDecisionForTest === 'function') {
+      const decide = plugin.__numCommitDecisionForTest;
+      // ① 没编辑 + 不越界 → 不写（0.124 不会被按显示精度改成 0.12）
+      check('失焦未编辑时不回写（0.124 保持原样）',
+        decide('0.12', '0.12', false, 0, 0).write === false, JSON.stringify(decide('0.12', '0.12', false, 0, 0)));
+      // ② 越界 → 必须写，且夹到上限（这条是回归的主诉：150 曾被原样落盘）
+      check('越界值失焦会被夹紧（150 → 100，不再原样落盘）',
+        decide('150', '150', true, 0, 100).write === true
+        && decide('150', '150', true, 0, 100).clamped === '100',
+        JSON.stringify(decide('150', '150', true, 0, 100)));
+      // ③ 真改了值 → 写
+      check('真改了值要回写（42 → 0.42 容器的对应显示值 42 也要写）',
+        decide('42', '30', false, 0, 0).write === true, JSON.stringify(decide('42', '30', false, 0, 0)));
+      // ④ 低于下限 → 夹到下限
+      check('低于下限会被夹紧', decide('-5', '-5', true, 0, 100).clamped === '0',
+        JSON.stringify(decide('-5', '-5', true, 0, 100)));
+      // ⑤ 清空不算「没编辑」
+      check('清空要写回（回落到下限）', decide('', '30', true, 0, 100).write === true,
+        JSON.stringify(decide('', '30', true, 0, 100)));
+    } else {
+      check('失焦判定钩子可用', false, '缺少 __numCommitDecisionForTest');
+    }
   } else {
     check('数字显示换算钩子可用', false, '缺少 __numDisplayForTest');
   }
