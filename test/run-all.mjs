@@ -105,7 +105,9 @@ const SUITE_BASELINE = Object.freeze({
  */
 const SUITE_BASELINE_SKIPPED = Object.freeze({
   'test-admin.mjs': 35,
-  'test-plugin.mjs': 146,
+  // 裸克隆里 test-plugin 少 26 条（缺 @deepseek-ai/dsh-tools 时 6 次 skip() 一共跳过 26 条 check）。
+  // 本机 190 是**另一张表**，本机跑永远查不出这张表过期 —— CI 上才第一次暴露（164 vs 146）。
+  'test-plugin.mjs': 164,
 });
 
 /** 套件自报的「N 通过 / M 失败」：捕获输出解析，用来交叉校验退出码。 */
@@ -192,6 +194,7 @@ function runSuite(file) {
         silent,
         shrunk,
         inflated,
+        baselineUsed: baseline,
       });
     });
     child.on('error', (err) => { clearTimeout(timer); resolve({ file, ok: false, code: -1, err: String(err) }); });
@@ -211,6 +214,31 @@ const selfSrc = readFileSync(join(root, 'test', 'run-all.mjs'), 'utf8');
 const pluginSrc = readFileSync(join(root, 'lib', 'gateway', 'plugin.js'), 'utf8');
 const conventionProblems = [];
 if (selfSrc.indexOf('shrunk === 0 && inflated === 0') < 0) conventionProblems.push('基线判据里没有 shrunk === 0 && inflated === 0（机制被废掉了）');
+// 两张基线表必须同时维护：只改 SUITE_BASELINE 而漏掉 SUITE_BASELINE_SKIPPED 时，
+// 本机永远查不出（本机用另一张表），要到 CI 才暴露（这次就是 164 vs 146）。
+// 这里锁住「两张表的差值恒等于已知的跳过条数」。
+{
+  const sourceLines = selfSrc.split('\n');
+  const findInTable = (fromIndex, name) => {
+    for (let i = fromIndex; i < sourceLines.length; i += 1) {
+      const m = sourceLines[i].match(new RegExp("'" + name + "':\\s*(\\d+)"));
+      if (m !== null) return Number(m[1]);
+      if (sourceLines[i].trim() === '});') break;
+    }
+    return -1;
+  };
+  const fullAt = sourceLines.findIndex((l) => l.includes('const SUITE_BASELINE = Object.freeze('));
+  const skipAt = sourceLines.findIndex((l) => l.includes('const SUITE_BASELINE_SKIPPED'));
+  const pluginFull = fullAt < 0 ? -1 : findInTable(fullAt, 'test-plugin.mjs');
+  const pluginSkipped = skipAt < 0 ? -1 : findInTable(skipAt, 'test-plugin.mjs');
+  if (pluginFull > 0 && pluginSkipped > 0) {
+    const knownSkip = 26;   // 裸克隆里 6 次 skip() 一共跳过 26 条 check
+    if (pluginFull - pluginSkipped !== knownSkip) {
+      conventionProblems.push('两张基线表不同步：test-plugin 本机 ' + pluginFull + ' / 裸克隆 ' + pluginSkipped
+        + '，差值应为 ' + knownSkip + '（改了一边忘了另一边？）');
+    }
+  }
+}
 // 重试不得掩盖结构性失败 —— 删掉这段判断就等于重新打开「首跑缩水、次跑正常即 PASS」的通道。
 if (selfSrc.indexOf('const structural = first.shrunk > 0 || first.inflated > 0 || first.silent === true') < 0) {
   conventionProblems.push('结构性失败的重试豁免不见了（首跑缩水 + 次跑正常会被判 PASS）');
@@ -264,11 +292,13 @@ for (const r of results) {
     + (r.code === -1 ? "（无法启动" + (r.err ? "：" + r.err : "") + "）" : "")
     // 自报相关的两种失败原因要打出来，否则只看到一个 FAIL 不知道该改哪里。
     + (r.silent === true ? "（套件没有自报汇总行，判为不可验证）" : "")
+    // 打印**实际使用的那张表**：裸克隆用 SUITE_BASELINE_SKIPPED、本机用 SUITE_BASELINE。
+    // 以前一律打本机表，CI 上会显示「基线 190」而实际比的是 146，排障时被引到错的地方。
     + (r.shrunk !== undefined && r.shrunk > 0
-      ? "（自报项数比基线少 " + String(r.shrunk) + " 项：有断言被删了？基线 " + String(SUITE_BASELINE[r.file]) + "）"
+      ? "（自报项数比基线少 " + String(r.shrunk) + " 项：有断言被删了？基线 " + String(r.baselineUsed) + "）"
       : "")
     + (r.inflated !== undefined && r.inflated > 0
-      ? "（自报项数比基线多 " + String(r.inflated) + " 项：总数被虚增了？基线 " + String(SUITE_BASELINE[r.file]) + "）"
+      ? "（自报项数比基线多 " + String(r.inflated) + " 项：有断言被增了？基线 " + String(r.baselineUsed) + "）"
       : "")
     + (r.selfFail !== null && r.selfFail !== undefined && r.selfFail > 0
       ? "（自报失败 " + String(r.selfFail) + " 项）" : ""));
