@@ -1744,7 +1744,12 @@ const QQ_HEADER_RE = /^\[[^\]]*\]\s*/;
     }),
   };
   await mod.cleanupStaleConfig(valueCtx, { log: (line) => valueLogs.push(line) });
-  check('日志里带上被删键的旧值', valueLogs.some((line) => line.includes('proactive.judgeModel=') && line.includes('deepseek-x')), JSON.stringify(valueLogs));
+  // 语义在 M6 里反过来了：以前把旧键的**值**原样写进日志（用户可能在那里面填过任何东西，
+  // 包括别处的 token；日志一旦落盘就不再受控）。现在只记「键名 + 有值/空」，够排障、不落值。
+  check('日志里只记键名，不记被删键的旧值',
+    valueLogs.some((line) => line.includes('proactive.judgeModel') && line.includes('有值，已省略'))
+    && !valueLogs.some((line) => line.includes('deepseek-x')),
+    JSON.stringify(valueLogs));
 
   console.log('\n7b. 白名单排在群管理指令之前（2026-10-28 审计 A2）');
   {

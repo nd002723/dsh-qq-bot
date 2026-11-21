@@ -12,6 +12,9 @@
     "skipLibCheck": true,
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true,
+    // 死代码闸门：第三轮审查实测这里有 17 个只写不读的 import（tsc 不报是因为这条没开）。
+    // 打开后「删了消费者忘了删 import」这类问题在 CI 就会红，而不是靠人肉扫。
+    "noUnusedLocals": true,
     "types": ["node"]
   },
   "include": ["lib/**/*.js", "lib/**/*.mjs", "lib/**/*.d.ts"],
