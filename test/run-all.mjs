@@ -82,7 +82,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-qq-bind.mjs': 20,
   'test-qr-consistency.mjs': 7,
   'test-qr.mjs': 18,
-  'test-security.mjs': 64,
+  'test-security.mjs': 65,
   'test-session-archive.mjs': 57,
   'test-session-id.mjs': 5,
   'test-sticker-gate.mjs': 25,

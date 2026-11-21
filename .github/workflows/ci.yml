@@ -1,8 +1,12 @@
 # CI：push（main）与 PR 自动跑全部测试。
-# 28 套件经 run-all 汇总：adapter / adapter-reverse / plugin / client / admin / http / config /
-# websearch / imagegen / session-id / compat / history / proactive / proactive-round /
-# owner-settings / adapter-onebot12 / adapter-milky / adapter-satori / adapter-qq-official /
-# totp / totp-cli / qr / flow-auth / flow-store / flow-commands / flow-gate / flow-wiring / interim。
+# 49 套件经 run-all 汇总（精确列表以 test/run-all.mjs 的 suites 为准）：
+# adapter / adapter-reverse / adapter-reconnect / action-priority / tool-output / plugin / client /
+# admin / http / config / websearch / imagegen / sticker / sticker-gate / session-id / session-archive /
+# compat / history / proactive / proactive-round / proactive-wiring / owner-settings / totp / totp-cli /
+# qr / flow-auth / flow-store / flow-commands / flow-gate / flow-wiring / interim / security /
+# guard-proxy / gate-guard / chunk / bubbles / msgid-cache / qq-bind / stream-bridge / model-router /
+# adapter-onebot12 / adapter-milky / adapter-satori / adapter-qq-official / valve-assembly /
+# group-actions / qr-consistency / flow-resume / update-check。
 #
 # 纯文档改动不触发（README / CHANGELOG / 架构说明 / 许可证等 *.md 与 docs/），
 # 免得改个错别字也跑一轮全量。

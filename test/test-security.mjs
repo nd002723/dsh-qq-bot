@@ -407,6 +407,36 @@ console.log('\n13. 路由闸门：鉴权服务在但方法缺失 → fail-closed
     assert.strictEqual(pass, true);
   });
 }
+
+console.log('\n14. 文档里的测试数字必须与实测一致（防止再飘到 1896）');
+{
+  const docFiles = ['README.md', 'docs/DEVELOPMENT.md', 'docs/AI-DISCLOSURE.md'];
+  const totals = [];
+  for (const f of docFiles) {
+    const src = await readFile(new URL('../' + f, import.meta.url), 'utf8');
+    // 只认「N 个套件 / M 项」这个固定形态（以及 README badge 的 tests-M 写法）。
+    // 收太宽会把文档里各种分组小计（163 项、101 项…）也当成总数，那当然对不上。
+    for (const m of src.matchAll(/\d+\s*个套件\s*\/\s*(\d+)\s*项/g)) totals.push(Number(m[1]));
+    for (const m of src.matchAll(/tests-(\d{3,5})%20passing/g)) totals.push(Number(m[1]));
+    for (const m of src.matchAll(/\/\s*(\d{3,5})\s*automated checks/g)) totals.push(Number(m[1]));
+  }
+  // 允许出现的「项数」只应是本仓库真实的断言总数（由 run-all 的基线表求和得出）。
+  const runAllSrc = await readFile(new URL('./run-all.mjs', import.meta.url), 'utf8');
+  // 只取**第一张**基线表（SUITE_BASELINE）：后面还有 SUITE_BASELINE_SKIPPED（裸克隆下限），
+  // 从「第一次出现」一路切到底会把两张表混在一起求和（实测得出 2218，比真实值多 181）。
+  const startAt = runAllSrc.indexOf('const SUITE_BASELINE = Object.freeze(');
+  const endAt = runAllSrc.indexOf('});', startAt);
+  const block = runAllSrc.slice(startAt, endAt);
+  const sum = [...block.matchAll(/'(test-[^']+)':\s*(\d+)/g)]
+    .map((m) => Number(m[2])).reduce((a, b) => a + b, 0);
+  // 自指说明：这条断言自己也算在 test-security 的基线里，所以文档里的总数必须**含它**。
+  // 不做减法 —— 谁再加一条断言而没同步文档，sum 变了、这里就会红，这正是想要的。
+  await check('文档里的测试总数与基线表求和一致（' + sum + '）', () => {
+    assert.ok(totals.length > 0, '文档里一个总数都没找到');
+    const bad = totals.filter((n) => n !== sum);
+    assert.deepStrictEqual(bad, [], '以下数字与实测不符：' + JSON.stringify(bad) + '，应为 ' + sum);
+  });
+}
 console.log('\n' + pass + '/' + (pass + fails.length) + ' 项通过');
 if (fails.length > 0) { console.log('安全回归失败：' + fails.join('; ')); process.exit(1); }
 console.log('安全回归通过');

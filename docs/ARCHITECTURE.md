@@ -36,7 +36,7 @@ lib/gateway/              网关层：路由与分发 —— 入站帧 → 会�
    │   └─ tool/           工具阀：这个工具要不要卡、这张卡能不能用（名单 / 拦截 / 改闸门要码）
    │
    ├─ lib/message/        消息组装：分条 / 流式 / 中间发言 / 段构造 / 入站去重
-   ├─ lib/tools/          9 个 Agent 工具 + 联网与媒体实现
+   ├─ lib/tools/          10 个 Agent 工具 + 联网与媒体实现
    ├─ lib/session/        会话与路由、模型选择、工作区、主动发言
    ├─ lib/api/            群管理指令、官方 Bot 扫码绑定
    └─ lib/shared/         公共基础设施（HTTP 传输、兼容自检）
@@ -331,8 +331,8 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 
 | 文件 | 职责 | 关键导出 |
 | --- | --- | --- |
-| `tools/index.js` | 9 个 Agent 工具：`qqbot` `qqconfig` `qqgroup` `qq_websearch` `qq_webfetch` `qq_imgsearch` `qq_history` `qq_draw` `qqauth` | `createTools` → `registerTools` |
-| `tools/websearch.js` | 联网搜索：DeepSeek 官方 web search + 多引擎组合（全部经网络阀门） | `runWebSearch` |
+| `tools/index.js` | 10 个 Agent 工具：`qqbot` `qqconfig` `qqgroup` `qq_websearch` `qq_webfetch` `qq_imgsearch` `qq_history` `qq_draw` `qq_sticker` `qqauth` | `createTools` → `registerTools` |
+| `tools/websearch.js` | 联网搜索：按可排序的后端优先级依次尝试（内置免 Key 多引擎 + web seam 里注册的 provider，全部经网络阀门）；解析器对病态输入保持线性 | `runWebSearch` `meLooksRelevant` `classifySearchError` |
 | `tools/imgsearch.js` | 图片反搜：TraceMoe / IQDB 等 + 图床上传 | `runImageSearch` `uploadToHost` |
 | `tools/moli.js` | Moli 引擎封装：探测可执行文件 + 按 dsh-moli 1.1.20 同一套参数调 `moli fetch` | `meFindMoli` `meMoliFetchText` |
 | `tools/imagegen.js` | 生图：OpenAI 兼容 `/images/generations`，含重试与任务轮询 | `generateImage` `parseImagePayload` |
@@ -342,7 +342,7 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 
 | 文件 | 职责 | 关键导出 |
 | --- | --- | --- |
-| `session/manager.js` | 会话条目与路由、访客工具闸、被回复图片收集；被删除会话用 `revivedSessionId` 派生确定性 id 重建 | `createSession` → `sessionRoute` `getEntry` `entryForAgent` `collectReplyContext` `scopedSessionId` `revivedSessionId` |
+| `session/manager.js` | 会话条目与路由、访客工具闸、**被引用消息收集**（图片 + 正文，带归属校验）；被删除会话用 `revivedSessionId` 派生确定性 id 重建 | `createSession` → `sessionRoute` `getEntry` `entryForAgent` `collectReplyContext` `scopedSessionId` `revivedSessionId` |
 | `session/session-archive.js` | **归档召回 + 删除探测**：宿主「归档」集合里的 QQ 会话在被消息触发时拉回可见（`ArchivedSessionGate` 会 reject 归档会话的每一步、`create` 的 `reusable` 也排除它，不召回就是石沉大海）；`isDetached` 用「不在任何工作区账本」认出被**真正删除**的会话（dsh-session-manager 与 zh_pro 两种删除器都摘账本、但归档集合留不留 id 不同，所以判据取账本侧）。全 fail-soft | `createSessionArchive` → `recall` `isArchived` `isDetached` `stats` |
 | `session/model-router.js` | 模型选择自动检测：DSH `agentDefaultModel`（可写）→ `llm`（只读）→ 本地 per-chat 偏好 | `createModelRouter` `createPrefsFile` |
 | `session/workspace.js` | QQ_msg 工作区根解析（Documents 解析，与 DSH 默认工作区同级） | `qqMsgRootSync` `sessionWorkdir` |
@@ -398,9 +398,9 @@ lib/**/*-set.json  →  SETTINGS_FIELDS  →  GET /dsh-qq-bot/settings  →  客
 
 | # | 位置 | 做什么 |
 | --- | --- | --- |
-| 1 | `lib/transport/adapters/*` | 收协议事件，归一成 CONTRACT 的 `message` 帧写 stdout（文本、图片数/URL、`reply_to`、段数组、`self_id`） |
+| 1 | `lib/transport/adapters/*` | 收协议事件，归一成 CONTRACT 的 `message` 帧写 stdout（文本、图片数/URL、`reply_to`、段数组、`self_id`、`channel_id`） |
 | 2 | `gateway/plugin.js onAdapterFrame` | 按行切 JSON，`message` 交给 `acceptMessage` |
-| 3 | `acceptMessage` | 自过滤（`user_id === self_id`）→ **群管理指令优先**（`handleAdminCommand`，命中即结束，不进模型）→ 白名单 → `commandPrefix` → 是否点名（@bot / 回复 bot / 前缀）→ 收集被回复消息里的图片 |
+| 3 | `acceptMessage` | 自过滤（`user_id === self_id`）→ **群管理指令优先**（`handleAdminCommand`，命中即结束，不进模型）→ 白名单 → `commandPrefix` → 是否点名（@bot / 回复 bot / 前缀）→ 收集被引用消息的**图片与正文**（正文单行化后进提示词，防注入） |
 | 4 | `session/manager.js sessionRoute/getEntry` | 按拥有者/访客取或建会话（`sessionController.create` + `resolveAgent`，只建一次）；**取或建之前先做归档召回**（`session-archive.js`，否则宿主的归档闸门会 reject 整回合）；记 `entry.speaker`（鉴权依据）与 `entry.currentFrame`（qq_history 的识图锚点） |
 | 5 | `entry.queue`（串行） | `runTurn`：设 `entry.dshAllowed` → `describeImages`（两条路径：provider/model 都留空 → 图片作附件直传会话；至少填一项 → 下载后由视觉模型描述再并入）→ `agent.followup` → `agent.whenIdle` |
 | 6 | `extractReply / sendReply / chunkText` | 只取本条用户消息之后的新 assistant 文本，按 `reply.maxChars` 分片，写 `send` 帧 |
