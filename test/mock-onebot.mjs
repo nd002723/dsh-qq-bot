@@ -228,11 +228,19 @@ export async function startMockOneBot(options = {}) {
       return rows;
     },
     get_msg(params) {
-      const id = Number(params.message_id);
-      const m = history.find((x) => Number(x.message_id) === id)
-        ?? extraMessages.find((x) => Number(x.message_id) === id);
+      // 真实 OneBot 的 message_id 可能是字符串（如 'ROBOT1.0_…'）。先把入参字符串化再比对，
+      // 同时保留数字比较（历史里存的是数字 id）。
+      const raw = String(params.message_id ?? '');
+      const num = Number(raw);
+      const seen = (x) => String(x.message_id) === raw || (Number.isFinite(num) && Number(x.message_id) === num);
+      const m = history.find(seen) ?? extraMessages.find(seen);
       if (m === undefined) return { retcode: 100, message: 'message not found' };
-      return { retcode: 0, message_id: m.message_id, time: m.time, user_id: m.user_id, group_id: m.group_id ?? null, message_type: m.message_type ?? null, message: m.message, raw_message: m.raw_message, sender: m.sender };
+      // 真实 OneBot 的 get_msg 会带回 group_id / message_type；这个 mock 只服务一个群（33333），
+      // 所以没显式写时按该群补齐 —— 否则会被「归属不明 → fail-closed」判定拦住（那是对的，但测试会全挂）。
+      // 要模拟跨群，测试里给消息显式写 group_id: 其它群 即可。
+      return { retcode: 0, message_id: m.message_id, time: m.time, user_id: m.user_id,
+        group_id: m.group_id ?? 33333, message_type: m.message_type ?? 'group',
+        message: m.message, raw_message: m.raw_message, sender: m.sender };
     },
     get_group_msg_history(params) {
       const count = Math.max(1, Number(params.count ?? 20));
