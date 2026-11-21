@@ -128,12 +128,23 @@ console.log('\n7. 本地图片白名单必须解符号链接（2026-10-28 审计
     // 它抓不住「逻辑改错」，但抓得住「有人把 allowed2 改回 filePath」这个具体回归 ——
     // 而后者正是终审实测「全套 49/49 全绿」的那三处零覆盖之一。
     const indexSrc = readFileSync(new URL('../lib/tools/index.js', import.meta.url), 'utf8');
-    check('imgsearch 调用点用白名单返回的路径去上传（不是原始入参）',
-      indexSrc.indexOf('uploadToHost(allowed2)') >= 0 && indexSrc.indexOf('uploadToHost(filePath)') < 0,
-      indexSrc.indexOf('uploadToHost(filePath)') >= 0 ? '仍在传原始 filePath' : '');
-    check('imgsearch 调用点用白名单返回的路径去直传（不是原始入参）',
-      indexSrc.indexOf('imgSearchSoutubotFile(allowed1') >= 0 && indexSrc.indexOf('imgSearchSoutubotFile(filePath') < 0,
-      indexSrc.indexOf('imgSearchSoutubotFile(filePath') >= 0 ? '仍在传原始 filePath' : '');
+    // 原来的断言写死了变量名（uploadToHost(allowed2)），于是把 allowed2 无害改名成 resolvedA
+    // （行为完全不变）也会 FAIL —— 既是漏报也是误报（第三轮审查实测）。
+    // 改成读结构：调用点传的实参**不能是**原始入参 filePath。
+    const callsOf = (srcText, fn) => {
+      const out = [];
+      const re = new RegExp(fn + '\\(([^)]*)\\)', 'g');
+      let m;
+      while ((m = re.exec(srcText)) !== null) out.push(m[1].trim());
+      return out;
+    };
+    check('imgsearch 调用点用白名单返回的路径去上传（实参不是原始 filePath）',
+      callsOf(indexSrc, 'uploadToHost').every((arg) => arg.indexOf('filePath') < 0)
+      && callsOf(indexSrc, 'uploadToHost').length > 0,
+      JSON.stringify(callsOf(indexSrc, 'uploadToHost')));
+    check('imgsearch 调用点用白名单返回的路径去直传（实参不是原始 filePath）',
+      callsOf(indexSrc, 'imgSearchSoutubotFile').every((arg) => arg.indexOf('filePath') < 0),
+      JSON.stringify(callsOf(indexSrc, 'imgSearchSoutubotFile')));
     check('qqbot send：指向白名单外的软链 → 拒绝',
       resolveSendImagePath(link, sendRoot) === '', link);
     check('qqbot send：不存在的文件 → 拒绝', resolveSendImagePath(join(sendRoot, 'nope.png'), sendRoot) === '');

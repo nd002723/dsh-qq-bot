@@ -55,7 +55,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-admin.mjs': 40,
   'test-bubbles.mjs': 16,
   'test-chunk.mjs': 15,
-  'test-client.mjs': 189,
+  'test-client.mjs': 191,
   'test-compat.mjs': 14,
   'test-config.mjs': 56,
   'test-flow-auth.mjs': 43,
@@ -75,14 +75,14 @@ const SUITE_BASELINE = Object.freeze({
   'test-msgid-cache.mjs': 13,
   'test-owner-settings.mjs': 60,
   // 本机实测 172；裸克隆 26 条 SKIP 由上面的跳过数抵掉。
-  'test-plugin.mjs': 178,
+  'test-plugin.mjs': 188,
   'test-proactive-round.mjs': 54,
   'test-proactive-wiring.mjs': 23,
   'test-proactive.mjs': 76,
   'test-qq-bind.mjs': 20,
   'test-qr-consistency.mjs': 7,
   'test-qr.mjs': 18,
-  'test-security.mjs': 55,
+  'test-security.mjs': 60,
   'test-session-archive.mjs': 57,
   'test-session-id.mjs': 5,
   'test-sticker-gate.mjs': 25,
@@ -93,7 +93,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-totp.mjs': 43,
   'test-update-check.mjs': 19,
   'test-valve-assembly.mjs': 27,
-  'test-websearch.mjs': 64,
+  'test-websearch.mjs': 73,
 });
 
 /**
@@ -176,17 +176,22 @@ function runSuite(file) {
       // 环境判定用「套件自报里有没有跳过」——只有那两个套件在裸克隆里会打「另有 N 项跳过」。
       const hasSkips = /（另有\s*\d+\s*项跳过/.test(captured);
       const baseline = (hasSkips === true ? SUITE_BASELINE_SKIPPED[file] : SUITE_BASELINE[file]);
-      const shrunk = (baseline !== undefined && selfTotal !== null && selfTotal < baseline)
-        ? (baseline - selfTotal) : 0;
+      // 基线比对改成**精确相等**：以前只判 selfTotal < baseline，于是「末尾多印一行 999 通过」就能
+      // 把总数虚增上去、shrunk 恒为 0，删掉的断言完全无声（第三轮审查实测出的逃逸通道）。
+      // 精确相等同时堵住虚增与缩水；有意增删断言时按文档同步改 SUITE_BASELINE 即可。
+      const delta = (baseline !== undefined && selfTotal !== null) ? (selfTotal - baseline) : 0;
+      const shrunk = delta < 0 ? -delta : 0;
+      const inflated = delta > 0 ? delta : 0;
       resolve({
         file,
-        ok: code === 0 && timedOut !== true && selfReportedFailure !== true && silent !== true && shrunk === 0,
+        ok: code === 0 && timedOut !== true && selfReportedFailure !== true && silent !== true && shrunk === 0 && inflated === 0,
         code: code ?? -1,
         timedOut,
         selfFail,
         selfTotal,
         silent,
         shrunk,
+        inflated,
       });
     });
     child.on('error', (err) => { clearTimeout(timer); resolve({ file, ok: false, code: -1, err: String(err) }); });
@@ -205,7 +210,11 @@ const drift = missingOnDisk.length > 0 || notRegistered.length > 0;
 const selfSrc = readFileSync(join(root, 'test', 'run-all.mjs'), 'utf8');
 const pluginSrc = readFileSync(join(root, 'lib', 'gateway', 'plugin.js'), 'utf8');
 const conventionProblems = [];
-if (selfSrc.indexOf('shrunk === 0') < 0) conventionProblems.push('基线判据里没有 shrunk === 0（机制被废掉了）');
+if (selfSrc.indexOf('shrunk === 0 && inflated === 0') < 0) conventionProblems.push('基线判据里没有 shrunk === 0 && inflated === 0（机制被废掉了）');
+// 重试不得掩盖结构性失败 —— 删掉这段判断就等于重新打开「首跑缩水、次跑正常即 PASS」的通道。
+if (selfSrc.indexOf('const structural = first.shrunk > 0 || first.inflated > 0 || first.silent === true') < 0) {
+  conventionProblems.push('结构性失败的重试豁免不见了（首跑缩水 + 次跑正常会被判 PASS）');
+}
 if (selfSrc.indexOf('SUITE_BASELINE_SKIPPED') < 0) conventionProblems.push('缺少裸克隆专用基线 SUITE_BASELINE_SKIPPED');
 // 诊断出口现在走 WeakMap 侧信道（`DIAGNOSTICS.set(ctx, { state })`），**不再靠 apply 的返回值**。
 // 原因是 cordis 把 apply 的返回值当 effect 校验：普通对象会 `throw new TypeError("Invalid effect")`，
@@ -229,7 +238,19 @@ const results = [];
 for (const s of suites) {
   const first = await runSuite(s);
   if (first.ok === true) { results.push(first); continue; }
-  console.log('\n⚠️ ' + s + ' 第一次失败（code=' + String(first.code) + (first.timedOut === true ? '，超时' : '') + '），重试一次…');
+  // 结构性失败不重试：断言被删（shrunk）/ 总数虚增（inflated）/ 套件根本没自报（silent）
+  // 都不是机器抖动，重试只会把证据洗掉 —— 实测「首跑少 3 项、次跑正常」会被判成 PASS。
+  const structural = first.shrunk > 0 || first.inflated > 0 || first.silent === true;
+  if (structural === true) {
+    console.log('[hard-fail] ' + s + ' structural failure ('
+      + (first.shrunk > 0 ? 'assertions-shrunk-by-' + String(first.shrunk) : '')
+      + (first.inflated > 0 ? 'assertions-inflated-by-' + String(first.inflated) : '')
+      + (first.silent === true ? 'no-self-report' : '')
+      + '), retry skipped (retry cannot resurrect deleted assertions)');
+    results.push(first);
+    continue;
+  }
+  console.log('[warn] ' + s + ' first attempt failed (code=' + String(first.code) + (first.timedOut === true ? ', timed out' : '') + '), retrying once...');
   const retry = await runSuite(s);
   results.push(retry.ok === true ? Object.assign({}, retry, { retried: true }) : first);
 }
@@ -245,6 +266,9 @@ for (const r of results) {
     + (r.silent === true ? "（套件没有自报汇总行，判为不可验证）" : "")
     + (r.shrunk !== undefined && r.shrunk > 0
       ? "（自报项数比基线少 " + String(r.shrunk) + " 项：有断言被删了？基线 " + String(SUITE_BASELINE[r.file]) + "）"
+      : "")
+    + (r.inflated !== undefined && r.inflated > 0
+      ? "（自报项数比基线多 " + String(r.inflated) + " 项：总数被虚增了？基线 " + String(SUITE_BASELINE[r.file]) + "）"
       : "")
     + (r.selfFail !== null && r.selfFail !== undefined && r.selfFail > 0
       ? "（自报失败 " + String(r.selfFail) + " 项）" : ""));

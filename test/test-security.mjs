@@ -3,9 +3,10 @@
 import assert from 'node:assert';
 import { readFile } from 'node:fs/promises';
 import { safeSessionId, sessionWorkdir, imageCacheDir, isInside, qqMsgRootSync } from '../lib/session/workspace.js';
+import { redactUrl } from '../lib/gateway/turn-text.js';
 import { resolveTargetAuthority, createAdmin } from '../lib/api/group-admin.js';
 import { checkCaller } from '../lib/valve/security/owner-settings.js';
-import { assertPublicHost, publicFetch, multiEngineRequest, pinnedLookup, isNonPublicIp, canonicalHost, __setNetworkHooks, MAX_FETCH_BYTES } from '../lib/shared/http.js';
+import { assertPublicHost, publicFetch, proxyRequest, multiEngineRequest, pinnedLookup, isNonPublicIp, canonicalHost, __setNetworkHooks, MAX_FETCH_BYTES } from '../lib/shared/http.js';
 import { resolveListenAddress, tokenEquals, decodeFrames } from '../lib/transport/bridge/ws.mjs';
 
 let pass = 0;
@@ -235,17 +236,23 @@ function functionBody(src, signature) {
   const end = src.indexOf('\n  }', brace);
   return src.slice(start, end < 0 ? src.length : end);
 }
-await check('downloadImage 走 publicFetch', () => {
-  const body = functionBody(indexSrc, 'async function downloadImage(');
-  assert.ok(body !== '', '找不到 downloadImage（签名变了要同步改这条测试）');
+// 源码契约断言必须**先剥掉注释**再查：以前直接 grep 函数体，
+// 于是「真改成 globalThis.fetch、只在函数体里留一行含 publicFetch( 的注释」照样 55/55 全绿（第三轮审查实测）。
+// 这里换成：剥注释 → 再要求「真的有一条以 publicFetch 为被调方的调用」。
+const stripCodeComments = (text) => text
+  .replace(/\/\*[\s\S]*?\*\//g, ' ')   // 块注释
+  .replace(/\/\/[^\n]*/g, ' ');          // 行注释
+await check('downloadImage 走 publicFetch（剥注释后仍有一条真实调用）', () => {
+  const body = stripCodeComments(functionBody(indexSrc, 'async function downloadImage('));
+  assert.ok(body.trim() !== '', '找不到 downloadImage（签名变了要同步改这条测试）');
   assert.ok(/publicFetch\(/.test(body), 'downloadImage 没有走 publicFetch —— #15 回归了');
 });
-await check('downloadImage 里没有裸 fetch', () => {
-  const body = functionBody(indexSrc, 'async function downloadImage(').replace(/publicFetch\(/g, '');
+await check('downloadImage 里没有裸 fetch（剥注释后检查）', () => {
+  const body = stripCodeComments(functionBody(indexSrc, 'async function downloadImage(')).replace(/publicFetch\(/g, '');
   assert.ok(!/(^|[^\w.])fetch\(/.test(body), 'downloadImage 里又出现了裸 fetch —— #15 回归了');
 });
 await check('downloadImage 不再整包 arrayBuffer', () => {
-  const body = functionBody(indexSrc, 'async function downloadImage(');
+  const body = stripCodeComments(functionBody(indexSrc, 'async function downloadImage('));
   assert.ok(!body.includes('arrayBuffer()'), 'downloadImage 又整包读入了');
 });
 
@@ -327,6 +334,29 @@ await check('truncated 标记原样透出（超限时调用方看得见）', asy
   } finally { __setNetworkHooks(null); }
 });
 
+
+console.log('\n12. 凭据不进日志（第三轮审查 medium）');
+// 启动日志会打 ws=<onebot.wsUrl>，而 USAGE.md 明确支持 ?access_token= 写法 ——
+// 不脱敏就等于把 token 写进 journalctl。代理串 http://user:pass@host 同理。
+{
+  await check('redactUrl：抹掉 query（access_token 不进日志）',
+    () => assert.strictEqual(redactUrl('ws://h:6199/?access_token=SECRET'), 'ws://h:6199/'));
+  await check('redactUrl：抹掉代理串里的 userinfo（保留域名端口）',
+    () => assert.strictEqual(redactUrl('http://alice:s3cret@1.2.3.4:1080'), 'http://<auth>@1.2.3.4:1080/'));
+  await check('redactUrl：正常 URL 原样保留',
+    () => assert.strictEqual(redactUrl('ws://127.0.0.1:3001'), 'ws://127.0.0.1:3001/'));
+  await check('redactUrl：解析不了的长串不原样吐出',
+    () => assert.ok(redactUrl('not-a-url-with-' + 'x'.repeat(40)).includes('…')));
+
+  // 代理串无效时，错误消息里不能再出现原文（可能带 user:pass）
+  await check('代理串无效：错误消息里不含原文（否则 user:pass 会被打进日志）', async () => {
+    let msg = '';
+    try { await proxyRequest({ url: 'https://example.com/', proxy: '::notaurl::alice:s3cret', deadline: 2000 }); }
+    catch (e) { msg = String(e.message); }
+    assert.ok(!msg.includes('s3cret'), '错误消息里出现了代理密码：' + msg);
+    assert.ok(msg.includes('proxy'), '错误消息应指明 proxy 字段：' + msg);
+  });
+}
 console.log('\n' + pass + '/' + (pass + fails.length) + ' 项通过');
 if (fails.length > 0) { console.log('安全回归失败：' + fails.join('; ')); process.exit(1); }
 console.log('安全回归通过');
