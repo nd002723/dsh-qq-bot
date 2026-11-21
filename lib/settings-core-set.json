@@ -441,7 +441,7 @@
       "label": "每人每分钟最多几条",
       "kind": "number",
       "num": {
-        "min": 0,
+        "min": 1,
         "max": 200,
         "step": 1,
         "unit": "条/分",

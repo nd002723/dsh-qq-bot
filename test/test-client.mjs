@@ -1199,21 +1199,31 @@ try {
       const decide = plugin.__numCommitDecisionForTest;
       // ① 没编辑 + 不越界 → 不写（0.124 不会被按显示精度改成 0.12）
       check('失焦未编辑时不回写（0.124 保持原样）',
-        decide('0.12', '0.12', false, 0, 0).write === false, JSON.stringify(decide('0.12', '0.12', false, 0, 0)));
+        decide('0.12', '0.12', false, 0, 0, false, false).write === false,
+        JSON.stringify(decide('0.12', '0.12', false, 0, 0, false, false)));
       // ② 越界 → 必须写，且夹到上限（这条是回归的主诉：150 曾被原样落盘）
       check('越界值失焦会被夹紧（150 → 100，不再原样落盘）',
-        decide('150', '150', true, 0, 100).write === true
-        && decide('150', '150', true, 0, 100).clamped === '100',
-        JSON.stringify(decide('150', '150', true, 0, 100)));
+        decide('150', '150', true, 0, 100, true, true).write === true
+        && decide('150', '150', true, 0, 100, true, true).clamped === '100',
+        JSON.stringify(decide('150', '150', true, 0, 100, true, true)));
       // ③ 真改了值 → 写
       check('真改了值要回写（42 → 0.42 容器的对应显示值 42 也要写）',
-        decide('42', '30', false, 0, 0).write === true, JSON.stringify(decide('42', '30', false, 0, 0)));
+        decide('42', '30', false, 0, 0, false, false).write === true,
+        JSON.stringify(decide('42', '30', false, 0, 0, false, false)));
       // ④ 低于下限 → 夹到下限
-      check('低于下限会被夹紧', decide('-5', '-5', true, 0, 100).clamped === '0',
-        JSON.stringify(decide('-5', '-5', true, 0, 100)));
+      check('低于下限会被夹紧', decide('-5', '-5', true, 0, 100, true, true).clamped === '0',
+        JSON.stringify(decide('-5', '-5', true, 0, 100, true, true)));
       // ⑤ 清空不算「没编辑」
-      check('清空要写回（回落到下限）', decide('', '30', true, 0, 100).write === true,
-        JSON.stringify(decide('', '30', true, 0, 100)));
+      check('清空要写回（回落到下限）', decide('', '30', true, 0, 100, true, true).write === true,
+        JSON.stringify(decide('', '30', true, 0, 100, true, true)));
+      // 没声明边界的 plain 字段不该被兜底 0 夹住（否则 idleTimeoutMs 这类会被清零）
+      check('无边界字段的值不被夹（500 保持 500）',
+        decide('500', '500', false, 0, 0, false, false).clamped === '500',
+        JSON.stringify(decide('500', '500', false, 0, 0, false, false)));
+      // 只声明上界时下界不生效
+      check('只声明上界：低于 0 的值不被夹到 0',
+        decide('-5', '-5', false, 0, 100, false, true).clamped === '-5',
+        JSON.stringify(decide('-5', '-5', false, 0, 100, false, true)));
     } else {
       check('失焦判定钩子可用', false, '缺少 __numCommitDecisionForTest');
     }
