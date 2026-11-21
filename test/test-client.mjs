@@ -1188,6 +1188,19 @@ try {
     check('非有限值当 0（不把 NaN 显示进输入框）', conv(pct, Number.NaN).shown === '0');
     // 判别力回归：换算只有一份实现。组件与钩子都必须调 numDisplayOf，
     // 否则测试又会退化成「测复制品」（三组变异测试全绿的那种）。
+    // M8：保存循环必须按 when 过滤 —— 渲染(:889) 与还原默认(:844) 都过滤了，唯独保存没过滤，
+    // 于是「改过被隐藏的字段 → 再把它藏起来 → 保存」时陈旧值照样落盘。
+    // 这里锁「保存循环里真的调用了 fieldVisible(field, draft)」，并且渲染/还原/保存三处都调。
+    {
+      const saveLoopAt = bundleSource.indexOf('for (var i = 0; i < allFields.length; i += 1)');
+      const saveSeg = saveLoopAt < 0 ? '' : bundleSource.slice(saveLoopAt, saveLoopAt + 400);
+      check('保存循环按 when 过滤（隐藏字段的陈旧值不会落盘）',
+        saveLoopAt >= 0 && saveSeg.includes('fieldVisible(field, draft)'), saveSeg.slice(0, 120));
+      check('渲染 / 还原 / 保存三处都用同一个可见性判据',
+        (bundleSource.match(/fieldVisible\(field, draft\)/g) || []).length >= 3,
+        String((bundleSource.match(/fieldVisible\(field, draft\)/g) || []).length));
+    }
+
     check('显示换算只有一份实现（组件与钩子都走 numDisplayOf）',
       bundleSource.includes('var display = numDisplayOf(num);')
       && bundleSource.includes('var display = numDisplayOf(numSpec);')

@@ -4,6 +4,7 @@ import assert from 'node:assert';
 import { readFile } from 'node:fs/promises';
 import { safeSessionId, sessionWorkdir, imageCacheDir, isInside, qqMsgRootSync } from '../lib/session/workspace.js';
 import { redactUrl } from '../lib/gateway/turn-text.js';
+import { createRouteGuard } from '../lib/gateway/route-auth.js';
 import { resolveTargetAuthority, createAdmin } from '../lib/api/group-admin.js';
 import { checkCaller } from '../lib/valve/security/owner-settings.js';
 import { assertPublicHost, publicFetch, proxyRequest, multiEngineRequest, pinnedLookup, isNonPublicIp, canonicalHost, __setNetworkHooks, MAX_FETCH_BYTES } from '../lib/shared/http.js';
@@ -355,6 +356,55 @@ console.log('\n12. 凭据不进日志（第三轮审查 medium）');
     catch (e) { msg = String(e.message); }
     assert.ok(!msg.includes('s3cret'), '错误消息里出现了代理密码：' + msg);
     assert.ok(msg.includes('proxy'), '错误消息应指明 proxy 字段：' + msg);
+  });
+}
+
+console.log('\n13. 路由闸门：鉴权服务在但方法缺失 → fail-closed（M13）');
+{
+  const m = await import('../lib/gateway/route-auth.js');
+  const mkRes = () => {
+    const out = { status: null, body: '' };
+    return {
+      writeHead(status) { out.status = status; },
+      end(body) { out.body = String(body ?? ''); },
+      get result() { return out; },
+    };
+  };
+  const mkReq = () => ({ headers: { host: 'example.com' } });
+
+  // ① 服务存在、browserAuth 方法缺失 → 必须拒绝（不是放行）
+  const denied = createRouteGuard({ get: (n) => (n === 'connection' ? { browserAuth: {} } : n === 'webServer' ? { protocol: 'https:' } : undefined) }, () => {});
+  const res1 = mkRes();
+  await check('鉴权服务在但取不到 isAuthenticated → 拒绝（fail-closed）', () => {
+    const pass = denied(mkReq(), res1);
+    assert.strictEqual(pass, false, '不该放行');
+    assert.strictEqual(res1.result.status, 401, '应回 401，实际 ' + res1.result.status);
+  });
+
+  // ② 服务真的不在 → 按设计放行（老版本 DSH 没有鉴权层）
+  const passThrough = createRouteGuard({ get: (n) => (n === 'webServer' ? { protocol: 'https:' } : undefined) }, () => {});
+  const res2 = mkRes();
+  await check('鉴权服务完全不在 → 放行（老版本环境没有鉴权层）', () => {
+    const pass = passThrough(mkReq(), res2);
+    assert.strictEqual(pass, true);
+    assert.strictEqual(res2.result.status, null);
+  });
+
+  // ③ 方法在、但报未登录 → 拒绝
+  const rejectUnauth = createRouteGuard({ get: (n) => (n === 'connection' ? { browserAuth: { isAuthenticated: () => false } } : n === 'webServer' ? { protocol: 'https:' } : undefined) }, () => {});
+  const res3 = mkRes();
+  await check('isAuthenticated 返回 false → 401', () => {
+    const pass = rejectUnauth(mkReq(), res3);
+    assert.strictEqual(pass, false);
+    assert.strictEqual(res3.result.status, 401);
+  });
+
+  // ④ 已登录 → 放行
+  const accept = createRouteGuard({ get: (n) => (n === 'connection' ? { browserAuth: { isAuthenticated: () => true } } : n === 'webServer' ? { protocol: 'https:' } : undefined) }, () => {});
+  const res4 = mkRes();
+  await check('isAuthenticated 返回 true → 放行', () => {
+    const pass = accept(mkReq(), res4);
+    assert.strictEqual(pass, true);
   });
 }
 console.log('\n' + pass + '/' + (pass + fails.length) + ' 项通过');
