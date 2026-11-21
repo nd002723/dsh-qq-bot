@@ -4,6 +4,7 @@ import {
   classifySearchError, FREE_BACKEND_ID, DEEPSEEK_BACKEND_ID, SEARCH_DEFAULT_ORDER, __setSearchLogger,
   parseYandexResults, parseBingResults, parseBingRss, parseDdgResults,
 } from '../lib/tools/websearch.js';
+import { meCleanText } from '../lib/shared/http.js';
 
 /** 取消是否被正确处理：抛出来的必须是「已中止」那一类，而不是被吞成空结果。 */
 function r5iOk(error) {
@@ -166,6 +167,61 @@ console.log('\n4e. 解析器：属性再长也不能整批丢结果（Yandex 回
     parseYandexResults('<a class="b-serp-item__title-link" href="//yandex.com/clck/jsredir?url=x">x</a>').length === 0);
 }
 
+
+/** 规模翻倍耗时不该翻倍以上：病态输入下若退化成平方级，比例会到 3–4 倍。 */
+function timeMs(fn, input) {
+  const t0 = performance.now();
+  fn(input);
+  return performance.now() - t0;
+}
+
+console.log('\n4h. hasUsableSnippets 也要认 summary（DSH 的 WebSearchSource 允许只给 summary）');
+{
+  check('只有 summary 的整批判为可用（不该白白降级换后端）',
+    hasUsableSnippets([{ url: 'https://a', summary: '有摘要没 snippet' }, { url: 'https://b', summary: '也有' }]) === true);
+  check('只有 snippet 的整批仍可用',
+    hasUsableSnippets([{ url: 'https://a', snippet: 's' }, { url: 'https://b', snippet: 's' }]) === true);
+  check('两个字段都没有的整批判为不可用',
+    hasUsableSnippets([{ url: 'https://a' }, { url: 'https://b' }]) === false);
+  check('snippet 与 summary 混着给也认（各占一半）',
+    hasUsableSnippets([{ url: 'https://a', snippet: 's' }, { url: 'https://b', summary: 'm' }]) === true);
+}
+
+console.log('\n4g. 解析器对病态输入必须保持线性（H4/H5 回归）');
+{
+  const buildBing = (n) => '<item>'.repeat(n);
+  const b1 = timeMs(parseBingRss, buildBing(20000));
+  const b2 = timeMs(parseBingRss, buildBing(80000));
+  check('Bing RSS 未闭合 item：4 倍输入耗时不到 8 倍（线性≈4x，平方≈16x）',
+    b2 < Math.max(b1, 0.5) * 8, 'q1=' + b1.toFixed(1) + 'ms q4=' + b2.toFixed(1) + 'ms');
+
+  // 关键：整段里**一个 </div> 都没有**，也没���下一条 marker 之外的边界 ——
+  // 这才触发「无界 indexOf 每轮扫到末尾」那条平方级路径（实测去掉记忆后比值 9.6x）。
+  const buildYandex = (n) => {
+    let s = '';
+    for (let i = 0; i < n; i += 1) {
+      s += '<a class="b-serp-item__title-link" href="https://x.com/' + i + '">t</a>'
+        + '<div class="b-serp-item__text">摘要无闭合' + i;
+    }
+    return s;
+  };
+  const y1 = timeMs(parseYandexResults, buildYandex(1000));
+  const y2 = timeMs(parseYandexResults, buildYandex(4000));
+  check('Yandex 缺 </div> 闭合：4 倍输入耗时不到 8 倍（线性≈4x，平方≈16x）',
+    y2 < Math.max(y1, 0.5) * 8, 'q1=' + y1.toFixed(1) + 'ms q4=' + y2.toFixed(1) + 'ms');
+
+  const buildTags = (n) => '<a '.repeat(n);
+  const c1 = timeMs(meCleanText, buildTags(5000));
+  const c2 = timeMs(meCleanText, buildTags(20000));
+  check('meCleanText 未闭合尖括号：4 倍输入耗时不到 8 倍（线性≈4x，平方≈16x）',
+    c2 < Math.max(c1, 0.5) * 8, 'q1=' + c1.toFixed(1) + 'ms q4=' + c2.toFixed(1) + 'ms');
+
+  // 语义就是「去掉标签、保留可见文本」——相邻标签之间不补空格（与旧实现一致）。
+  check('meCleanText 正常输入语义不变（去标签保留文本）',
+    meCleanText('<p>hello</p><b>world</b>') === 'helloworld', JSON.stringify(meCleanText('<p>hello</p><b>world</b>')));
+  check('meCleanText 保留正文里的孤立尖括号（不误当成标签吞掉整段）',
+    meCleanText('a < b') === 'a < b', JSON.stringify(meCleanText('a < b')));
+}
 console.log('\n4f. 解析器：Bing / DDG 的结构回归');
 {
   const bingRss = '<rss><channel><item><title>甲</title><link>https://a.example/</link>'
