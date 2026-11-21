@@ -2,7 +2,7 @@
 import {
   runWebSearch, normalizeOrder, hasUsableSnippets, backendAvailable, backendSkipReason,
   classifySearchError, FREE_BACKEND_ID, DEEPSEEK_BACKEND_ID, SEARCH_DEFAULT_ORDER, __setSearchLogger,
-  parseYandexResults, parseBingResults, parseBingRss, parseDdgResults,
+  parseYandexResults, parseBingResults, parseBingRss, parseDdgResults, meLooksRelevant, BACKEND_LABELS,
 } from '../lib/tools/websearch.js';
 import { meCleanText, __setNetworkHooks } from '../lib/shared/http.js';
 
@@ -307,6 +307,51 @@ console.log('\n5. runWebSearch：按优先级降级（顺序 / 失败 / 无简�
   const good = (tag) => ({ sources: [{ url: 'https://' + tag + '.example/x', title: tag, snippet: '摘要' + tag }], truncated: false });
   const callLog = [];
   const cfgWith = (order) => ({ order, perQuery: 0 });
+
+console.log('\n4j. low 批次：字典打穿 / truncated 传递 / 相关性闸门覆盖');
+{
+  // L：普通对象当字典会被原型链打穿 —— 'constructor' / 'toString' 会拿到函数而不是 undefined。
+  // 用 null 原型之后这些名字查不到，日志才不会打出 "[Function: Object]"。
+  {
+    const { BACKEND_LABELS_PROBE } = { BACKEND_LABELS_PROBE: null };
+    // 通过行为间接验证：构造一个 id 为 'constructor' 的后端，看降级日志里写的是什么
+    // 必须让 provider **抛错**：只有走失败分支才会调 describeSkipLabel → 查 BACKEND_LABELS[id]。
+    // 返回空数组走的是「无结果」分支，压根不查字典，那样断言就没有判别力（实测过）。
+    const weird = provider('constructor', async () => { throw new Error('boom'); });
+    const cfgW = { order: ['constructor'] };
+    let logs = [];
+    __setSearchLogger((line) => logs.push(line));
+    let thrown = null;
+    try { await runWebSearch('q', cfgW, undefined, ctxWith(weird)); } catch (e) { thrown = e; }
+    __setSearchLogger(null);
+    // 直接验字典形状：普通对象查 'constructor' 会拿到 Object 构造函数（实测确认过），
+    // null 原型则返回 undefined。这条比「看日志里有没有 [Function:」更直接，
+    // 因为日志文案在撞名后本来就会拼成「其它后端 · constructor」，两种实现看不出差别。
+    check('L：BACKEND_LABELS 不会从原型链上取到值（constructor/toString 查不到）',
+      BACKEND_LABELS['constructor'] === undefined && BACKEND_LABELS['toString'] === undefined,
+      'constructor=' + typeof BACKEND_LABELS['constructor']);
+  }
+
+  // L：provider 报 truncated 时要能传出来（挂在 sources 上，不改返回值形状）
+  {
+    const truncProvider = provider('fake-trunc', async () => ({
+      sources: [{ url: 'https://t.example/x', title: 'T', snippet: 'S' }],
+      truncated: true,
+    }));
+    const got = await runWebSearch('q', { order: ['fake-trunc'] }, undefined, ctxWith(truncProvider));
+    check('L：provider 的 truncated 被保留下来（不是丢弃）',
+      got.length === 1 && got.truncated === true, 'len=' + got.length + ' truncated=' + String(got.truncated));
+  }
+
+  // L：相关性闸门现在也覆盖 DDG / Tavily / Wikipedia（整批零重叠时不交出去）
+  {
+    const irrelevant = [{ url: 'https://spam.example/p', title: '完全无关的页面', snippet: 'nothing related' }];
+    check('L：整批与查询零重叠时相关性闸门判为不相关',
+      meLooksRelevant(irrelevant, 'rust 1.91.0 release') === false);
+    check('L：有一条命中词元就算相关（最强召回口径，不误杀）',
+      meLooksRelevant([{ url: 'https://x', title: 'Rust 1.91.0 released', snippet: '' }], 'rust 1.91.0 release') === true);
+  }
+}
 
   // M1 的**行为**断言：cap=2 时不能因为「前 2 条没简介」就把整批换掉。
   // 旧实现先截到 cap 再算覆盖率 → 整批被换；修后多要一些、截断在判定之后。

@@ -93,7 +93,7 @@ const SUITE_BASELINE = Object.freeze({
   'test-totp.mjs': 43,
   'test-update-check.mjs': 19,
   'test-valve-assembly.mjs': 27,
-  'test-websearch.mjs': 84,
+  'test-websearch.mjs': 88,
 });
 
 /**
