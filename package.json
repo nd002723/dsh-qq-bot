@@ -1,6 +1,6 @@
 {
   "name": "@sputnikzaychik/dsh-qq-bot",
-  "version": "0.14.1",
+  "version": "0.14.2",
   "description": "把 QQ 接到 DSH Agent 的插件（社区化维护）：经 OneBot 11 / Milky / Satori 等协议收发消息，每个 QQ 会话一个 DSH Agent。",
   "meta": {
     "title": "QQ 机器人",
