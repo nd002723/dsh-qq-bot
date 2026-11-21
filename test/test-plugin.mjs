@@ -843,6 +843,32 @@ const QQ_HEADER_RE = /^\[[^\]]*\]\s*/;
   check('H3：截断后总长度不超过 inboundCap（含截断提示本身）',
     textLong.length <= 4000, 'len=' + textLong.length + ' cap=4000');
 
+  console.log('\n4a1f. M9/M10/M11：图片占位符归属、前缀/私聊也收引用、同一 id 只拉一次');
+  // M9：引用正文里字面出现「[图片]」时，不能抢占本条消息的图片标签。
+  mock.history.length = 0;
+  const phMsgId = 600105;
+  mock.history.push({
+    message_id: phMsgId, time: Math.floor(Date.now() / 1000) - 70, user_id: 66666,
+    group_id: 33333, message_type: 'group',
+    message: [{ type: 'text', data: { text: '这段引用里提到了[图片]三个字' } }],
+    raw_message: '引用含占位符', sender: { user_id: 66666, nickname: '话痨', card: '' },
+  });
+  const beforePh = mock.sent.length;
+  await fetch(mock.httpUrl + '/__inject', {
+    method: 'POST', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ message_type: 'group', group_id: 33333, user_id: 2222605, nickname: '测试戊',
+      message: [{ type: 'reply', data: { id: phMsgId } }, { type: 'at', data: { qq: '10000' } }, { type: 'text', data: { text: '看看' } }] }),
+  });
+  const sentPh = await waitFor(() => (mock.sent.length > beforePh ? mock.sent.slice(beforePh) : null), 15000, '占位符引用');
+  const textPh = textOf(sentPh[0]);
+  check('M9：引用正文里的 [图片] 不会被当成本条消息的图片占位符',
+    !textPh.includes('[图片]') || textPh.indexOf('[图片]') >= 0 && textPh.indexOf('［图片］') >= 0,
+    JSON.stringify(textPh.slice(0, 160)));
+
+  // M11：同一个 message_id 只该打一次 get_msg（isReplyToSelf 的结果要被 collectReplyContext 复用）
+  check('M11：同一条被引用消息只查一次（不是两次）',
+    mock.actions.filter((a) => a.action === 'get_msg' && Number(a.params.message_id) === phMsgId).length <= 1,
+    'count=' + mock.actions.filter((a) => a.action === 'get_msg' && Number(a.params.message_id) === phMsgId).length);
   console.log('\n4a2. 回复（引用）非 bot 消息 -> 不触发');
   const nonBotMsgId = 600002;
   mock.history.push({
