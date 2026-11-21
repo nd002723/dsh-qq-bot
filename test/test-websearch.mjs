@@ -4,7 +4,10 @@ import {
   classifySearchError, FREE_BACKEND_ID, DEEPSEEK_BACKEND_ID, SEARCH_DEFAULT_ORDER, __setSearchLogger,
   parseYandexResults, parseBingResults, parseBingRss, parseDdgResults,
 } from '../lib/tools/websearch.js';
-import { meCleanText } from '../lib/shared/http.js';
+import { meCleanText, __setNetworkHooks } from '../lib/shared/http.js';
+
+/** 装/卸出网桩：M3 的行为断言必须走免 Key 多引擎那条路径，那条要真网络。 */
+const netHooks = (hooks) => __setNetworkHooks(hooks);
 
 /** 取消是否被正确处理：抛出来的必须是「已中止」那一类，而不是被吞成空结果。 */
 function r5iOk(error) {
@@ -187,6 +190,48 @@ console.log('\n4h. hasUsableSnippets 也要认 summary（DSH 的 WebSearchSource
     hasUsableSnippets([{ url: 'https://a', snippet: 's' }, { url: 'https://b', summary: 'm' }]) === true);
 }
 
+console.log('\n4i. 覆盖率判定与错误分类的边界（M1/M2/M3 回归）');
+{
+  // M1：覆盖率先于截断判定 —— 前 2 条没简介、后 8 条有，整批本来就合格。
+  // 旧实现先 cap 到 2 条（全是没简介的）→ 覆盖率 0 → 白白降级换后端。
+  const partial = [
+    { url: 'https://a' }, { url: 'https://b' },
+    ...Array.from({ length: 8 }, (_, i) => ({ url: 'https://c' + i, snippet: 'has snippet' })),
+  ];
+  check('M1：整批覆盖率按**截断前**算（10 条里 8 条有简介 = 合格）',
+    hasUsableSnippets(partial) === true);
+  check('M1：截断后只有没简介的那些才算不合格（这正是要避免的误判）',
+    hasUsableSnippets(partial.slice(0, 2)) === false);
+
+  // M2：「余额」二字不能单独当成没钱
+  const mk = (s) => Object.assign(new Error(s), { code: 'WEB_PROVIDER_ERROR' });
+  check('M2：余额查询失败不算余额不足', classifySearchError(mk('余额查询接口返回 500')).kind === 'error',
+    classifySearchError(mk('余额查询接口返回 500')).kind);
+  check('M2：余额耗尽仍算余额不足', classifySearchError(mk('账户余额耗尽')).kind === 'no-balance');
+  check('M2：error after 402 ms 不误判成 402', classifySearchError(mk('error after 402 ms')).kind === 'error',
+    classifySearchError(mk('error after 402 ms')).kind);
+  check('M2：403 优先于余额字样', classifySearchError(mk('403 insufficient permissions')).kind === 'auth');
+
+  // M3 的 aborted 判定在**免 Key 多引擎**那条路径里（provider 路径走不到），所以要桩掉出网。
+  // 判据：上游回「Request cancelled by server」时，用户**没有**点停止，结果必须是「搜索失败」
+  // 而不是「搜索已取消」—— 后者会把真故障伪装成用户操作，而且零日志。
+  const fakeAbort = Object.assign(new Error('Request cancelled by server'), { code: 'WEB_PROVIDER_ERROR' });
+  check('M3：上游文本含 cancelled 的分类不是「余额不足」',
+    classifySearchError(fakeAbort).kind === 'error', classifySearchError(fakeAbort).kind);
+  {
+    // 判据不能只看 name：聚合错误被包成普通 Error 后 name 仍是 'Error'，
+    // 变异（按文本判取消）会把它伪装成「搜索已取消」却仍叫 Error —— 必须查消息内容。
+    const hooks = { request: async () => { throw new Error('Request cancelled by server'); } };
+    netHooks(hooks);
+    let thrown = null;
+    try { await runWebSearch('q', { order: [FREE_BACKEND_ID] }, undefined, fakeCtx([])); }
+    catch (e) { thrown = e; }
+    netHooks(null);
+    check('M3：上游回 cancelled 时抛的是「搜索失败」而不是「已取消」',
+      thrown !== null && thrown.name !== 'AbortError' && !String(thrown.message).includes('已取消'),
+      thrown === null ? '未抛出' : thrown.name + ' | ' + String(thrown.message).slice(0, 60));
+  }
+}
 console.log('\n4g. 解析器对病态输入必须保持线性（H4/H5 回归）');
 {
   const buildBing = (n) => '<item>'.repeat(n);
@@ -262,6 +307,37 @@ console.log('\n5. runWebSearch：按优先级降级（顺序 / 失败 / 无简�
   const good = (tag) => ({ sources: [{ url: 'https://' + tag + '.example/x', title: tag, snippet: '摘要' + tag }], truncated: false });
   const callLog = [];
   const cfgWith = (order) => ({ order, perQuery: 0 });
+
+  // M1 的**行为**断言：cap=2 时不能因为「前 2 条没简介」就把整批换掉。
+  // 旧实现先截到 cap 再算覆盖率 → 整批被换；修后多要一些、截断在判定之后。
+  {
+    // 判据是「上层向 provider 要了多少条」：要多一些，才能拿到「前 2 条没简介」之后那些有简介的。
+    // 只断言「最终返回 2 条」抓不住回退 —— 旧实现也只返回 2 条（就是那 2 条没简介的）。
+    const allPartial = [
+      { url: 'https://a' }, { url: 'https://b' },
+      ...Array.from({ length: 8 }, (_, i) => ({ url: 'https://c' + i, title: 'T' + i, snippet: 'has snippet' })),
+    ];
+    let asked = null;
+    const partialProvider = provider('fake-partial', async (req) => {
+      asked = req.maxResults;
+      return { sources: typeof req.maxResults === 'number' ? allPartial.slice(0, req.maxResults) : allPartial };
+    });
+    const r2 = await runWebSearch('q', { order: ['fake-partial'], perQuery: 2 }, undefined, ctxWith(partialProvider));
+    check('M1：perQuery=2 时向 provider 要多于 2 条（否则覆盖率只能看到没简介的头几条）',
+      typeof asked === 'number' && asked > 2, String(asked));
+    check('M1：最终返回条数仍被 cap 到 perQuery',
+      Array.isArray(r2) && r2.length === 2, JSON.stringify(r2 && r2.length));
+  }
+
+  // M3 的**行为**断言：上游回 cancelled 必须走「失败」而不是「用户取消」。
+  {
+    const cancelProvider = provider('fake-cancel', async () => { throw Object.assign(new Error('Request cancelled by server'), { code: 'WEB_PROVIDER_ERROR' }); });
+    let thrown = null;
+    try { await runWebSearch('q', { order: ['fake-cancel'] }, undefined, ctxWith(cancelProvider), undefined); }
+    catch (e) { thrown = e; }
+    check('M3：上游 cancelled 不被伪装成「搜索已取消」',
+      thrown !== null && thrown.name !== 'AbortError', thrown === null ? '未抛出' : thrown.name + ':' + String(thrown.message).slice(0, 40));
+  }
 
   // 5a. 第一个成功就停：第二个必须一次都不被调用（不是「都跑一遍再挑」）。
   callLog.length = 0;
@@ -358,8 +434,11 @@ console.log('\n5. runWebSearch：按优先级降级（顺序 / 失败 / 无简�
   let seenMaxResults = null;
   const spy = provider('fake-spy', async (request) => { seenMaxResults = request.maxResults; return good('spy'); });
   await runWebSearch('q', { order: ['fake-spy'], perQuery: 3 }, undefined, ctxWith(spy));
-  check('provider 收到的 maxResults 与每查询条数一致',
-    seenMaxResults === 3, String(seenMaxResults));
+  // 语义变更（M1）：上层要先按「整批覆盖率」判定要不要降级，所以向后端**多要一些**
+  // （cap*2 且至少 10），最终展示条数仍由上层 capSources 截到 cap。
+  // 断言改为「不少于 cap 且不超过上限」，既锁住「不会少要」，也锁住「不会无上限地要」。
+  check('provider 收到的 maxResults 不少于 perQuery（多要一部分给覆盖率判定用）',
+    typeof seenMaxResults === 'number' && seenMaxResults >= 3 && seenMaxResults <= 50, String(seenMaxResults));
   seenMaxResults = null;
   await runWebSearch('q', { order: ['fake-spy'], perQuery: 0 }, undefined, ctxWith(spy));
   check('perQuery = 0 时不向后端声明条数（交给它自己的默认）',
